@@ -121,20 +121,22 @@ static void xhci_link_segments(struct xhci_segment *prev,
  * Set Toggle Cycle for the new ring if needed.
  */
 static void xhci_link_rings(struct xhci_hcd *xhci, struct xhci_ring *ring,
-			    struct list_head *new_list, unsigned int num_segs,
-			    struct xhci_segment *first, struct xhci_segment *last)
+			    struct list_head *new_list, unsigned int num_segs)
 {
-	struct xhci_segment *next, *seg;
+	struct xhci_segment *next, *seg, *last;
 	bool chain_bit;
 
-	if (!ring || !new_list || !first || !last)
+	if (!ring || !new_list)
 		return;
 
 	chain_bit = xhci_chain_bit(xhci, ring->type);
 
-	next = _get_next_enq_seg(ring);
-	xhci_link_segments(ring->enq_seg, first, ring->type, chain_bit);
-	xhci_link_segments(last, next, ring->type, chain_bit);
+	seg = list_first_entry(new_list, struct xhci_segment, list);
+	xhci_link_segments(ring->enq_seg, seg, ring->type, chain_bit);
+
+	last = list_last_entry(new_list, struct xhci_segment, list);
+	seg = _get_next_enq_seg(ring);
+	xhci_link_segments(last, seg, ring->type, chain_bit);
 
 	list_splice(new_list, &ring->enq_seg->list);
 	ring->num_segs += num_segs;
@@ -304,27 +306,26 @@ EXPORT_SYMBOL_GPL(xhci_initialize_ring_info);
 /* Allocate segments and link them for a ring */
 static int xhci_alloc_segments_for_ring(struct xhci_hcd *xhci,
 					struct list_head *seg_list,
-					struct xhci_segment **first,
-					struct xhci_segment **last,
 					unsigned int num_segs,
 					unsigned int cycle_state,
 					enum xhci_ring_type type,
 					unsigned int max_packet,
 					gfp_t flags)
 {
+	struct xhci_segment *first;
 	struct xhci_segment *prev;
 	unsigned int num = 0;
 	bool chain_bit;
 
 	chain_bit = xhci_chain_bit(xhci, type);
 
-	prev = xhci_segment_alloc(xhci, cycle_state, max_packet, num, flags);
-	if (!prev)
+	first = xhci_segment_alloc(xhci, cycle_state, max_packet, num, flags);
+	if (!first)
 		return -ENOMEM;
 	num++;
-	list_add_tail(&prev->list, seg_list);
+	list_add_tail(&first->list, seg_list);
 
-	*first = prev;
+	prev = NULL;
 	while (num < num_segs) {
 		struct xhci_segment	*next;
 
@@ -338,8 +339,7 @@ static int xhci_alloc_segments_for_ring(struct xhci_hcd *xhci,
 		prev = next;
 		num++;
 	}
-	xhci_link_segments(prev, *first, type, chain_bit);
-	*last = prev;
+	xhci_link_segments(prev, first, type, chain_bit);
 
 	return 0;
 
@@ -375,10 +375,13 @@ struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci,
 	if (num_segs == 0)
 		return ring;
 
-	ret = xhci_alloc_segments_for_ring(xhci, &ring->seg_list, &ring->first_seg, &ring->last_seg,
-					   num_segs, cycle_state, type, max_packet, flags);
+	ret = xhci_alloc_segments_for_ring(xhci, &ring->seg_list, num_segs, cycle_state, type,
+					   max_packet, flags);
 	if (ret)
 		goto fail;
+
+	ring->first_seg = list_first_entry(&ring->seg_list, struct xhci_segment, list);
+	ring->last_seg = list_last_entry(&ring->seg_list, struct xhci_segment, list);
 
 	/* Only event ring does not use link TRB */
 	if (type != TYPE_EVENT) {
@@ -415,13 +418,10 @@ int xhci_ring_expansion(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	 * integration into the ring.
 	 */
 	LIST_HEAD(new_list);
-	struct xhci_segment	*first;
-	struct xhci_segment	*last;
-	int			ret;
+	int ret;
 
-	ret = xhci_alloc_segments_for_ring(xhci, &new_list, &first, &last, num_new_segs,
-					   ring->cycle_state, ring->type, ring->bounce_buf_len,
-					   flags);
+	ret = xhci_alloc_segments_for_ring(xhci, &new_list, num_new_segs, ring->cycle_state,
+					   ring->type, ring->bounce_buf_len, flags);
 	if (ret)
 		return -ENOMEM;
 
@@ -432,7 +432,7 @@ int xhci_ring_expansion(struct xhci_hcd *xhci, struct xhci_ring *ring,
 			goto free_segments;
 	}
 
-	xhci_link_rings(xhci, ring, &new_list, num_new_segs, first, last);
+	xhci_link_rings(xhci, ring, &new_list, num_new_segs);
 
 	trace_xhci_ring_expansion(ring);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_ring_expansion,
