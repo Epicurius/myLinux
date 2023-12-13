@@ -446,6 +446,7 @@ xhci_dbc_ring_alloc(struct device *dev, enum xhci_ring_type type, gfp_t flags)
 	if (!ring)
 		return NULL;
 
+	INIT_LIST_HEAD(&ring->seg_list);
 	ring->num_segs = 1;
 	ring->type = type;
 
@@ -455,7 +456,7 @@ xhci_dbc_ring_alloc(struct device *dev, enum xhci_ring_type type, gfp_t flags)
 
 	ring->first_seg = seg;
 	ring->last_seg = seg;
-	seg->next = seg;
+	list_add_tail(&seg->list, &ring->seg_list);
 
 	seg->trbs = dma_alloc_coherent(dev, TRB_SEGMENT_SIZE, &dma, flags);
 	if (!seg->trbs)

@@ -9,6 +9,7 @@
  */
 
 #include <linux/usb.h>
+#include <linux/list.h>
 #include <linux/overflow.h>
 #include <linux/pci.h>
 #include <linux/slab.h>
@@ -54,7 +55,6 @@ static struct xhci_segment *xhci_segment_alloc(struct xhci_hcd *xhci, unsigned i
 	}
 	seg->num = num;
 	seg->dma = dma;
-	seg->next = NULL;
 
 	return seg;
 }
@@ -71,15 +71,12 @@ static void xhci_segment_free(struct xhci_hcd *xhci, struct xhci_segment *seg)
 
 static void xhci_ring_segments_free(struct xhci_hcd *xhci, struct xhci_ring *ring)
 {
-	struct xhci_segment *seg;
+	struct xhci_segment *seg, *_seg;
 
-	seg = ring->first_seg->next;
-	while (seg && seg != ring->first_seg) {
-		struct xhci_segment *next = seg->next;
+	list_for_each_entry_safe(seg, _seg, &ring->seg_list, list) {
+		list_del(&seg->list);
 		xhci_segment_free(xhci, seg);
-		seg = next;
 	}
-	xhci_segment_free(xhci, ring->first_seg);
 }
 
 /*
@@ -90,14 +87,16 @@ static void xhci_ring_segments_free(struct xhci_hcd *xhci, struct xhci_ring *rin
  * DMA address of the next segment.  The caller needs to set any Link TRB
  * related flags, such as End TRB, Toggle Cycle, and no snoop.
  */
-static void xhci_set_link_trb(struct xhci_segment *seg, bool chain_links)
+static void xhci_set_link_trb(struct xhci_ring *ring, struct xhci_segment *seg, bool chain_links)
 {
+	struct xhci_segment *next;
 	union xhci_trb *trb;
 	u32 val;
 
-	if (!seg || !seg->next)
+	if (!seg)
 		return;
 
+	next = list_next_entry_circular(seg, &ring->seg_list, list);
 	trb = &seg->trbs[TRBS_PER_SEGMENT - 1];
 
 	/* Set the last TRB in the segment to have a TRB type ID of Link TRB */
@@ -107,7 +106,7 @@ static void xhci_set_link_trb(struct xhci_segment *seg, bool chain_links)
 	if (chain_links)
 		val |= TRB_CHAIN;
 	trb->link.control = cpu_to_le32(val);
-	trb->link.segment_ptr = cpu_to_le64(seg->next->dma);
+	trb->link.segment_ptr = cpu_to_le64(next->dma);
 }
 
 static void xhci_initialize_ring_segments(struct xhci_hcd *xhci, struct xhci_ring *ring)
@@ -119,11 +118,8 @@ static void xhci_initialize_ring_segments(struct xhci_hcd *xhci, struct xhci_rin
 		return;
 
 	chain_links = xhci_link_chain_quirk(xhci, ring->type);
-	seg = ring->first_seg;
-	do {
-		xhci_set_link_trb(seg, chain_links);
-		seg = seg->next;
-	} while (seg != ring->first_seg);
+	list_for_each_entry(seg, &ring->seg_list, list)
+		xhci_set_link_trb(ring, seg, chain_links);
 
 	/* See section 4.9.2.1 and 6.4.4.1 */
 	ring->last_seg->trbs[TRBS_PER_SEGMENT - 1].link.control |= cpu_to_le32(LINK_TOGGLE);
@@ -135,7 +131,7 @@ static void xhci_initialize_ring_segments(struct xhci_hcd *xhci, struct xhci_rin
  */
 static void xhci_link_rings(struct xhci_hcd *xhci, struct xhci_ring *src, struct xhci_ring *dst)
 {
-	struct xhci_segment *seg;
+	struct xhci_segment *seg, *next;
 	bool chain_links;
 
 	if (!src || !dst)
@@ -143,20 +139,17 @@ static void xhci_link_rings(struct xhci_hcd *xhci, struct xhci_ring *src, struct
 
 	/* If the cycle state is 0, set the cycle bit to 1 for all the TRBs */
 	if (dst->cycle_state == 0) {
-		seg = src->first_seg;
-		do {
+		list_for_each_entry(seg, &src->seg_list, list) {
 			for (int i = 0; i < TRBS_PER_SEGMENT; i++)
 				seg->trbs[i].link.control |= cpu_to_le32(TRB_CYCLE);
-			seg = seg->next;
-		} while (seg != src->first_seg);
+		}
 	}
 
-	src->last_seg->next = dst->enq_seg->next;
-	dst->enq_seg->next = src->first_seg;
+	list_splice(&src->enq_seg->list, &dst->enq_seg->list);
 	if (dst->type != TYPE_EVENT) {
 		chain_links = xhci_link_chain_quirk(xhci, dst->type);
-		xhci_set_link_trb(dst->enq_seg, chain_links);
-		xhci_set_link_trb(src->last_seg, chain_links);
+		xhci_set_link_trb(dst, dst->enq_seg, chain_links);
+		xhci_set_link_trb(dst, src->last_seg, chain_links);
 	}
 	dst->num_segs += src->num_segs;
 
@@ -170,8 +163,10 @@ static void xhci_link_rings(struct xhci_hcd *xhci, struct xhci_ring *src, struct
 		src->last_seg->trbs[TRBS_PER_SEGMENT-1].link.control &= ~cpu_to_le32(LINK_TOGGLE);
 	}
 
-	for (seg = dst->enq_seg; seg != dst->last_seg; seg = seg->next)
-		seg->next->num = seg->num + 1;
+	for (seg = dst->enq_seg; seg != dst->last_seg; seg = next) {
+		next = list_next_entry(seg, list);
+		next->num = seg->num + 1;
+	}
 }
 
 /*
@@ -237,42 +232,26 @@ static void xhci_remove_segment_mapping(struct radix_tree_root *trb_address_map,
 		radix_tree_delete(trb_address_map, key);
 }
 
-static int xhci_update_stream_segment_mapping(
-		struct radix_tree_root *trb_address_map,
-		struct xhci_ring *ring,
-		struct xhci_segment *first_seg,
-		struct xhci_segment *last_seg,
-		gfp_t mem_flags)
+static int xhci_update_stream_segment_mapping(struct radix_tree_root *trb_address_map,
+					      struct xhci_ring *ring, struct list_head *seg_list,
+					      gfp_t mem_flags)
 {
 	struct xhci_segment *seg;
-	struct xhci_segment *failed_seg;
 	int ret;
 
 	if (WARN_ON_ONCE(trb_address_map == NULL))
 		return 0;
 
-	seg = first_seg;
-	do {
-		ret = xhci_insert_segment_mapping(trb_address_map,
-				ring, seg, mem_flags);
+	list_for_each_entry(seg, seg_list, list) {
+		ret = xhci_insert_segment_mapping(trb_address_map, ring, seg, mem_flags);
 		if (ret)
 			goto remove_streams;
-		if (seg == last_seg)
-			return 0;
-		seg = seg->next;
-	} while (seg != first_seg);
-
+	}
 	return 0;
 
 remove_streams:
-	failed_seg = seg;
-	seg = first_seg;
-	do {
+	list_for_each_entry_continue_reverse(seg, seg_list, list)
 		xhci_remove_segment_mapping(trb_address_map, seg);
-		if (seg == failed_seg)
-			return ret;
-		seg = seg->next;
-	} while (seg != first_seg);
 
 	return ret;
 }
@@ -284,17 +263,14 @@ static void xhci_remove_stream_mapping(struct xhci_ring *ring)
 	if (WARN_ON_ONCE(ring->trb_address_map == NULL))
 		return;
 
-	seg = ring->first_seg;
-	do {
+	list_for_each_entry(seg, &ring->seg_list, list)
 		xhci_remove_segment_mapping(ring->trb_address_map, seg);
-		seg = seg->next;
-	} while (seg != ring->first_seg);
 }
 
 static int xhci_update_stream_mapping(struct xhci_ring *ring, gfp_t mem_flags)
 {
-	return xhci_update_stream_segment_mapping(ring->trb_address_map, ring,
-			ring->first_seg, ring->last_seg, mem_flags);
+	return xhci_update_stream_segment_mapping(ring->trb_address_map, ring, &ring->seg_list,
+						  mem_flags);
 }
 
 /* XXX: Do we need the hcd structure in all these functions? */
@@ -349,6 +325,7 @@ static int xhci_alloc_segments_for_ring(struct xhci_hcd *xhci, struct xhci_ring 
 	if (!prev)
 		return -ENOMEM;
 	num++;
+	list_add_tail(&prev->list, &ring->seg_list);
 
 	ring->first_seg = prev;
 	while (num < ring->num_segs) {
@@ -358,13 +335,12 @@ static int xhci_alloc_segments_for_ring(struct xhci_hcd *xhci, struct xhci_ring 
 		if (!next)
 			goto free_segments;
 
-		prev->next = next;
+		list_add_tail(&next->list, &ring->seg_list);
 		prev = next;
 		num++;
 	}
 	ring->last_seg = prev;
 
-	ring->last_seg->next = ring->first_seg;
 	return 0;
 
 free_segments:
@@ -393,6 +369,7 @@ struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci, unsigned int num_segs,
 	ring->num_segs = num_segs;
 	ring->bounce_buf_len = max_packet;
 	INIT_LIST_HEAD(&ring->td_list);
+	INIT_LIST_HEAD(&ring->seg_list);
 	ring->type = type;
 	if (num_segs == 0)
 		return ring;
@@ -432,6 +409,7 @@ int xhci_ring_expansion(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	if (num_new_segs == 0)
 		return 0;
 
+	INIT_LIST_HEAD(&new_ring.seg_list);
 	new_ring.num_segs = num_new_segs;
 	new_ring.bounce_buf_len = ring->bounce_buf_len;
 	new_ring.type = ring->type;
@@ -443,8 +421,7 @@ int xhci_ring_expansion(struct xhci_hcd *xhci, struct xhci_ring *ring,
 
 	if (ring->type == TYPE_STREAM) {
 		ret = xhci_update_stream_segment_mapping(ring->trb_address_map, ring,
-							 new_ring.first_seg, new_ring.last_seg,
-							 flags);
+							 &new_ring.seg_list, flags);
 		if (ret)
 			goto free_segments;
 	}
@@ -1792,7 +1769,7 @@ static int xhci_alloc_erst(struct xhci_hcd *xhci,
 		entry->seg_addr = cpu_to_le64(seg->dma);
 		entry->seg_size = cpu_to_le32(TRBS_PER_SEGMENT);
 		entry->rsvd = 0;
-		seg = seg->next;
+		seg = list_next_entry(seg, list);
 	}
 
 	return 0;
