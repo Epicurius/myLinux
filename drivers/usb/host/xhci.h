@@ -1260,9 +1260,8 @@ static inline const char *xhci_trb_type_string(u8 type)
 #define AVOID_BEI_INTERVAL_MAX	32
 
 struct xhci_segment {
+	struct list_head	list;
 	union xhci_trb		*trbs;
-	/* private to HCD */
-	struct xhci_segment	*next;
 	unsigned int		num;
 	dma_addr_t		dma;
 	/* Max packet sized bounce buffer for td-fragmant alignment */
@@ -1341,6 +1340,7 @@ static inline const char *xhci_ring_type_string(enum xhci_ring_type type)
 }
 
 struct xhci_ring {
+	struct list_head	seg_list;
 	struct xhci_segment	*first_seg;
 	struct xhci_segment	*last_seg;
 	union  xhci_trb		*enqueue;
@@ -1719,6 +1719,16 @@ static inline bool xhci_has_one_roothub(struct xhci_hcd *xhci)
 	       (!xhci->usb2_rhub.num_ports || !xhci->usb3_rhub.num_ports);
 }
 
+static inline struct xhci_segment *_get_next_deq_seg(struct xhci_ring *ring)
+{
+	return list_next_entry_circular(ring->deq_seg, &ring->seg_list, list);
+}
+
+static inline struct xhci_segment *_get_next_enq_seg(struct xhci_ring *ring)
+{
+	return list_next_entry_circular(ring->enq_seg, &ring->seg_list, list);
+}
+
 #define xhci_dbg(xhci, fmt, args...) \
 	dev_dbg(xhci_to_hcd(xhci)->self.controller , fmt , ## args)
 #define xhci_err(xhci, fmt, args...) \
@@ -1872,7 +1882,7 @@ int xhci_alloc_tt_info(struct xhci_hcd *xhci,
 
 /* xHCI ring, segment, TRB, and TD functions */
 dma_addr_t xhci_trb_virt_to_dma(struct xhci_segment *seg, union xhci_trb *trb);
-struct xhci_segment *trb_in_td(struct xhci_hcd *xhci, struct xhci_td *td,
+struct xhci_segment *trb_in_td(struct xhci_hcd *xhci, struct xhci_ring *ring, struct xhci_td *td,
 			       dma_addr_t suspect_dma, bool debug);
 int xhci_is_vendor_info_code(struct xhci_hcd *xhci, unsigned int trb_comp_code);
 void xhci_ring_cmd_db(struct xhci_hcd *xhci);
