@@ -318,34 +318,22 @@ EXPORT_SYMBOL_GPL(xhci_initialize_ring_info);
 /* Allocate segments and link them for a ring */
 static int xhci_alloc_segments_for_ring(struct xhci_hcd *xhci, struct xhci_ring *ring, gfp_t flags)
 {
-	struct xhci_segment *prev;
-	unsigned int num = 0;
+	struct xhci_segment *seg = NULL;
+	unsigned int num;
 
-	prev = xhci_segment_alloc(xhci, ring->bounce_buf_len, num, flags);
-	if (!prev)
-		return -ENOMEM;
-	num++;
-	list_add_tail(&prev->list, &ring->seg_list);
+	for (num = 0; num < ring->num_segs; num++) {
+		seg = xhci_segment_alloc(xhci, ring->bounce_buf_len, num, flags);
+		if (!seg) {
+			xhci_ring_segments_free(xhci, ring);
+			return -ENOMEM;
+		}
 
-	ring->first_seg = prev;
-	while (num < ring->num_segs) {
-		struct xhci_segment	*next;
-
-		next = xhci_segment_alloc(xhci, ring->bounce_buf_len, num, flags);
-		if (!next)
-			goto free_segments;
-
-		list_add_tail(&next->list, &ring->seg_list);
-		prev = next;
-		num++;
+		list_add_tail(&seg->list, &ring->seg_list);
 	}
-	ring->last_seg = prev;
 
+	ring->last_seg = seg;
+	ring->first_seg = list_first_entry(&ring->seg_list, struct xhci_segment, list);
 	return 0;
-
-free_segments:
-	xhci_ring_segments_free(xhci, ring);
-	return -ENOMEM;
 }
 
 /*
