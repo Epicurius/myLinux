@@ -313,36 +313,28 @@ static int xhci_alloc_segments_for_ring(struct xhci_hcd *xhci,
 					unsigned int max_packet,
 					gfp_t flags)
 {
-	struct xhci_segment *first;
+	struct xhci_segment *next;
 	struct xhci_segment *prev;
-	unsigned int num = 0;
+	unsigned int num;
 	bool chain_bit;
 
-	chain_bit = xhci_chain_bit(xhci, type);
-
-	first = xhci_segment_alloc(xhci, cycle_state, max_packet, num, flags);
-	if (!first)
-		return -ENOMEM;
-	num++;
-	list_add_tail(&first->list, seg_list);
-
-	prev = NULL;
-	while (num < num_segs) {
-		struct xhci_segment	*next;
-
-		next = xhci_segment_alloc(xhci, cycle_state, max_packet, num,
-					  flags);
+	for (num = 0; num < num_segs; num++) {
+		next = xhci_segment_alloc(xhci, cycle_state, max_packet, num, flags);
 		if (!next)
 			goto free_segments;
 
 		list_add_tail(&next->list, seg_list);
-		if (type != TYPE_EVENT)
-			xhci_set_link_trb(prev, next, chain_bit);
-		prev = next;
-		num++;
 	}
-	if (type != TYPE_EVENT)
-		xhci_set_link_trb(prev, first, chain_bit);
+
+	if (type == TYPE_EVENT)
+		return 0;
+
+	prev = next;
+	chain_bit = xhci_chain_bit(xhci, type);
+	list_for_each_entry(next, seg_list, list) {
+		xhci_set_link_trb(prev, next, chain_bit);
+		prev = next;
+	}
 
 	return 0;
 
