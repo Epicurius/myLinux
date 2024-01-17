@@ -139,8 +139,6 @@ static void xhci_link_rings(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	list_for_each_entry_from(seg, &ring->seg_list, list)
 		seg->num = ++num;
 
-	ring->last_seg = list_last_entry(&ring->seg_list, struct xhci_segment, list);
-
 	if (ring->type == TYPE_EVENT)
 		return;
 
@@ -149,7 +147,7 @@ static void xhci_link_rings(struct xhci_hcd *xhci, struct xhci_ring *ring,
 
 	new_list_last = list_last_entry(new_list, struct xhci_segment, list);
 	if (list_is_last(&new_list_last->list, &ring->seg_list)) {
-		xhci_set_link_trb(new_list_last, ring->first_seg, chain_bit);
+		xhci_set_link_trb(new_list_last, _get_first_seg(ring), chain_bit);
 		ring->enq_seg->trbs[TRBS_PER_SEGMENT - 1].link.control &= ~cpu_to_le32(LINK_TOGGLE);
 		new_list_last->trbs[TRBS_PER_SEGMENT - 1].link.control |= cpu_to_le32(LINK_TOGGLE);
 	} else {
@@ -269,7 +267,7 @@ void xhci_ring_free(struct xhci_hcd *xhci, struct xhci_ring *ring)
 
 	trace_xhci_ring_free(ring);
 
-	if (ring->first_seg) {
+	if (!list_empty(&ring->seg_list)) {
 		if (ring->type == TYPE_STREAM)
 			xhci_remove_stream_mapping(ring);
 		xhci_free_segments_for_ring(xhci, &ring->seg_list);
@@ -282,10 +280,10 @@ void xhci_initialize_ring_info(struct xhci_ring *ring,
 			       unsigned int cycle_state)
 {
 	/* The ring is empty, so the enqueue pointer == dequeue pointer */
-	ring->enqueue = ring->first_seg->trbs;
-	ring->enq_seg = ring->first_seg;
+	ring->enq_seg = _get_first_seg(ring);
+	ring->enqueue = ring->enq_seg->trbs;
+	ring->deq_seg = ring->enq_seg;
 	ring->dequeue = ring->enqueue;
-	ring->deq_seg = ring->first_seg;
 	/* The ring is initialized to 0. The producer must write 1 to the cycle
 	 * bit to handover ownership of the TRB, so PCS = 1.  The consumer must
 	 * compare CCS to the cycle bit to check ownership, so CCS = 1.
@@ -353,9 +351,10 @@ struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci,
 		unsigned int num_segs, unsigned int cycle_state,
 		enum xhci_ring_type type, unsigned int max_packet, gfp_t flags)
 {
-	struct xhci_ring	*ring;
-	int ret;
 	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
+	struct xhci_segment *last_seg;
+	struct xhci_ring *ring;
+	int ret;
 
 	ring = kzalloc_node(sizeof(*ring), flags, dev_to_node(dev));
 	if (!ring)
@@ -374,14 +373,11 @@ struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci,
 	if (ret)
 		goto fail;
 
-	ring->first_seg = list_first_entry(&ring->seg_list, struct xhci_segment, list);
-	ring->last_seg = list_last_entry(&ring->seg_list, struct xhci_segment, list);
-
 	/* Only event ring does not use link TRB */
 	if (type != TYPE_EVENT) {
 		/* See section 4.9.2.1 and 6.4.4.1 */
-		ring->last_seg->trbs[TRBS_PER_SEGMENT - 1].link.control |=
-			cpu_to_le32(LINK_TOGGLE);
+		last_seg = _get_last_seg(ring);
+		last_seg->trbs[TRBS_PER_SEGMENT - 1].link.control |= cpu_to_le32(LINK_TOGGLE);
 	}
 	xhci_initialize_ring_info(ring, cycle_state);
 	trace_xhci_ring_alloc(ring);
@@ -634,9 +630,8 @@ struct xhci_stream_info *xhci_alloc_stream_info(struct xhci_hcd *xhci,
 		cur_ring->stream_id = cur_stream;
 		cur_ring->trb_address_map = &stream_info->trb_address_map;
 		/* Set deq ptr, cycle bit, and stream context type */
-		addr = cur_ring->first_seg->dma |
-			SCT_FOR_CTX(SCT_PRI_TR) |
-			cur_ring->cycle_state;
+		addr = xhci_first_seg_trb_dma(cur_ring) | SCT_FOR_CTX(SCT_PRI_TR) |
+		       cur_ring->cycle_state;
 		stream_info->stream_ctx_array[cur_stream].stream_ring =
 			cpu_to_le64(addr);
 		xhci_dbg(xhci, "Setting stream %d ring ptr to 0x%08llx\n", cur_stream, addr);
@@ -1153,7 +1148,7 @@ int xhci_setup_addressable_virt_dev(struct xhci_hcd *xhci, struct usb_device *ud
 	ep0_ctx->ep_info2 |= cpu_to_le32(MAX_BURST(0) | ERROR_COUNT(3) |
 					 max_packets);
 
-	ep0_ctx->deq = cpu_to_le64(dev->eps[0].ring->first_seg->dma |
+	ep0_ctx->deq = cpu_to_le64(xhci_first_seg_trb_dma(dev->eps[0].ring) |
 				   dev->eps[0].ring->cycle_state);
 
 	trace_xhci_setup_addressable_virt_device(dev);
@@ -1460,8 +1455,7 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 				       MAX_PACKET(max_packet) |
 				       MAX_BURST(max_burst) |
 				       ERROR_COUNT(err_count));
-	ep_ctx->deq = cpu_to_le64(ep_ring->first_seg->dma |
-				  ep_ring->cycle_state);
+	ep_ctx->deq = cpu_to_le64(xhci_first_seg_trb_dma(ep_ring) | ep_ring->cycle_state);
 
 	ep_ctx->tx_info = cpu_to_le32(EP_MAX_ESIT_PAYLOAD_LO(max_esit_payload) |
 				      EP_AVG_TRB_LENGTH(avg_trb_len));
@@ -1765,7 +1759,7 @@ static int xhci_alloc_erst(struct xhci_hcd *xhci,
 
 	erst->num_entries = evt_ring->num_segs;
 
-	seg = evt_ring->first_seg;
+	seg = _get_first_seg(evt_ring);
 	for (val = 0; val < evt_ring->num_segs; val++) {
 		entry = &erst->entries[val];
 		entry->seg_addr = cpu_to_le64(seg->dma);
@@ -2453,14 +2447,14 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 		goto fail;
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 			"Allocated command ring at %p", xhci->cmd_ring);
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "First segment DMA is 0x%pad",
-			&xhci->cmd_ring->first_seg->dma);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "First segment DMA is %016llx",
+		       (unsigned long long)xhci_first_seg_trb_dma(xhci->cmd_ring));
 
 	/* Set the address in the Command Ring Control register */
 	val_64 = xhci_read_64(xhci, &xhci->op_regs->cmd_ring);
-	val_64 = (val_64 & (u64) CMD_RING_RSVD_BITS) |
-		(xhci->cmd_ring->first_seg->dma & (u64) ~CMD_RING_RSVD_BITS) |
-		xhci->cmd_ring->cycle_state;
+
+	val_64 = (val_64 & (u64)CMD_RING_RSVD_BITS) | xhci->cmd_ring->cycle_state |
+		 (xhci_first_seg_trb_dma(xhci->cmd_ring) & (u64)~CMD_RING_RSVD_BITS);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 			"// Setting command ring address to 0x%016llx", val_64);
 	xhci_write_64(xhci, val_64, &xhci->op_regs->cmd_ring);
