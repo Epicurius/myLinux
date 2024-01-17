@@ -1341,8 +1341,6 @@ static inline const char *xhci_ring_type_string(enum xhci_ring_type type)
 
 struct xhci_ring {
 	struct list_head	seg_list;
-	struct xhci_segment	*first_seg;
-	struct xhci_segment	*last_seg;
 	union  xhci_trb		*enqueue;
 	struct xhci_segment	*enq_seg;
 	union  xhci_trb		*dequeue;
@@ -1719,6 +1717,16 @@ static inline bool xhci_has_one_roothub(struct xhci_hcd *xhci)
 	       (!xhci->usb2_rhub.num_ports || !xhci->usb3_rhub.num_ports);
 }
 
+static inline struct xhci_segment *_get_first_seg(struct xhci_ring *ring)
+{
+	return list_first_entry(&ring->seg_list, struct xhci_segment, list);
+}
+
+static inline struct xhci_segment *_get_last_seg(struct xhci_ring *ring)
+{
+	return list_last_entry(&ring->seg_list, struct xhci_segment, list);
+}
+
 static inline struct xhci_segment *_get_next_deq_seg(struct xhci_ring *ring)
 {
 	return list_next_entry_circular(ring->deq_seg, &ring->seg_list, list);
@@ -1727,6 +1735,13 @@ static inline struct xhci_segment *_get_next_deq_seg(struct xhci_ring *ring)
 static inline struct xhci_segment *_get_next_enq_seg(struct xhci_ring *ring)
 {
 	return list_next_entry_circular(ring->enq_seg, &ring->seg_list, list);
+}
+
+static inline dma_addr_t xhci_first_seg_trb_dma(struct xhci_ring *ring)
+{
+	struct xhci_segment *first_seg = _get_first_seg(ring);
+
+	return first_seg->dma;
 }
 
 #define xhci_dbg(xhci, fmt, args...) \
