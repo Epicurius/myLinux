@@ -40,14 +40,15 @@ static void dbc_free_ctx(struct device *dev, struct xhci_container_ctx *ctx)
 /* we use only one segment for DbC rings */
 static void dbc_ring_free(struct device *dev, struct xhci_ring *ring)
 {
+	struct xhci_segment *first_seg;
+
 	if (!ring)
 		return;
 
-	if (ring->first_seg) {
-		dma_free_coherent(dev, TRB_SEGMENT_SIZE,
-				  ring->first_seg->trbs,
-				  ring->first_seg->dma);
-		kfree(ring->first_seg);
+	if (!list_empty(&ring->seg_list)) {
+		first_seg = _get_first_seg(ring);
+		dma_free_coherent(dev, TRB_SEGMENT_SIZE, first_seg->trbs, first_seg->dma);
+		kfree(first_seg);
 	}
 	kfree(ring);
 }
@@ -401,7 +402,7 @@ static int dbc_erst_alloc(struct device *dev, struct xhci_ring *evt_ring,
 		return -ENOMEM;
 
 	erst->num_entries = 1;
-	erst->entries[0].seg_addr = cpu_to_le64(evt_ring->first_seg->dma);
+	erst->entries[0].seg_addr = cpu_to_le64(xhci_first_seg_trb_dma(evt_ring));
 	erst->entries[0].seg_size = cpu_to_le32(TRBS_PER_SEGMENT);
 	erst->entries[0].rsvd = 0;
 	return 0;
@@ -452,8 +453,6 @@ xhci_dbc_ring_alloc(struct device *dev, enum xhci_ring_type type, gfp_t flags)
 	if (!seg)
 		goto seg_fail;
 
-	ring->first_seg = seg;
-	ring->last_seg = seg;
 	list_add_tail(&seg->list, &ring->seg_list);
 
 	seg->trbs = dma_alloc_coherent(dev, TRB_SEGMENT_SIZE, &dma, flags);
