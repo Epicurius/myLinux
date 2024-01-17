@@ -117,44 +117,43 @@ static void xhci_set_link_trb(struct xhci_segment *prev, struct xhci_segment *ne
 }
 
 /*
- * Link the ring to the new segments.
+ * Link the new segments to the ring segment list.
  * Set Toggle Cycle for the new ring if needed.
  */
 static void xhci_link_rings(struct xhci_hcd *xhci, struct xhci_ring *ring,
 			    struct list_head *new_list, unsigned int num_segs)
 {
-	struct xhci_segment *next, *seg, *last;
+	struct xhci_segment *new_list_last;
+	struct xhci_segment *seg;
+	unsigned int num;
 	bool chain_bit;
 
 	if (!ring || !new_list)
 		return;
 
-	last = list_last_entry(new_list, struct xhci_segment, list);
-
-	if (ring->type != TYPE_EVENT) {
-		chain_bit = xhci_chain_bit(xhci, ring->type);
-		seg = list_first_entry(new_list, struct xhci_segment, list);
-		xhci_set_link_trb(ring->enq_seg, seg, chain_bit);
-		seg = _get_next_enq_seg(ring);
-		xhci_set_link_trb(last, seg, chain_bit);
-	}
-
 	list_splice(new_list, &ring->enq_seg->list);
 	ring->num_segs += num_segs;
 
-	if (ring->enq_seg == ring->last_seg) {
-		if (ring->type != TYPE_EVENT) {
-			ring->last_seg->trbs[TRBS_PER_SEGMENT-1].link.control
-				&= ~cpu_to_le32(LINK_TOGGLE);
-			last->trbs[TRBS_PER_SEGMENT-1].link.control
-				|= cpu_to_le32(LINK_TOGGLE);
-		}
-		ring->last_seg = last;
-	}
+	seg = ring->enq_seg;
+	num = ring->enq_seg->num;
+	list_for_each_entry_from(seg, &ring->seg_list, list)
+		seg->num = ++num;
 
-	for (seg = ring->enq_seg; seg != ring->last_seg; seg = next) {
-		next = list_next_entry(seg, list);
-		next->num = seg->num + 1;
+	ring->last_seg = list_last_entry(&ring->seg_list, struct xhci_segment, list);
+
+	if (ring->type == TYPE_EVENT)
+		return;
+
+	chain_bit = xhci_chain_bit(xhci, ring->type);
+	xhci_set_link_trb(ring->enq_seg, list_next_entry(ring->enq_seg, list), chain_bit);
+
+	new_list_last = list_last_entry(new_list, struct xhci_segment, list);
+	if (list_is_last(&new_list_last->list, &ring->seg_list)) {
+		xhci_set_link_trb(new_list_last, ring->first_seg, chain_bit);
+		ring->enq_seg->trbs[TRBS_PER_SEGMENT - 1].link.control &= ~cpu_to_le32(LINK_TOGGLE);
+		new_list_last->trbs[TRBS_PER_SEGMENT - 1].link.control |= cpu_to_le32(LINK_TOGGLE);
+	} else {
+		xhci_set_link_trb(new_list_last, list_next_entry(new_list_last, list), chain_bit);
 	}
 }
 
