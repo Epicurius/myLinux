@@ -149,27 +149,28 @@ static void xhci_link_rings(struct xhci_hcd *xhci, struct xhci_ring *src, struct
 		}
 	}
 
+	/* Change last segment pointer in case src ring is appended */
+	if (dst->enq_seg == dst->last_seg)
+		dst->last_seg = src->last_seg;
+
 	src->last_seg->next = dst->enq_seg->next;
 	dst->enq_seg->next = src->first_seg;
-	if (dst->type != TYPE_EVENT) {
-		chain_links = xhci_link_chain_quirk(xhci, dst->type);
-		xhci_set_link_trb(dst->enq_seg, chain_links);
-		xhci_set_link_trb(src->last_seg, chain_links);
-	}
 	dst->num_segs += src->num_segs;
-
-	if (dst->enq_seg == dst->last_seg) {
-		if (dst->type != TYPE_EVENT)
-			dst->last_seg->trbs[TRBS_PER_SEGMENT-1].link.control
-				&= ~cpu_to_le32(LINK_TOGGLE);
-
-		dst->last_seg = src->last_seg;
-	} else if (dst->type != TYPE_EVENT) {
-		src->last_seg->trbs[TRBS_PER_SEGMENT-1].link.control &= ~cpu_to_le32(LINK_TOGGLE);
-	}
 
 	for (seg = dst->enq_seg; seg != dst->last_seg; seg = seg->next)
 		seg->next->num = seg->num + 1;
+
+	if (dst->type == TYPE_EVENT)
+		return;
+
+	chain_links = xhci_link_chain_quirk(xhci, dst->type);
+	xhci_set_link_trb(dst->enq_seg, chain_links);
+	xhci_set_link_trb(src->last_seg, chain_links);
+
+	if (src->last_seg == dst->last_seg)
+		dst->enq_seg->trbs[TRBS_PER_SEGMENT - 1].link.control &= ~cpu_to_le32(LINK_TOGGLE);
+	else
+		src->last_seg->trbs[TRBS_PER_SEGMENT - 1].link.control &= ~cpu_to_le32(LINK_TOGGLE);
 }
 
 /*
