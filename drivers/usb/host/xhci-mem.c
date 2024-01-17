@@ -89,31 +89,31 @@ static void xhci_free_segments_for_ring(struct xhci_hcd *xhci, struct list_head 
 }
 
 /*
+ * Only for transfer and command rings where driver is the producer, not for
+ * event rings.
+ *
  * Change the last TRB in the prev segment to be a Link TRB which points to the
  * DMA address of the next segment.  The caller needs to set any Link TRB
  * related flags, such as End TRB, Toggle Cycle, and no snoop.
  */
-static void xhci_link_segments(struct xhci_segment *prev,
-			       struct xhci_segment *next,
-			       enum xhci_ring_type type, bool chain_bit)
+static void xhci_set_link_trb(struct xhci_segment *prev, struct xhci_segment *next, bool chain_bit)
 {
+	union xhci_trb *trb;
 	u32 val;
 
 	if (!prev || !next)
 		return;
 
-	if (type != TYPE_EVENT) {
-		prev->trbs[TRBS_PER_SEGMENT-1].link.segment_ptr =
-			cpu_to_le64(next->dma);
+	trb = &prev->trbs[TRBS_PER_SEGMENT - 1];
 
-		/* Set the last TRB in the segment to have a TRB type ID of Link TRB */
-		val = le32_to_cpu(prev->trbs[TRBS_PER_SEGMENT-1].link.control);
-		val &= ~TRB_TYPE_BITMASK;
-		val |= TRB_TYPE(TRB_LINK);
-		if (chain_bit)
-			val |= TRB_CHAIN;
-		prev->trbs[TRBS_PER_SEGMENT-1].link.control = cpu_to_le32(val);
-	}
+	/* Set the last TRB in the segment to have a TRB type ID of Link TRB */
+	val = le32_to_cpu(trb->link.control);
+	val &= ~TRB_TYPE_BITMASK;
+	val |= TRB_TYPE(TRB_LINK);
+	if (chain_bit)
+		val |= TRB_CHAIN;
+	trb->link.control = cpu_to_le32(val);
+	trb->link.segment_ptr = cpu_to_le64(next->dma);
 }
 
 /*
@@ -129,14 +129,15 @@ static void xhci_link_rings(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	if (!ring || !new_list)
 		return;
 
-	chain_bit = xhci_chain_bit(xhci, ring->type);
-
-	seg = list_first_entry(new_list, struct xhci_segment, list);
-	xhci_link_segments(ring->enq_seg, seg, ring->type, chain_bit);
-
 	last = list_last_entry(new_list, struct xhci_segment, list);
-	seg = _get_next_enq_seg(ring);
-	xhci_link_segments(last, seg, ring->type, chain_bit);
+
+	if (ring->type != TYPE_EVENT) {
+		chain_bit = xhci_chain_bit(xhci, ring->type);
+		seg = list_first_entry(new_list, struct xhci_segment, list);
+		xhci_set_link_trb(ring->enq_seg, seg, chain_bit);
+		seg = _get_next_enq_seg(ring);
+		xhci_set_link_trb(last, seg, chain_bit);
+	}
 
 	list_splice(new_list, &ring->enq_seg->list);
 	ring->num_segs += num_segs;
@@ -335,11 +336,13 @@ static int xhci_alloc_segments_for_ring(struct xhci_hcd *xhci,
 			goto free_segments;
 
 		list_add_tail(&next->list, seg_list);
-		xhci_link_segments(prev, next, type, chain_bit);
+		if (type != TYPE_EVENT)
+			xhci_set_link_trb(prev, next, chain_bit);
 		prev = next;
 		num++;
 	}
-	xhci_link_segments(prev, first, type, chain_bit);
+	if (type != TYPE_EVENT)
+		xhci_set_link_trb(prev, first, chain_bit);
 
 	return 0;
 
