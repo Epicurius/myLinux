@@ -1129,6 +1129,46 @@ struct usb_ptm_cap_descriptor {
  */
 #define USB_DT_USB_SSP_CAP_SIZE(ssac)	(12 + (ssac + 1) * 4)
 
+/*
+ * USB Billboard Capability Descriptor: describes how a device container
+ * communicates alternate modes to a host system.
+ */
+
+/* Help struct for USB Billboard Capability Descriptor. */
+struct usb_bb_cap_desc_aum {
+	__le16	wSVID;
+	__u8	bAlternateOrUSB4Mode;
+	__u8	iAlternateOrUSB4ModeString;
+} __attribute__((packed));
+
+#define USB_CAP_TYPE_BB			0x0D
+struct usb_bb_cap_descriptor {
+	__u8	bLength;
+	__u8	bDescriptorType;
+	__u8	bDevCapabilityType;
+	__u8	iAddtionalInfoURL;
+	__u8	bNumberOfAlternateOrUSB4Modes;
+	__u8	bPreferredAlternateOrUSB4Modes;
+	__le16	VCONNPower;
+	__u8	bmConfigured[32];
+	__le16	bvdVersion;
+	__u8	bAdditionalFailureInfo;
+	__u8	bReserved;
+	__DECLARE_FLEX_ARRAY(struct usb_bb_cap_desc_aum, aum);
+} __attribute__((packed));
+
+#define USB_MAX_NUM_ALT_OR_USB4_MODE	52
+
+/* USB Billboard AUM Capability Descriptor */
+#define USB_CAP_TYPE_BB_AUM		0x0F
+struct usb_bb_aum_cap_descriptor {
+	__u8	bLength;
+	__u8	bDescriptorType;
+	__u8	bDevCapabilityType;
+	__u8	bIndex;
+	__le32	bwAlternateModesVdo;
+} __attribute__((packed));
+
 /*-------------------------------------------------------------------------*/
 
 /* USB_DT_WIRELESS_ENDPOINT_COMP:  companion descriptor associated with
