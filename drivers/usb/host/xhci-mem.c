@@ -101,7 +101,7 @@ static void xhci_free_segments_for_ring(struct xhci_hcd *xhci,
  */
 static void xhci_link_segments(struct xhci_segment *prev,
 			       struct xhci_segment *next,
-			       enum xhci_ring_type type, bool chain_links)
+			       enum xhci_ring_type type, bool chain_bit)
 {
 	u32 val;
 
@@ -116,7 +116,7 @@ static void xhci_link_segments(struct xhci_segment *prev,
 		val = le32_to_cpu(prev->trbs[TRBS_PER_SEGMENT-1].link.control);
 		val &= ~TRB_TYPE_BITMASK;
 		val |= TRB_TYPE(TRB_LINK);
-		if (chain_links)
+		if (chain_bit)
 			val |= TRB_CHAIN;
 		prev->trbs[TRBS_PER_SEGMENT-1].link.control = cpu_to_le32(val);
 	}
@@ -131,19 +131,16 @@ static void xhci_link_rings(struct xhci_hcd *xhci, struct xhci_ring *ring,
 		unsigned int num_segs)
 {
 	struct xhci_segment *next, *seg;
-	bool chain_links;
+	bool chain_bit;
 
 	if (!ring || !first || !last)
 		return;
 
-	/* Set chain bit for 0.95 hosts, and for isoc rings on AMD 0.96 host */
-	chain_links = !!(xhci_link_trb_quirk(xhci) ||
-			 (ring->type == TYPE_ISOC &&
-			  (xhci->quirks & XHCI_AMD_0x96_HOST)));
+	chain_bit = xhci_chain_bit(xhci, ring->type);
 
 	next = ring->enq_seg->next;
-	xhci_link_segments(ring->enq_seg, first, ring->type, chain_links);
-	xhci_link_segments(last, next, ring->type, chain_links);
+	xhci_link_segments(ring->enq_seg, first, ring->type, chain_bit);
+	xhci_link_segments(last, next, ring->type, chain_bit);
 	ring->num_segs += num_segs;
 
 	if (ring->enq_seg == ring->last_seg) {
@@ -333,12 +330,9 @@ static int xhci_alloc_segments_for_ring(struct xhci_hcd *xhci,
 		unsigned int max_packet, gfp_t flags)
 {
 	struct xhci_segment *prev;
-	bool chain_links;
+	bool chain_bit;
 
-	/* Set chain bit for 0.95 hosts, and for isoc rings on AMD 0.96 host */
-	chain_links = !!(xhci_link_trb_quirk(xhci) ||
-			 (type == TYPE_ISOC &&
-			  (xhci->quirks & XHCI_AMD_0x96_HOST)));
+	chain_bit = xhci_chain_bit(xhci, type);
 
 	prev = xhci_segment_alloc(xhci, cycle_state, max_packet, num, flags);
 	if (!prev)
@@ -354,11 +348,11 @@ static int xhci_alloc_segments_for_ring(struct xhci_hcd *xhci,
 		if (!next)
 			goto free_segments;
 
-		xhci_link_segments(prev, next, type, chain_links);
+		xhci_link_segments(prev, next, type, chain_bit);
 		prev = next;
 		num++;
 	}
-	xhci_link_segments(prev, *first, type, chain_links);
+	xhci_link_segments(prev, *first, type, chain_bit);
 	*last = prev;
 
 	return 0;
