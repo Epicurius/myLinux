@@ -2233,7 +2233,7 @@ static int finish_td(struct xhci_hcd *xhci, struct xhci_virt_ep *ep,
 
 	/* Update ring dequeue pointer */
 	ep_ring->dequeue = td->last_trb;
-	ep_ring->deq_seg = td->last_trb_seg;
+	ep_ring->deq_seg = td->end_seg;
 	inc_deq(xhci, ep_ring);
 
 	return xhci_td_cleanup(xhci, td, ep_ring, td->status);
@@ -2470,7 +2470,7 @@ static int skip_isoc_td(struct xhci_hcd *xhci, struct xhci_td *td,
 
 	/* Update ring dequeue pointer */
 	ep->ring->dequeue = td->last_trb;
-	ep->ring->deq_seg = td->last_trb_seg;
+	ep->ring->deq_seg = td->end_seg;
 	inc_deq(xhci, ep->ring);
 
 	return xhci_td_cleanup(xhci, td, ep->ring, status);
@@ -2856,7 +2856,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 					/* give back previous TD, start handling new */
 					xhci_dbg(xhci, "Missing TD completion event after mid TD error\n");
 					ep_ring->dequeue = td->last_trb;
-					ep_ring->deq_seg = td->last_trb_seg;
+					ep_ring->deq_seg = td->end_seg;
 					inc_deq(xhci, ep_ring);
 					xhci_td_cleanup(xhci, td, ep_ring, td->status);
 					td = td_next;
@@ -3654,7 +3654,7 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 			field |= TRB_IOC;
 			more_trbs_coming = false;
 			td->last_trb = ring->enqueue;
-			td->last_trb_seg = ring->enq_seg;
+			td->end_seg = ring->enq_seg;
 			if (xhci_urb_suitable_for_idt(urb)) {
 				memcpy(&send_addr, urb->transfer_buffer,
 				       trb_buff_len);
@@ -3704,7 +3704,7 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 				       ep_index, urb->stream_id,
 				       1, urb, 1, mem_flags);
 		urb_priv->td[1].last_trb = ring->enqueue;
-		urb_priv->td[1].last_trb_seg = ring->enq_seg;
+		urb_priv->td[1].end_seg = ring->enq_seg;
 		field = TRB_TYPE(TRB_NORMAL) | ring->cycle_state | TRB_IOC;
 		queue_trb(xhci, ring, 0, 0, 0, TRB_INTR_TARGET(0), field);
 		urb_priv->td[1].num_trbs++;
@@ -3831,7 +3831,7 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 
 	/* Save the DMA address of the last TRB in the TD */
 	td->last_trb = ep_ring->enqueue;
-	td->last_trb_seg = ep_ring->enq_seg;
+	td->end_seg = ep_ring->enq_seg;
 
 	/* Queue status TRB - see Table 7 and sections 4.11.2.2 and 6.4.1.2.3 */
 	/* If the device sent data, the status stage is an OUT transfer */
@@ -4122,7 +4122,7 @@ static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 			} else {
 				more_trbs_coming = false;
 				td->last_trb = ep_ring->enqueue;
-				td->last_trb_seg = ep_ring->enq_seg;
+				td->end_seg = ep_ring->enq_seg;
 				field |= TRB_IOC;
 				if (trb_block_event_intr(xhci, num_tds, i, ir))
 					field |= TRB_BEI;
