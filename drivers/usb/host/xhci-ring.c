@@ -911,6 +911,16 @@ static void xhci_td_cleanup(struct xhci_hcd *xhci, struct xhci_td *td,
 	}
 }
 
+/* Give back previous TD and move on to the next TD. */
+static void xhci_dequeue_td(struct xhci_hcd *xhci, struct xhci_td *td, struct xhci_ring *ring,
+			    u32 status)
+{
+	ring->dequeue = td->end_trb;
+	ring->deq_seg = td->end_seg;
+	inc_deq(xhci, ring);
+
+	xhci_td_cleanup(xhci, td, ring, status);
+}
 
 /* Complete the cancelled URBs we unlinked from td_list. */
 static void xhci_giveback_invalidated_tds(struct xhci_virt_ep *ep)
@@ -2249,12 +2259,7 @@ static void finish_td(struct xhci_hcd *xhci, struct xhci_virt_ep *ep,
 		break;
 	}
 
-	/* Update ring dequeue pointer */
-	ep_ring->dequeue = td->end_trb;
-	ep_ring->deq_seg = td->end_seg;
-	inc_deq(xhci, ep_ring);
-
-	xhci_td_cleanup(xhci, td, ep_ring, td->status);
+	xhci_dequeue_td(xhci, td, ep_ring, td->status);
 }
 
 /* sum trb lengths from the first trb up to stop_trb, _excluding_ stop_trb */
@@ -2487,12 +2492,7 @@ static void skip_isoc_td(struct xhci_hcd *xhci, struct xhci_td *td,
 	/* calc actual length */
 	frame->actual_length = 0;
 
-	/* Update ring dequeue pointer */
-	ep->ring->dequeue = td->end_trb;
-	ep->ring->deq_seg = td->end_seg;
-	inc_deq(xhci, ep->ring);
-
-	xhci_td_cleanup(xhci, td, ep->ring, status);
+	xhci_dequeue_td(xhci, td, ep->ring, status);
 }
 
 /*
@@ -2812,12 +2812,8 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 
 				ep_seg = trb_in_td(td_next, ep_trb_dma);
 				if (ep_seg) {
-					/* give back previous TD, start handling new */
 					xhci_dbg(xhci, "Missing TD completion event after mid TD error\n");
-					ep_ring->dequeue = td->end_trb;
-					ep_ring->deq_seg = td->end_seg;
-					inc_deq(xhci, ep_ring);
-					xhci_td_cleanup(xhci, td, ep_ring, td->status);
+					xhci_dequeue_td(xhci, td, ep_ring, td->status);
 					td = td_next;
 				}
 			}
