@@ -2607,7 +2607,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	struct xhci_virt_ep *ep;
 	struct xhci_ring *ep_ring;
 	unsigned int slot_id;
-	int ep_index;
+	unsigned int ep_index;
 	struct xhci_td *td = NULL;
 	dma_addr_t ep_trb_dma;
 	struct xhci_segment *ep_seg;
@@ -2858,11 +2858,8 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 
 			if (!ep_seg) {
 				/* HC is busted, give up! */
-				xhci_err(xhci,
-					"ERROR Transfer event TRB DMA ptr not "
-					"part of current TD ep_index %d "
-					"comp_code %u\n", ep_index,
-					trb_comp_code);
+				xhci_err(xhci, "ERROR Transfer event TRB DMA ptr not part of current TD ep_index %u comp_code %u\n",
+					 ep_index, trb_comp_code);
 				goto debug_finding_td;
 			}
 		}
