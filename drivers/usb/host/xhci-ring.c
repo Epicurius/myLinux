@@ -2646,11 +2646,6 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	 * transfer type
 	 */
 	case COMP_SUCCESS:
-		if (EVENT_TRB_LEN(le32_to_cpu(event->transfer_len)) != 0) {
-			trb_comp_code = COMP_SHORT_PACKET;
-			xhci_dbg(xhci, "Successful completion on short TX for slot %u ep %u with last td short %d\n",
-				 slot_id, ep_index, ep_ring->last_td_was_short);
-		}
 		break;
 	case COMP_SHORT_PACKET:
 		break;
@@ -2879,10 +2874,13 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	 */
 	} while (ep->skip);
 
-	if (trb_comp_code == COMP_SHORT_PACKET)
+	if (trb_comp_code == COMP_SUCCESS && EVENT_TRB_LEN(le32_to_cpu(event->transfer_len))) {
+		xhci_dbg(xhci, "Successful completion on short TX for slot %u ep %u with last td short %d\n",
+			 slot_id, ep_index, ep_ring->last_td_was_short);
 		ep_ring->last_td_was_short = true;
-	else
-		ep_ring->last_td_was_short = false;
+	} else {
+		ep_ring->last_td_was_short = (trb_comp_code == COMP_SHORT_PACKET);
+	}
 
 	ep_trb = &ep_seg->trbs[(ep_trb_dma - ep_seg->dma) / sizeof(*ep_trb)];
 	trace_xhci_handle_transfer(ep_ring, (struct xhci_generic_trb *) ep_trb, ep_trb_dma);
