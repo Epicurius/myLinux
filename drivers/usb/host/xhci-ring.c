@@ -2595,6 +2595,94 @@ static int handle_transferless_tx_event(struct xhci_hcd *xhci, struct xhci_virt_
 	return 0;
 }
 
+/* Return error code for events which require special handling. */
+static int xhci_event_comp_status(struct xhci_hcd *xhci, struct xhci_virt_ep *ep, u32 trb_comp_code,
+				  unsigned int ep_index, unsigned int slot_id)
+{
+	switch (trb_comp_code) {
+	case COMP_SUCCESS:
+		return -EINPROGRESS;
+	case COMP_SHORT_PACKET:
+		return -EINPROGRESS;
+	/* Completion codes for endpoint stopped state */
+	case COMP_STOPPED:
+		xhci_dbg(xhci, "Stopped on Transfer TRB for slot %u ep %u\n", slot_id, ep_index);
+		return -EINPROGRESS;
+	case COMP_STOPPED_LENGTH_INVALID:
+		xhci_dbg(xhci, "Stopped on No-op or Link TRB for slot %u ep %u\n",
+			 slot_id, ep_index);
+		return -EINPROGRESS;
+	case COMP_STOPPED_SHORT_PACKET:
+		xhci_dbg(xhci, "Stopped with short packet transfer detected for slot %u ep %u\n",
+			 slot_id, ep_index);
+		return -EINPROGRESS;
+	/* Completion codes for endpoint halted state */
+	case COMP_STALL_ERROR:
+		xhci_dbg(xhci, "Stalled endpoint for slot %u ep %u\n", slot_id, ep_index);
+		return -EPIPE;
+	case COMP_SPLIT_TRANSACTION_ERROR:
+		xhci_dbg(xhci, "Split transaction error for slot %u ep %u\n", slot_id, ep_index);
+		return -EPROTO;
+	case COMP_USB_TRANSACTION_ERROR:
+		xhci_dbg(xhci, "Transfer error for slot %u ep %u\n", slot_id, ep_index);
+		return -EPROTO;
+	case COMP_BABBLE_DETECTED_ERROR:
+		xhci_dbg(xhci, "Babble error for slot %u ep %u\n", slot_id, ep_index);
+		return -EOVERFLOW;
+	/* Completion codes for endpoint error state */
+	case COMP_TRB_ERROR:
+		xhci_warn(xhci, "TRB error for slot %u ep %u\n", slot_id, ep_index);
+		return -EILSEQ;
+	/* Completion codes not indicating endpoint state change */
+	case COMP_DATA_BUFFER_ERROR:
+		xhci_warn(xhci, "HC couldn't access mem fast enough for slot %u ep %u\n",
+			  slot_id, ep_index);
+		return -ENOSR;
+	case COMP_BANDWIDTH_OVERRUN_ERROR:
+		xhci_warn(xhci, "Bandwidth overrun event for slot %u ep %u\n", slot_id, ep_index);
+		return -EINPROGRESS;
+	case COMP_ISOCH_BUFFER_OVERRUN:
+		xhci_warn(xhci, "Buffer overrun event for slot %u ep %u\n", slot_id, ep_index);
+		return -EINPROGRESS;
+	/*
+	 * Completion codes for empty isoc rings, the xHC will generate a Ring Overrun event for
+	 * IN isoc endpoint or Ring Underrun event for OUT isoc endpoint.
+	 */
+	case COMP_RING_UNDERRUN:
+		xhci_dbg(xhci, "Underrun event on slot %u ep %u\n", slot_id, ep_index);
+		if (ep->skip)
+			return -EINPROGRESS;
+		break;
+	case COMP_RING_OVERRUN:
+		xhci_dbg(xhci, "Overrun event on slot %u ep %u\n", slot_id, ep_index);
+		if (ep->skip)
+			return -EINPROGRESS;
+		break;
+	/* Completion codes indicating some isoc TDs were missed. Set the ring skip flag */
+	case COMP_MISSED_SERVICE_ERROR:
+		ep->skip = true;
+		xhci_dbg(xhci, "Missed service interval error for slot %u ep %u, set skip flag\n",
+			 slot_id, ep_index);
+		break;
+	case COMP_NO_PING_RESPONSE_ERROR:
+		ep->skip = true;
+		xhci_dbg(xhci, "No Ping response error for slot %u ep %u, set skip flag\n",
+			 slot_id, ep_index);
+		break;
+	/* Completion codes which need disable slot command to recover */
+	case COMP_INCOMPATIBLE_DEVICE_ERROR:
+		xhci_warn(xhci, "Detect an incompatible device for slot %u ep %u",
+			  slot_id, ep_index);
+		return -EPROTO;
+	default:
+		xhci_warn(xhci, "Unknown event condition %u for slot %u ep %u\n",
+			  trb_comp_code, slot_id, ep_index);
+		if (ep->skip)
+			return -EINPROGRESS;
+	}
+	return 0;
+}
+
 /*
  * If this function returns an error condition, it means it got a Transfer
  * event with a corrupted Slot ID, Endpoint ID, or TRB DMA address.
@@ -2612,7 +2700,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	dma_addr_t ep_trb_dma;
 	struct xhci_segment *ep_seg;
 	union xhci_trb *ep_trb;
-	int status = -EINPROGRESS;
+	int status;
 	struct xhci_ep_ctx *ep_ctx;
 	u32 trb_comp_code;
 
@@ -2640,127 +2728,13 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	if (!ep_ring)
 		return handle_transferless_tx_event(xhci, ep, trb_comp_code);
 
-	/* Look for common error cases */
-	switch (trb_comp_code) {
-	/* Skip codes that require special handling depending on
-	 * transfer type
-	 */
-	case COMP_SUCCESS:
-		break;
-	case COMP_SHORT_PACKET:
-		break;
-	/* Completion codes for endpoint stopped state */
-	case COMP_STOPPED:
-		xhci_dbg(xhci, "Stopped on Transfer TRB for slot %u ep %u\n",
-			 slot_id, ep_index);
-		break;
-	case COMP_STOPPED_LENGTH_INVALID:
-		xhci_dbg(xhci,
-			 "Stopped on No-op or Link TRB for slot %u ep %u\n",
-			 slot_id, ep_index);
-		break;
-	case COMP_STOPPED_SHORT_PACKET:
-		xhci_dbg(xhci,
-			 "Stopped with short packet transfer detected for slot %u ep %u\n",
-			 slot_id, ep_index);
-		break;
-	/* Completion codes for endpoint halted state */
-	case COMP_STALL_ERROR:
-		xhci_dbg(xhci, "Stalled endpoint for slot %u ep %u\n", slot_id,
-			 ep_index);
-		status = -EPIPE;
-		break;
-	case COMP_SPLIT_TRANSACTION_ERROR:
-		xhci_dbg(xhci, "Split transaction error for slot %u ep %u\n",
-			 slot_id, ep_index);
-		status = -EPROTO;
-		break;
-	case COMP_USB_TRANSACTION_ERROR:
-		xhci_dbg(xhci, "Transfer error for slot %u ep %u on endpoint\n",
-			 slot_id, ep_index);
-		status = -EPROTO;
-		break;
-	case COMP_BABBLE_DETECTED_ERROR:
-		xhci_dbg(xhci, "Babble error for slot %u ep %u on endpoint\n",
-			 slot_id, ep_index);
-		status = -EOVERFLOW;
-		break;
-	/* Completion codes for endpoint error state */
-	case COMP_TRB_ERROR:
-		xhci_warn(xhci,
-			  "WARN: TRB error for slot %u ep %u on endpoint\n",
-			  slot_id, ep_index);
-		status = -EILSEQ;
-		break;
-	/* completion codes not indicating endpoint state change */
-	case COMP_DATA_BUFFER_ERROR:
-		xhci_warn(xhci,
-			  "WARN: HC couldn't access mem fast enough for slot %u ep %u\n",
-			  slot_id, ep_index);
-		status = -ENOSR;
-		break;
-	case COMP_BANDWIDTH_OVERRUN_ERROR:
-		xhci_warn(xhci,
-			  "WARN: bandwidth overrun event for slot %u ep %u on endpoint\n",
-			  slot_id, ep_index);
-		break;
-	case COMP_ISOCH_BUFFER_OVERRUN:
-		xhci_warn(xhci,
-			  "WARN: buffer overrun event for slot %u ep %u on endpoint",
-			  slot_id, ep_index);
-		break;
-	case COMP_RING_UNDERRUN:
-		/*
-		 * When the Isoch ring is empty, the xHC will generate
-		 * a Ring Overrun Event for IN Isoch endpoint or Ring
-		 * Underrun Event for OUT Isoch endpoint.
-		 */
-		xhci_dbg(xhci, "Underrun event on slot %u ep %u\n", slot_id, ep_index);
-		if (ep->skip)
-			break;
-		return 0;
-	case COMP_RING_OVERRUN:
-		xhci_dbg(xhci, "Overrun event on slot %u ep %u\n", slot_id, ep_index);
-		if (ep->skip)
-			break;
-		return 0;
-	case COMP_MISSED_SERVICE_ERROR:
-		/*
-		 * When encounter missed service error, one or more isoc tds
-		 * may be missed by xHC.
-		 * Set skip flag of the ep_ring; Complete the missed tds as
-		 * short transfer when process the ep_ring next time.
-		 */
-		ep->skip = true;
-		xhci_dbg(xhci,
-			 "Miss service interval error for slot %u ep %u, set skip flag\n",
-			 slot_id, ep_index);
-		return 0;
-	case COMP_NO_PING_RESPONSE_ERROR:
-		ep->skip = true;
-		xhci_dbg(xhci,
-			 "No Ping response error for slot %u ep %u, Skip one Isoc TD\n",
-			 slot_id, ep_index);
-		return 0;
-
-	case COMP_INCOMPATIBLE_DEVICE_ERROR:
-		/* needs disable slot command to recover */
-		xhci_warn(xhci,
-			  "WARN: detect an incompatible device for slot %u ep %u",
-			  slot_id, ep_index);
-		status = -EPROTO;
-		break;
-	default:
-		if (xhci_is_vendor_info_code(xhci, trb_comp_code)) {
-			status = 0;
-			break;
-		}
-		xhci_warn(xhci,
-			  "ERROR Unknown event condition %u for slot %u ep %u , HC probably busted\n",
-			  trb_comp_code, slot_id, ep_index);
-		if (ep->skip)
-			break;
-		return 0;
+	/* Get the error status for the completion code. */
+	if (xhci_is_vendor_info_code(xhci, trb_comp_code)) {
+		status = 0;
+	} else {
+		status = xhci_event_comp_status(xhci, ep, trb_comp_code, ep_index, slot_id);
+		if (status == 0)
+			return 0;
 	}
 
 	if (list_empty(&ep_ring->td_list)) {
