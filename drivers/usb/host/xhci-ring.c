@@ -2109,15 +2109,15 @@ static void xhci_clear_hub_tt_buffer(struct xhci_hcd *xhci, struct xhci_td *td,
 	}
 }
 
-/* Check if an error has halted the endpoint ring.  The class driver will
+/*
+ * Check if an error has halted the endpoint ring.  The class driver will
  * cleanup the halt for a non-default control endpoint if we indicate a stall.
  * However, a babble and other errors also halt the endpoint ring, and the class
  * driver won't clear the halt in that case, so we need to issue a Set Transfer
  * Ring Dequeue Pointer command manually.
  */
-static int xhci_requires_manual_halt_cleanup(struct xhci_hcd *xhci,
-		struct xhci_virt_ep *ep,
-		unsigned int trb_comp_code)
+static int xhci_requires_manual_halt_cleanup(struct xhci_hcd *xhci, struct xhci_virt_ep *ep,
+					     unsigned int trb_comp_code)
 {
 	struct xhci_ep_ctx *ep_ctx;
 
@@ -2126,13 +2126,12 @@ static int xhci_requires_manual_halt_cleanup(struct xhci_hcd *xhci,
 
 	/* TRB completion codes that may require a manual halt cleanup */
 	if (trb_comp_code == COMP_USB_TRANSACTION_ERROR ||
-			trb_comp_code == COMP_BABBLE_DETECTED_ERROR ||
-			trb_comp_code == COMP_SPLIT_TRANSACTION_ERROR) {
-		/* The 0.95 spec says a babbling control endpoint
-		 * is not halted. The 0.96 spec says it is.  Some HW
-		 * claims to be 0.95 compliant, but it halts the control
-		 * endpoint anyway.  Check if a babble halted the
-		 * endpoint.
+	    trb_comp_code == COMP_BABBLE_DETECTED_ERROR ||
+	    trb_comp_code == COMP_SPLIT_TRANSACTION_ERROR) {
+		/*
+		 * The 0.95 spec says a babbling control endpoint is not halted. The 0.96 spec
+		 * says it is. Some HW claims to be 0.95 compliant, but it halts the control
+		 * endpoint anyway. Check if a babble halted the endpoint.
 		 */
 		ep_ctx = xhci_get_ep_ctx(xhci, ep->vdev->out_ctx, ep->ep_index);
 		if (GET_EP_CTX_STATE(ep_ctx) == EP_STATE_HALTED)
