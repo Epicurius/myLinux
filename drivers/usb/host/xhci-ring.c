@@ -300,53 +300,48 @@ static struct xhci_segment *dma_in_range(struct xhci_segment *start_seg, union x
 					 struct xhci_segment *end_seg, union xhci_trb *end_trb,
 					 dma_addr_t dma)
 {
-	dma_addr_t start_dma;
-	dma_addr_t end_seg_dma;
-	dma_addr_t end_trb_dma;
-	struct xhci_segment *cur_seg;
+	struct xhci_segment *seg;
+	union xhci_trb *trb;
 
-	start_dma = xhci_trb_virt_to_dma(start_seg, start_trb);
-	cur_seg = start_seg;
 
-	do {
-		if (start_dma == 0)
+	/* 1. Check if the DMA is after start TRB in start segment */
+	trb = xhci_dma_to_virt_trb(start_seg, dma);
+	if (start_trb <= trb) {
+		if (end_seg != start_seg || trb <= end_trb)
+			return start_seg;
+		if (end_trb < start_trb)
+			return start_seg;
+		return NULL;
+	}
+
+	/* 2. Check if the DMA is in end segment */
+	if (start_seg != end_seg) {
+		if (trb)
 			return NULL;
-		/* We may get an event for a Link TRB in the middle of a TD */
-		end_seg_dma = xhci_trb_virt_to_dma(cur_seg,
-				&cur_seg->trbs[TRBS_PER_SEGMENT - 1]);
-		/* If the end TRB isn't in this segment, this is set to 0 */
-		end_trb_dma = xhci_trb_virt_to_dma(cur_seg, end_trb);
+		trb = xhci_dma_to_virt_trb(end_seg, dma);
+	} else if (start_trb <= end_trb) {
+		return NULL;
+	}
 
-		if (end_trb_dma > 0) {
-			/* The end TRB is in this segment, so suspect should be here */
-			if (start_dma <= end_trb_dma) {
-				if (dma >= start_dma && dma <= end_trb_dma)
-					return cur_seg;
-			} else {
-				/* Case for one segment with
-				 * a TD wrapped around to the top
-				 */
-				if ((dma >= start_dma &&
-							dma <= end_seg_dma) ||
-						(dma >= cur_seg->dma &&
-						 dma <= end_trb_dma))
-					return cur_seg;
-			}
-			return NULL;
-		}
-		/* Might still be somewhere in this segment */
-		if (dma >= start_dma && dma <= end_seg_dma)
-			return cur_seg;
+	if (trb)
+		return (trb <= end_trb) ? end_seg : NULL;
 
-		cur_seg = cur_seg->next;
-		start_dma = xhci_trb_virt_to_dma(cur_seg, &cur_seg->trbs[0]);
-	} while (cur_seg != start_seg);
+	/* 3. Check segments between Start and End */
+	for (seg = start_seg->next; seg != end_seg && seg != start_seg; seg = seg->next) {
+		if (in_range(dma, seg->dma, TRB_SEGMENT_SIZE))
+			return seg;
+	}
 
 	return NULL;
 }
 
 static struct xhci_segment *trb_in_td(struct xhci_td *td, dma_addr_t dma)
 {
+	/* Added for legacy reasons. This should never be the case */
+	if (!td->start_seg || !td->start_trb ||
+	    (td->start_trb - td->start_seg->trbs) >= TRBS_PER_SEGMENT)
+		return NULL;
+
 	return dma_in_range(td->start_seg, td->start_trb, td->end_seg, td->end_trb, dma);
 }
 
