@@ -2121,6 +2121,9 @@ static int xhci_requires_manual_halt_cleanup(struct xhci_hcd *xhci,
 {
 	struct xhci_ep_ctx *ep_ctx;
 
+	if (trb_comp_code == COMP_STALL_ERROR)
+		return 1;
+
 	/* TRB completion codes that may require a manual halt cleanup */
 	if (trb_comp_code == COMP_USB_TRANSACTION_ERROR ||
 			trb_comp_code == COMP_BABBLE_DETECTED_ERROR ||
@@ -2740,8 +2743,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 				xhci_dbg(xhci, "td_list is empty while skip flag set. Clear skip flag for slot %u ep %u.\n",
 					 slot_id, ep_index);
 			}
-			if (trb_comp_code == COMP_STALL_ERROR ||
-			    xhci_requires_manual_halt_cleanup(xhci, ep, trb_comp_code)) {
+			if (xhci_requires_manual_halt_cleanup(xhci, ep, trb_comp_code)) {
 				xhci_handle_halted_endpoint(xhci, ep, NULL,
 							    EP_HARD_RESET);
 			}
@@ -2859,8 +2861,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 		 */
 
 		if (trb_is_noop(ep_trb)) {
-			if (trb_comp_code == COMP_STALL_ERROR ||
-			    xhci_requires_manual_halt_cleanup(xhci, ep, trb_comp_code))
+			if (xhci_requires_manual_halt_cleanup(xhci, ep, trb_comp_code))
 				xhci_handle_halted_endpoint(xhci, ep, td,
 							    EP_HARD_RESET);
 		} else {
