@@ -2801,50 +2801,12 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 				goto debug_finding_td;
 			}
 		}
-		if (trb_comp_code == COMP_SUCCESS &&
-		    EVENT_TRB_LEN(le32_to_cpu(event->transfer_len))) {
-			xhci_dbg(xhci, "Successful completion on short TX for slot %u ep %u with last td short %d\n",
-				 slot_id, ep_index, ep_ring->last_td_was_short);
-			ep_ring->last_td_was_short = true;
-		} else {
-			ep_ring->last_td_was_short = (trb_comp_code == COMP_SHORT_PACKET);
-		}
 
 		if (ep->skip) {
 			xhci_dbg(xhci,
 				 "Found td. Clear skip flag for slot %u ep %u.\n",
 				 slot_id, ep_index);
 			ep->skip = false;
-		}
-
-		ep_trb = &ep_seg->trbs[(ep_trb_dma - ep_seg->dma) /
-						sizeof(*ep_trb)];
-
-		trace_xhci_handle_transfer(ep_ring,
-				(struct xhci_generic_trb *) ep_trb);
-
-		/*
-		 * No-op TRB could trigger interrupts in a case where
-		 * a URB was killed and a STALL_ERROR happens right
-		 * after the endpoint ring stopped. Reset the halted
-		 * endpoint. Otherwise, the endpoint remains stalled
-		 * indefinitely.
-		 */
-
-		if (trb_is_noop(ep_trb)) {
-			if (xhci_requires_manual_halt_cleanup(xhci, ep, trb_comp_code))
-				xhci_handle_halted_endpoint(xhci, ep, td,
-							    EP_HARD_RESET);
-		} else {
-			td->status = status;
-
-			/* update the urb's actual_length and give back to the core */
-			if (usb_endpoint_xfer_control(&td->urb->ep->desc))
-				process_ctrl_td(xhci, ep, ep_ring, td, ep_trb, event);
-			else if (usb_endpoint_xfer_isoc(&td->urb->ep->desc))
-				process_isoc_td(xhci, ep, ep_ring, td, ep_trb, event);
-			else
-				process_bulk_intr_td(xhci, ep, ep_ring, td, ep_trb, event);
 		}
 	/*
 	 * If ep->skip is set, it means there are missed tds on the
@@ -2853,6 +2815,37 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	 * the event.
 	 */
 	} while (ep->skip);
+
+	if (trb_comp_code == COMP_SUCCESS && EVENT_TRB_LEN(le32_to_cpu(event->transfer_len))) {
+		xhci_dbg(xhci, "Successful completion on short TX for slot %u ep %u with last td short %d\n",
+			 slot_id, ep_index, ep_ring->last_td_was_short);
+		ep_ring->last_td_was_short = true;
+	} else {
+		ep_ring->last_td_was_short = (trb_comp_code == COMP_SHORT_PACKET);
+	}
+
+	ep_trb = &ep_seg->trbs[(ep_trb_dma - ep_seg->dma) / sizeof(*ep_trb)];
+	trace_xhci_handle_transfer(ep_ring, (struct xhci_generic_trb *) ep_trb);
+
+	/*
+	 * No-op TRB could trigger interrupts in a case where a URB was killed and a STALL_ERROR
+	 * happens right after the endpoint ring stopped. Reset the halted endpoint. Otherwise, the
+	 * endpoint remains stalled indefinitely.
+	 */
+	if (trb_is_noop(ep_trb)) {
+		if (xhci_requires_manual_halt_cleanup(xhci, ep, trb_comp_code))
+			xhci_handle_halted_endpoint(xhci, ep, td, EP_HARD_RESET);
+	} else {
+		td->status = status;
+
+		/* update the urb's actual_length and give back to the core */
+		if (usb_endpoint_xfer_control(&td->urb->ep->desc))
+			process_ctrl_td(xhci, ep, ep_ring, td, ep_trb, event);
+		else if (usb_endpoint_xfer_isoc(&td->urb->ep->desc))
+			process_isoc_td(xhci, ep, ep_ring, td, ep_trb, event);
+		else
+			process_bulk_intr_td(xhci, ep, ep_ring, td, ep_trb, event);
+	}
 
 	return 0;
 
