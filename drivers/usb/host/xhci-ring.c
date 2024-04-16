@@ -273,24 +273,26 @@ static void inc_enq(struct xhci_hcd *xhci, struct xhci_ring *ring,
 }
 
 /*
- * If the suspect DMA address is a TRB in this TD, this function returns that
- * TRB's segment. Otherwise it returns 0.
+ * If the suspect DMA address is a TRB is within range of 'first_trb' in 'start_seg' to
+ * 'last_trb' in 'end_seg', this function returns that TRB's segment. Otherwise it returns 0.
  */
-static struct xhci_segment *trb_in_td(struct xhci_ring *ring, struct xhci_td *td, dma_addr_t dma)
+static struct xhci_segment *dma_in_range(struct xhci_ring *ring, struct xhci_segment *start_seg,
+					 union xhci_trb *first_trb, struct xhci_segment *end_seg,
+					 union xhci_trb *last_trb, dma_addr_t dma)
 {
-	struct xhci_segment *seg = td->start_seg;
+	struct xhci_segment *seg = start_seg;
 
-	if (td->start_seg == td->end_seg) {
-		if (td->first_trb <= td->last_trb) {
-			if (xhci_trb_virt_to_dma(td->start_seg, td->first_trb) <= dma &&
-			    dma <= xhci_trb_virt_to_dma(td->end_seg, td->last_trb))
+	if (start_seg == end_seg) {
+		if (first_trb <= last_trb) {
+			if (xhci_trb_virt_to_dma(start_seg, first_trb) <= dma &&
+			    dma <= xhci_trb_virt_to_dma(end_seg, last_trb))
 				return seg;
 			return NULL;
 		}
 
 		/* Edge case, the TD wrapped around to the start segment. */
-		if (xhci_trb_virt_to_dma(td->end_seg, td->last_trb) < dma &&
-		    dma < xhci_trb_virt_to_dma(td->start_seg, td->first_trb))
+		if (xhci_trb_virt_to_dma(end_seg, last_trb) < dma &&
+		    dma < xhci_trb_virt_to_dma(start_seg, first_trb))
 			return NULL;
 		if (seg->dma <= dma && dma <= (seg->dma + TRB_SEGMENT_SIZE))
 			return seg;
@@ -299,22 +301,27 @@ static struct xhci_segment *trb_in_td(struct xhci_ring *ring, struct xhci_td *td
 
 	/* Loop through segment which don't contain the DMA address. */
 	while (dma < seg->dma || (seg->dma + TRB_SEGMENT_SIZE) <= dma) {
-		if (seg == td->end_seg)
+		if (seg == end_seg)
 			return NULL;
 
 		seg = list_next_entry_circular(seg, &ring->seg_list, list);
-		if (seg == td->start_seg)
+		if (seg == start_seg)
 			return NULL;
 	}
 
-	if (seg == td->start_seg) {
-		if (dma < xhci_trb_virt_to_dma(td->start_seg, td->first_trb))
+	if (seg == start_seg) {
+		if (dma < xhci_trb_virt_to_dma(start_seg, first_trb))
 			return NULL;
-	} else if (seg == td->end_seg) {
-		if (xhci_trb_virt_to_dma(td->end_seg, td->last_trb) < dma)
+	} else if (seg == end_seg) {
+		if (xhci_trb_virt_to_dma(end_seg, last_trb) < dma)
 			return NULL;
 	}
 	return seg;
+}
+
+static struct xhci_segment *trb_in_td(struct xhci_ring *ring, struct xhci_td *td, dma_addr_t dma)
+{
+	return dma_in_range(ring, td->start_seg, td->first_trb, td->end_seg, td->last_trb, dma);
 }
 
 /*
