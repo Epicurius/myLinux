@@ -2480,26 +2480,6 @@ finish_td:
 	finish_td(xhci, ep, ep_ring, td, trb_comp_code);
 }
 
-static void skip_isoc_td(struct xhci_hcd *xhci, struct xhci_td *td,
-			 struct xhci_virt_ep *ep, int status)
-{
-	struct urb_priv *urb_priv;
-	struct usb_iso_packet_descriptor *frame;
-	int idx;
-
-	urb_priv = td->urb->hcpriv;
-	idx = urb_priv->num_tds_done;
-	frame = &td->urb->iso_frame_desc[idx];
-
-	/* The transfer is partly done. */
-	frame->status = -EXDEV;
-
-	/* calc actual length */
-	frame->actual_length = 0;
-
-	xhci_dequeue_td(xhci, td, ep->ring, status);
-}
-
 /*
  * Process bulk and interrupt tds, update urb status and actual_length.
  */
@@ -2706,6 +2686,8 @@ static struct xhci_td *xhci_find_event_td(struct xhci_hcd *xhci, struct xhci_vir
 					  struct xhci_ring *ring, struct xhci_segment *seg,
 					  union xhci_trb *trb, int status)
 {
+	struct usb_iso_packet_descriptor *frame;
+	struct urb_priv *urb_priv;
 	struct xhci_td *td, *_td;
 	unsigned int min_idx, trb_idx;
 	unsigned int trbs;
@@ -2720,7 +2702,11 @@ static struct xhci_td *xhci_find_event_td(struct xhci_hcd *xhci, struct xhci_vir
 			xhci_dbg(xhci, "Skipping TD\n");
 
 			if (usb_endpoint_xfer_isoc(&td->urb->ep->desc)) {
-				skip_isoc_td(xhci, td, ep, status);
+				urb_priv = td->urb->hcpriv;
+				frame = &td->urb->iso_frame_desc[urb_priv->num_tds_done];
+				frame->status = -EXDEV;
+				frame->actual_length = 0;
+				xhci_dequeue_td(xhci, td, ring, status);
 				continue;
 			}
 
