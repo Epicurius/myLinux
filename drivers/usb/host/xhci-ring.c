@@ -2695,43 +2695,41 @@ static struct xhci_td *xhci_find_event_td(struct xhci_hcd *xhci, struct xhci_vir
 	return NULL;
 }
 
-static void handle_tx_event(struct xhci_hcd *xhci,
-			    struct xhci_interrupter *ir,
+static void handle_tx_event(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
 			    struct xhci_transfer_event *event)
 {
-	struct xhci_virt_ep *ep;
-	struct xhci_ring *ep_ring;
-	unsigned int slot_id;
-	unsigned int ep_index;
-	struct xhci_td *td = NULL;
-	dma_addr_t ep_trb_dma;
 	struct xhci_segment *ep_seg;
-	union xhci_trb *ep_trb;
-	int status;
 	struct xhci_ep_ctx *ep_ctx;
+	struct xhci_ring *ep_ring;
+	struct xhci_virt_ep *ep;
+	union xhci_trb *ep_trb;
+	dma_addr_t ep_trb_dma;
+	unsigned int ep_index;
+	unsigned int slot_id;
+	struct xhci_td *td;
 	u32 trb_comp_code;
+	int status;
 
 	slot_id = TRB_TO_SLOT_ID(le32_to_cpu(event->flags));
 	ep_index = TRB_TO_EP_ID(le32_to_cpu(event->flags)) - 1;
-	trb_comp_code = GET_COMP_CODE(le32_to_cpu(event->transfer_len));
-	ep_trb_dma = le64_to_cpu(event->buffer);
 
 	ep = xhci_get_virt_ep(xhci, slot_id, ep_index);
 	if (!ep) {
-		xhci_err(xhci, "ERROR Invalid Transfer event\n");
+		xhci_err(xhci, "Invalid Transfer event\n");
 		goto err_out;
 	}
+
+	ep_ctx = xhci_get_ep_ctx(xhci, ep->vdev->out_ctx, ep_index);
+	if (GET_EP_CTX_STATE(ep_ctx) == EP_STATE_DISABLED) {
+		xhci_err(xhci, "Transfer event for disabled endpoint slot %u ep %u\n",
+			 slot_id, ep_index);
+		goto err_out;
+	}
+
+	trb_comp_code = GET_COMP_CODE(le32_to_cpu(event->transfer_len));
+	ep_trb_dma = le64_to_cpu(event->buffer);
 
 	ep_ring = xhci_dma_to_transfer_ring(ep, ep_trb_dma);
-	ep_ctx = xhci_get_ep_ctx(xhci, ep->vdev->out_ctx, ep_index);
-
-	if (GET_EP_CTX_STATE(ep_ctx) == EP_STATE_DISABLED) {
-		xhci_err(xhci,
-			 "ERROR Transfer event for disabled endpoint slot %u ep %u\n",
-			  slot_id, ep_index);
-		goto err_out;
-	}
-
 	if (!ep_ring) {
 		if (no_trb_event(xhci, ep, trb_comp_code) < 0)
 			goto err_out;
@@ -2789,7 +2787,7 @@ static void handle_tx_event(struct xhci_hcd *xhci,
 		ep_ring->last_td_was_short = (trb_comp_code == COMP_SHORT_PACKET);
 	}
 
-	trace_xhci_handle_transfer(ep_ring, (struct xhci_generic_trb *) ep_trb);
+	trace_xhci_handle_transfer(ep_ring, (struct xhci_generic_trb *)ep_trb);
 
 	/*
 	 * No-op TRB could trigger interrupts in a case where a URB was killed and a STALL_ERROR
@@ -2817,7 +2815,7 @@ check_endpoint_halted:
 
 err_out:
 	xhci_err(xhci, "@%016llx %08x %08x %08x %08x\n",
-		 (unsigned long long) xhci_trb_virt_to_dma(
+		 (unsigned long long)xhci_trb_virt_to_dma(
 			 ir->event_ring->deq_seg,
 			 ir->event_ring->dequeue),
 		 lower_32_bits(le64_to_cpu(event->buffer)),
