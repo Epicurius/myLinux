@@ -324,6 +324,11 @@ static struct xhci_segment *trb_in_td(struct xhci_ring *ring, struct xhci_td *td
 	return dma_in_range(ring, dma, td->start_seg, td->start_trb, td->end_seg, td->end_trb);
 }
 
+static struct xhci_segment *trb_in_queue(struct xhci_ring *ring, dma_addr_t dma)
+{
+	return dma_in_range(ring, dma, ring->deq_seg, ring->dequeue, ring->enq_seg, ring->enqueue);
+}
+
 /*
  * Return number of free normal TRBs from enqueue to dequeue pointer on ring.
  * Not counting an assumed link TRB at end of each TRBS_PER_SEGMENT sized segment.
@@ -2729,6 +2734,16 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 		td = NULL;
 		ep->skip = false;
 		goto check_endpoint_halted;
+	}
+
+	/*
+	 * The device might generate duplicate events, in this case the DMA address may point to a
+	 * TRB which is outside of the ring queueu.
+	 */
+	ep_seg = trb_in_queue(ep_ring, ep_trb_dma);
+	if (!ep_seg) {
+		xhci_dbg(xhci, "Event TRB for slot %u ep %u not in queue\n", slot_id, ep_index);
+		return 0;
 	}
 
 	do {
