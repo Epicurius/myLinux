@@ -2773,14 +2773,9 @@ static struct xhci_td *xhci_find_event_td(struct xhci_hcd *xhci, struct xhci_vir
 	return NULL;
 }
 
-/*
- * If this function returns an error condition, it means it got a Transfer
- * event with a corrupted Slot ID, Endpoint ID, or TRB DMA address.
- * At this point, the host controller is probably hosed and should be reset.
- */
-static int handle_tx_event(struct xhci_hcd *xhci,
-			   struct xhci_interrupter *ir,
-			   struct xhci_transfer_event *event)
+static void handle_tx_event(struct xhci_hcd *xhci,
+			    struct xhci_interrupter *ir,
+			    struct xhci_transfer_event *event)
 {
 	struct xhci_virt_ep *ep;
 	struct xhci_ring *ep_ring;
@@ -2815,8 +2810,10 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 		goto err_out;
 	}
 
-	if (!ep_ring)
-		return handle_transferless_tx_event(xhci, ep, trb_comp_code);
+	if (!ep_ring) {
+		handle_transferless_tx_event(xhci, ep, trb_comp_code);
+		return;
+	}
 
 	/* Get the error status for the completion code. */
 	if (xhci_is_vendor_info_code(xhci, trb_comp_code)) {
@@ -2824,7 +2821,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	} else {
 		status = xhci_event_comp_status(xhci, trb_comp_code, ep_index, slot_id);
 		if (status == 0)
-			return 0;
+			return;
 	}
 
 	if (list_empty(&ep_ring->td_list)) {
@@ -2851,7 +2848,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	ep_seg = trb_in_queue(ep_ring, ep_trb_dma);
 	if (!ep_seg) {
 		xhci_dbg(xhci, "Event TRB for slot %u ep %u not in queue\n", slot_id, ep_index);
-		return 0;
+		return;
 	}
 	ep_trb = &ep_seg->trbs[(ep_trb_dma - ep_seg->dma) / sizeof(*ep_trb)];
 
@@ -2889,13 +2886,13 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 		process_isoc_td(xhci, ep, ep_ring, td, ep_trb, event);
 	else
 		process_bulk_intr_td(xhci, ep, ep_ring, td, ep_trb, event);
-	return 0;
+	return;
 
 check_endpoint_halted:
 	if (xhci_halted_host_endpoint(ep_ctx, trb_comp_code))
 		xhci_handle_halted_endpoint(xhci, ep, td, EP_HARD_RESET);
 
-	return 0;
+	return;
 
 err_out:
 	xhci_err(xhci, "@%016llx %08x %08x %08x %08x\n",
@@ -2906,7 +2903,6 @@ err_out:
 		 upper_32_bits(le64_to_cpu(event->buffer)),
 		 le32_to_cpu(event->transfer_len),
 		 le32_to_cpu(event->flags));
-	return -ENODEV;
 }
 
 /*
