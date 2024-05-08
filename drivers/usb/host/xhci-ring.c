@@ -279,8 +279,7 @@ static void inc_enq(struct xhci_hcd *xhci, struct xhci_ring *ring,
  * If the suspect DMA address is a TRB in this TD, this function returns that
  * TRB's segment. Otherwise it returns 0.
  */
-static struct xhci_segment *trb_in_td(struct xhci_hcd *xhci, struct xhci_td *td,
-				      dma_addr_t suspect_dma, bool debug)
+static struct xhci_segment *trb_in_td(struct xhci_td *td, dma_addr_t suspect_dma)
 {
 	dma_addr_t start_dma;
 	dma_addr_t end_seg_dma;
@@ -298,15 +297,6 @@ static struct xhci_segment *trb_in_td(struct xhci_hcd *xhci, struct xhci_td *td,
 				&cur_seg->trbs[TRBS_PER_SEGMENT - 1]);
 		/* If the end TRB isn't in this segment, this is set to 0 */
 		end_trb_dma = xhci_trb_virt_to_dma(cur_seg, td->end_trb);
-
-		if (debug)
-			xhci_warn(xhci,
-				"Looking for event-dma %016llx trb-start %016llx trb-end %016llx seg-start %016llx seg-end %016llx\n",
-				(unsigned long long)suspect_dma,
-				(unsigned long long)start_dma,
-				(unsigned long long)end_trb_dma,
-				(unsigned long long)cur_seg->dma,
-				(unsigned long long)end_seg_dma);
 
 		if (end_trb_dma > 0) {
 			/* The end TRB is in this segment, so suspect should be here */
@@ -1057,7 +1047,7 @@ static int xhci_invalidate_cancelled_tds(struct xhci_virt_ep *ep)
 					 td->urb->stream_id);
 		hw_deq &= ~0xf;
 
-		if (td->cancel_status == TD_HALTED || trb_in_td(xhci, td, hw_deq, false)) {
+		if (td->cancel_status == TD_HALTED || trb_in_td(td, hw_deq)) {
 			switch (td->cancel_status) {
 			case TD_CLEARED: /* TD is already no-op */
 			case TD_CLEARING_CACHE: /* set TR deq command already queued */
@@ -1134,7 +1124,7 @@ static struct xhci_td *find_halted_td(struct xhci_virt_ep *ep)
 		hw_deq = xhci_get_hw_deq(ep->xhci, ep->vdev, ep->ep_index, 0);
 		hw_deq &= ~0xf;
 		td = list_first_entry(&ep->ring->td_list, struct xhci_td, td_list);
-		if (trb_in_td(ep->xhci, td, hw_deq, false))
+		if (trb_in_td(td, hw_deq))
 			return td;
 	}
 	return NULL;
@@ -2800,7 +2790,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 				      td_list);
 
 		/* Is this a TRB in the currently executing TD? */
-		ep_seg = trb_in_td(xhci, td, ep_trb_dma, false);
+		ep_seg = trb_in_td(td, ep_trb_dma);
 
 		if (!ep_seg) {
 
@@ -2853,12 +2843,12 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 			    !list_is_last(&td->td_list, &ep_ring->td_list)) {
 				struct xhci_td *td_next = list_next_entry(td, td_list);
 
-				ep_seg = trb_in_td(xhci, td_next, ep_trb_dma, false);
+				ep_seg = trb_in_td(td_next, ep_trb_dma);
 				if (ep_seg) {
 					/* give back previous TD, start handling new */
 					xhci_dbg(xhci, "Missing TD completion event after mid TD error\n");
-					ep_ring->dequeue = td->last_trb;
-					ep_ring->deq_seg = td->last_trb_seg;
+					ep_ring->dequeue = td->end_trb;
+					ep_ring->deq_seg = td->end_seg;
 					inc_deq(xhci, ep_ring);
 					xhci_td_cleanup(xhci, td, ep_ring, td->status);
 					td = td_next;
@@ -2872,9 +2862,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 					"part of current TD ep_index %d "
 					"comp_code %u\n", ep_index,
 					trb_comp_code);
-				trb_in_td(xhci, td, ep_trb_dma, true);
-
-				return -ESHUTDOWN;
+				goto debug_finding_td;
 			}
 		}
 
@@ -2927,6 +2915,20 @@ check_endpoint_halted:
 		xhci_handle_halted_endpoint(xhci, ep, td, EP_HARD_RESET);
 
 	return 0;
+
+debug_finding_td:
+	xhci_warn(xhci, "Looking for event-dma %016llx trb-start %016llx trb-end %016llx\n",
+		  (unsigned long long)ep_trb_dma,
+		  (unsigned long long)xhci_trb_virt_to_dma(td->start_seg, td->start_trb),
+		  (unsigned long long)xhci_trb_virt_to_dma(td->end_seg, td->end_trb));
+
+	xhci_for_each_ring_seg(td->start_seg, ep_seg) {
+		xhci_warn(xhci, "Looking for event in seg %u seg-start %016llx seg-end %016llx\n",
+			 ep_seg->num,
+			 (unsigned long long)ep_seg->dma,
+			 (unsigned long long)(ep_seg->dma + TRB_SEGMENT_SIZE));
+	}
+	return -ESHUTDOWN;
 
 err_out:
 	xhci_err(xhci, "@%016llx %08x %08x %08x %08x\n",
