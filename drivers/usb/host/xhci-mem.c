@@ -1459,7 +1459,6 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 	if (!virt_dev->eps[ep_index].new_ring)
 		return -ENOMEM;
 
-	virt_dev->eps[ep_index].skip = false;
 	ep_ring = virt_dev->eps[ep_index].new_ring;
 
 	/* Fill the endpoint context */
