@@ -2686,6 +2686,63 @@ static int xhci_event_comp_status(struct xhci_hcd *xhci, struct xhci_virt_ep *ep
 }
 
 /*
+ * Turn a TRB into a position index in the ring, wraping around 'min_idx'.
+ * For example, ring with 2 segments, each has 4 TRBs:
+ * min_idx = 0: [0,1,2,3]  [4,5,6,7]
+ * min_idx = 2: [8,9,2,3]  [4,5,6,7]
+ */
+static unsigned int trb_pos_idx(struct xhci_segment *seg, union xhci_trb *trb,
+				unsigned int trbs_in_ring, unsigned int min_idx)
+{
+	unsigned int idx;
+
+	idx = seg->num * TRBS_PER_SEGMENT + (trb - seg->trbs);
+
+	if (idx < min_idx)
+		idx += trbs_in_ring;
+
+	return idx;
+}
+
+
+/*
+ * Iterate through all TDs up to the specified TRB. During the iteration,
+ * release any TDs that do not contain the specified TRB. If a TD containing the
+ * specified TRB is found, return the TRBs segment. If no such TD is found, the
+ * function returns 'NULL'.
+ */
+static struct xhci_td *xhci_find_event_td(struct xhci_hcd *xhci, struct xhci_virt_ep *ep,
+					  struct xhci_ring *ring, struct xhci_segment *seg,
+					  union xhci_trb *trb, int status)
+{
+	struct xhci_td *td, *_td;
+	unsigned int min_idx, trb_idx;
+	unsigned int trbs;
+
+	trbs = ring->num_segs * TRBS_PER_SEGMENT;
+	min_idx = trb_pos_idx(ring->deq_seg, ring->dequeue, trbs, 0);
+	trb_idx = trb_pos_idx(seg, trb, trbs, min_idx);
+
+	list_for_each_entry_safe(td, _td, &ring->td_list, td_list) {
+		/* If the TD is before the target TRB, skip it. */
+		if (trb_pos_idx(td->end_seg, td->end_trb, trbs, min_idx) < trb_idx) {
+			xhci_dbg(xhci, "Skipping TD\n");
+			skip_isoc_td(xhci, td, ep, status);
+			continue;
+		}
+
+		/* If TD is after the target TRB, target TD not found. */
+		if (trb_idx < trb_pos_idx(td->start_seg, td->start_trb, trbs, min_idx))
+			return NULL;
+
+		return td;
+	}
+
+	xhci_dbg(xhci, "All TDs skipped for slot %u ep %u\n", ep->vdev->slot_id, ep->ep_index);
+	return NULL;
+}
+
+/*
  * If this function returns an error condition, it means it got a Transfer
  * event with a corrupted Slot ID, Endpoint ID, or TRB DMA address.
  * At this point, the host controller is probably hosed and should be reset.
@@ -2767,7 +2824,13 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 		return 0;
 	}
 
-	do {
+	ep_trb = &ep_seg->trbs[(ep_trb_dma - ep_seg->dma) / sizeof(*ep_trb)];
+
+	if (ep->skip && usb_endpoint_xfer_isoc(&td->urb->ep->desc)) {
+		td = xhci_find_event_td(xhci, ep, ep_ring, ep_seg, ep_trb, status);
+		if (!td)
+			goto check_endpoint_halted;
+	} else {
 		td = list_first_entry(&ep_ring->td_list, struct xhci_td,
 				      td_list);
 
@@ -2775,19 +2838,6 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 		ep_seg = trb_in_td(td, ep_trb_dma);
 
 		if (!ep_seg) {
-
-			if (ep->skip && usb_endpoint_xfer_isoc(&td->urb->ep->desc)) {
-				skip_isoc_td(xhci, td, ep, status);
-				if (!list_empty(&ep_ring->td_list))
-					continue;
-
-				xhci_dbg(xhci, "All TDs skipped for slot %u ep %u. Clear skip flag.\n",
-					 slot_id, ep_index);
-				ep->skip = false;
-				td = NULL;
-				goto check_endpoint_halted;
-			}
-
 			/*
 			 * Skip the Force Stopped Event. The 'ep_trb' of FSE is not in the current
 			 * TD pointed by 'ep_ring->dequeue' because that the hardware dequeue
@@ -2840,21 +2890,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 				goto debug_finding_td;
 			}
 		}
-
-		if (ep->skip) {
-			xhci_dbg(xhci,
-				 "Found td. Clear skip flag for slot %u ep %u.\n",
-				 slot_id, ep_index);
-			ep->skip = false;
-		}
-
-	/*
-	 * If ep->skip is set, it means there are missed tds on the
-	 * endpoint ring need to take care of.
-	 * Process them as short transfer until reach the td pointed by
-	 * the event.
-	 */
-	} while (ep->skip);
+	}
 
 	if (trb_comp_code == COMP_SUCCESS && EVENT_TRB_LEN(le32_to_cpu(event->transfer_len))) {
 		xhci_dbg(xhci, "Successful completion on short TX for slot %u ep %u with last td short %d\n",
