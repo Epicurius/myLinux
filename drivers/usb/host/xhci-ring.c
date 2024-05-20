@@ -2730,11 +2730,9 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 				xhci_dbg(xhci, "td_list is empty while skip flag set. Clear skip flag for slot %u ep %u.\n",
 					 slot_id, ep_index);
 			}
-			if (xhci_requires_manual_halt_cleanup(xhci, ep, trb_comp_code)) {
-				xhci_handle_halted_endpoint(xhci, ep, NULL,
-							    EP_HARD_RESET);
-			}
-			return 0;
+
+			td = NULL;
+			goto check_endpoint_halted;
 		}
 
 		td = list_first_entry(&ep_ring->td_list, struct xhci_td,
@@ -2832,21 +2830,23 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	 * happens right after the endpoint ring stopped. Reset the halted endpoint. Otherwise, the
 	 * endpoint remains stalled indefinitely.
 	 */
-	if (trb_is_noop(ep_trb)) {
-		if (xhci_requires_manual_halt_cleanup(xhci, ep, trb_comp_code))
-			xhci_handle_halted_endpoint(xhci, ep, td, EP_HARD_RESET);
-	} else {
-		td->status = status;
+	if (trb_is_noop(ep_trb))
+		goto check_endpoint_halted;
 
-		/* update the urb's actual_length and give back to the core */
-		if (usb_endpoint_xfer_control(&td->urb->ep->desc))
-			process_ctrl_td(xhci, ep, ep_ring, td, ep_trb, event);
-		else if (usb_endpoint_xfer_isoc(&td->urb->ep->desc))
-			process_isoc_td(xhci, ep, ep_ring, td, ep_trb, event);
-		else
-			process_bulk_intr_td(xhci, ep, ep_ring, td, ep_trb, event);
-	}
+	td->status = status;
 
+	/* Update the URB's actual length and give back to the core */
+	if (usb_endpoint_xfer_control(&td->urb->ep->desc))
+		process_ctrl_td(xhci, ep, ep_ring, td, ep_trb, event);
+	else if (usb_endpoint_xfer_isoc(&td->urb->ep->desc))
+		process_isoc_td(xhci, ep, ep_ring, td, ep_trb, event);
+	else
+		process_bulk_intr_td(xhci, ep, ep_ring, td, ep_trb, event);
+	return 0;
+
+check_endpoint_halted:
+	if (xhci_requires_manual_halt_cleanup(xhci, ep, trb_comp_code))
+		xhci_handle_halted_endpoint(xhci, ep, td, EP_HARD_RESET);
 	return 0;
 
 debug_finding_td:
