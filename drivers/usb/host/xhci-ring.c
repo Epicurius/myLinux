@@ -145,10 +145,7 @@ static void trb_to_noop(union xhci_trb *trb, u32 noop_type)
  * TRB is in a new segment.  This does not skip over link TRBs, and it does not
  * effect the ring dequeue or enqueue pointers.
  */
-static void next_trb(struct xhci_hcd *xhci,
-		struct xhci_ring *ring,
-		struct xhci_segment **seg,
-		union xhci_trb **trb)
+static void next_trb(struct xhci_ring *ring, struct xhci_segment **seg, union xhci_trb **trb)
 {
 	if (trb_is_link(*trb) || last_trb_on_seg(*seg, *trb)) {
 		*seg = (*seg)->next;
@@ -448,9 +445,9 @@ static int xhci_abort_cmd_ring(struct xhci_hcd *xhci, unsigned long flags)
 	 * avoiding corrupting the command ring pointer in case the command ring
 	 * is stopped by the time the upper dword is written.
 	 */
-	next_trb(xhci, xhci->cmd_ring, &new_seg, &new_deq);
+	next_trb(xhci->cmd_ring, &new_seg, &new_deq);
 	if (trb_is_link(new_deq))
-		next_trb(xhci, xhci->cmd_ring, &new_seg, &new_deq);
+		next_trb(xhci->cmd_ring, &new_seg, &new_deq);
 
 	crcr = xhci_trb_virt_to_dma(new_seg, new_deq);
 	xhci_write_64(xhci, crcr | CMD_RING_ABORT, &xhci->op_regs->cmd_ring);
@@ -699,7 +696,7 @@ static int xhci_move_dequeue_past_td(struct xhci_hcd *xhci,
 		    link_trb_toggles_cycle(new_deq))
 			new_cycle ^= 0x1;
 
-		next_trb(xhci, ep_ring, &new_seg, &new_deq);
+		next_trb(ep_ring, &new_seg, &new_deq);
 
 		/* Search wrapped around, bail out */
 		if (new_deq == ep->ring->dequeue) {
@@ -763,8 +760,7 @@ deq_found:
  * (The last TRB actually points to the ring enqueue pointer, which is not part
  * of this TD.)  This is used to remove partially enqueued isoc TDs from a ring.
  */
-static void td_to_noop(struct xhci_hcd *xhci, struct xhci_ring *ep_ring,
-		       struct xhci_td *td, bool flip_cycle)
+static void td_to_noop(struct xhci_ring *ep_ring, struct xhci_td *td, bool flip_cycle)
 {
 	struct xhci_segment *seg	= td->start_seg;
 	union xhci_trb *trb		= td->first_trb;
@@ -779,7 +775,7 @@ static void td_to_noop(struct xhci_hcd *xhci, struct xhci_ring *ep_ring,
 		if (trb == td->last_trb)
 			break;
 
-		next_trb(xhci, ep_ring, &seg, &trb);
+		next_trb(ep_ring, &seg, &trb);
 	}
 }
 
@@ -1042,7 +1038,7 @@ static int xhci_invalidate_cancelled_tds(struct xhci_virt_ep *ep)
 				break;
 			}
 		} else {
-			td_to_noop(xhci, ring, td, false);
+			td_to_noop(ring, td, false);
 			td->cancel_status = TD_CLEARED;
 		}
 	}
@@ -1061,7 +1057,7 @@ static int xhci_invalidate_cancelled_tds(struct xhci_virt_ep *ep)
 				continue;
 			xhci_dbg(xhci, "Failed to clear cancelled cached URB %p, mark clear anyway\n",
 				 td->urb);
-			td_to_noop(xhci, ring, td, false);
+			td_to_noop(ring, td, false);
 			td->cancel_status = TD_CLEARED;
 		}
 	}
@@ -2246,14 +2242,13 @@ static int finish_td(struct xhci_hcd *xhci, struct xhci_virt_ep *ep,
 }
 
 /* sum trb lengths from ring dequeue up to stop_trb, _excluding_ stop_trb */
-static int sum_trb_lengths(struct xhci_hcd *xhci, struct xhci_ring *ring,
-			   union xhci_trb *stop_trb)
+static int sum_trb_lengths(struct xhci_ring *ring, union xhci_trb *stop_trb)
 {
 	u32 sum;
 	union xhci_trb *trb = ring->dequeue;
 	struct xhci_segment *seg = ring->deq_seg;
 
-	for (sum = 0; trb != stop_trb; next_trb(xhci, ring, &seg, &trb)) {
+	for (sum = 0; trb != stop_trb; next_trb(ring, &seg, &trb)) {
 		if (!trb_is_noop(trb) && !trb_is_link(trb))
 			sum += TRB_LEN(le32_to_cpu(trb->generic.field[2]));
 	}
@@ -2441,8 +2436,7 @@ static int process_isoc_td(struct xhci_hcd *xhci, struct xhci_virt_ep *ep,
 		goto finish_td;
 
 	if (sum_trbs_for_length)
-		frame->actual_length = sum_trb_lengths(xhci, ep->ring, ep_trb) +
-			ep_trb_len - remaining;
+		frame->actual_length = sum_trb_lengths(ep->ring, ep_trb) + ep_trb_len - remaining;
 	else
 		frame->actual_length = requested;
 
@@ -2545,9 +2539,7 @@ static int process_bulk_intr_td(struct xhci_hcd *xhci, struct xhci_virt_ep *ep,
 	if (ep_trb == td->last_trb)
 		td->urb->actual_length = requested - remaining;
 	else
-		td->urb->actual_length =
-			sum_trb_lengths(xhci, ep_ring, ep_trb) +
-			ep_trb_len - remaining;
+		td->urb->actual_length = sum_trb_lengths(ep_ring, ep_trb) + ep_trb_len - remaining;
 finish_td:
 	if (remaining > requested) {
 		xhci_warn(xhci, "bad transfer trb length %d in event trb\n",
@@ -4204,7 +4196,7 @@ cleanup:
 	 */
 	urb_priv->td[0].last_trb = ep_ring->enqueue;
 	/* Every TRB except the first & last will have its cycle bit flipped. */
-	td_to_noop(xhci, ep_ring, &urb_priv->td[0], true);
+	td_to_noop(ep_ring, &urb_priv->td[0], true);
 
 	/* Reset the ring enqueue back to the first TRB and its cycle bit. */
 	ep_ring->enqueue = urb_priv->td[0].first_trb;
