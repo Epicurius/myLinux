@@ -58,6 +58,18 @@
 #include "xhci.h"
 #include "xhci-trace.h"
 
+#include <linux/moduleparam.h>
+
+bool keepEvent;
+
+unsigned int mySlotID = 0;
+module_param(mySlotID, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+MODULE_PARM_DESC(mySlotID, "A test integer");
+
+int myInt;
+module_param(myInt, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+MODULE_PARM_DESC(myInt, "A test integer");
+
 static int queue_command(struct xhci_hcd *xhci, struct xhci_command *cmd,
 			 u32 field1, u32 field2,
 			 u32 field3, u32 field4, bool command_must_succeed);
@@ -2237,6 +2249,67 @@ static void finish_td(struct xhci_hcd *xhci, struct xhci_virt_ep *ep,
 		break;
 	}
 
+	switch (myInt) {
+	case 0:
+		break;
+	case 1:
+		if (!usb_endpoint_xfer_isoc(&td->urb->ep->desc)) {
+			xhci_dbg(xhci, "NIK: bulk/xfer: handle event but don't release TD and TRB\n");
+			myInt = 0;
+			mySlotID = ep->vdev->slot_id;
+			return;
+		}
+		break;
+	case 2:
+		if (usb_endpoint_xfer_isoc(&td->urb->ep->desc)) {
+			xhci_dbg(xhci, "NIK: isoc: handle event but don't release TD and TRB\n");
+			myInt = 0;
+			mySlotID = ep->vdev->slot_id;
+			return;
+		}
+		break;
+	case 3:
+		if (!usb_endpoint_xfer_isoc(&td->urb->ep->desc)) {
+			xhci_dbg(xhci, "NIK: bulk/xfer: re-run event with missing TD\n");
+			xhci_td_cleanup(xhci, td, ep_ring, td->status);
+			keepEvent = true;
+			myInt = 0;
+			mySlotID = ep->vdev->slot_id;
+			return;
+		}
+		break;
+	case 4:
+		if (usb_endpoint_xfer_isoc(&td->urb->ep->desc)) {
+			xhci_dbg(xhci, "NIK: isoc: re-run event with missing TD\n");
+			xhci_td_cleanup(xhci, td, ep_ring, td->status);
+			keepEvent = true;
+			myInt = 0;
+			mySlotID = ep->vdev->slot_id;
+			return;
+		}
+		break;
+	case 5:
+		if (!usb_endpoint_xfer_isoc(&td->urb->ep->desc)) {
+			xhci_dbg(xhci, "NIK: bulk/xfer: duplicate event\n");
+			xhci_dequeue_td(xhci, td, ep_ring, td->status);
+			keepEvent = true;
+			myInt = 0;
+			mySlotID = ep->vdev->slot_id;
+			return;
+		}
+		break;
+	case 6:
+		if (usb_endpoint_xfer_isoc(&td->urb->ep->desc)) {
+			xhci_dbg(xhci, "NIK: isoc: duplicate event\n");
+			xhci_dequeue_td(xhci, td, ep_ring, td->status);
+			keepEvent = true;
+			myInt = 0;
+			mySlotID = ep->vdev->slot_id;
+			return;
+		}
+		break;
+	}
+
 	xhci_dequeue_td(xhci, td, ep_ring, td->status);
 }
 
@@ -2710,8 +2783,12 @@ static void handle_tx_event(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
 	u32 trb_comp_code;
 	int status;
 
+re_run_event:
+	keepEvent = false;
 	slot_id = TRB_TO_SLOT_ID(le32_to_cpu(event->flags));
 	ep_index = TRB_TO_EP_ID(le32_to_cpu(event->flags)) - 1;
+	if (mySlotID == slot_id)
+		xhci_dbg(xhci, "NIK: slot id thing\n");
 
 	ep = xhci_get_virt_ep(xhci, slot_id, ep_index);
 	if (!ep) {
@@ -2768,7 +2845,7 @@ static void handle_tx_event(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
 	 */
 	ep_seg = trb_in_queue(ep_ring, ep_trb_dma);
 	if (!ep_seg) {
-		xhci_dbg(xhci, "Event TRB for slot %u ep %u not in queue\n", slot_id, ep_index);
+		xhci_dbg(xhci, "Event-dma %016llx for slot %u ep %u not in queue\n", (unsigned long long)ep_trb_dma, slot_id, ep_index);
 		return;
 	}
 
@@ -2778,6 +2855,35 @@ static void handle_tx_event(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
 	td = xhci_find_event_td(xhci, ep, ep_ring, ep_seg, ep_trb, status);
 	if (!td)
 		goto check_endpoint_halted;
+
+	unsigned int tds = list_count_nodes(&ep_ring->td_list);
+
+	if (mySlotID == 0 || slot_id == mySlotID) {
+		switch (usb_endpoint_type(&td->urb->ep->desc)) {
+		case USB_ENDPOINT_XFER_CONTROL:
+			xhci_dbg(xhci, "NIK: %u CONTROL TDs: %d\n", slot_id, tds);
+			break;
+		case USB_ENDPOINT_XFER_ISOC:
+			xhci_dbg(xhci, "NIK: %u ISOC TDs: %d\n", slot_id, tds);
+			break;
+		case USB_ENDPOINT_XFER_BULK:
+			xhci_dbg(xhci, "NIK: %u BULK TDs: %d\n", slot_id, tds);
+			break;
+		case USB_ENDPOINT_XFER_INT:
+			xhci_dbg(xhci, "NIK: %u INT TDs: %d\n", slot_id, tds);
+			break;
+		default:
+			xhci_dbg(xhci, "NIK: %u ERROR: %d\n", slot_id, tds);
+		}
+	}
+
+	if (mySlotID == slot_id)
+		xhci_dbg(xhci, "TD found for event-dma %016llx trb-start %016llx trb-end %016llx seg-start %llu seg-end %llu\n",
+			 (unsigned long long)ep_trb_dma,
+			 (unsigned long long)xhci_trb_virt_to_dma(td->start_seg, td->first_trb),
+			 (unsigned long long)xhci_trb_virt_to_dma(td->end_seg, td->last_trb),
+			 (unsigned long long)td->start_seg->num,
+			 (unsigned long long)td->end_seg->num);
 
 	if (trb_comp_code == COMP_SUCCESS && EVENT_TRB_LEN(le32_to_cpu(event->transfer_len))) {
 		xhci_dbg(xhci, "Successful completion on short TX for slot %u ep %u with last td short %d\n",
@@ -2806,6 +2912,10 @@ static void handle_tx_event(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
 		process_isoc_td(xhci, ep, ep_ring, td, ep_trb, event);
 	else
 		process_bulk_intr_td(xhci, ep, ep_ring, td, ep_trb, event);
+
+	if (keepEvent)
+		goto re_run_event;
+
 	return;
 
 check_endpoint_halted:
@@ -3840,9 +3950,10 @@ static int xhci_get_isoc_frame_id(struct xhci_hcd *xhci,
 	start_frame_id = (start_frame_id >> 3) & 0x7ff;
 	end_frame_id = (end_frame_id >> 3) & 0x7ff;
 
-	xhci_dbg(xhci, "%s: index %d, reg 0x%x start_frame_id 0x%x, end_frame_id 0x%x, start_frame 0x%x\n",
-		 __func__, index, readl(&xhci->run_regs->microframe_index),
-		 start_frame_id, end_frame_id, start_frame);
+	// Too much spam.
+	// xhci_dbg(xhci, "%s: index %d, reg 0x%x start_frame_id 0x%x, end_frame_id 0x%x, start_frame 0x%x\n",
+	// 	 __func__, index, readl(&xhci->run_regs->microframe_index),
+	// 	 start_frame_id, end_frame_id, start_frame);
 
 	if (start_frame_id < end_frame_id) {
 		if (start_frame > end_frame_id ||
