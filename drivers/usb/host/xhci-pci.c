@@ -100,8 +100,8 @@ static void xhci_msix_sync_irqs(struct xhci_hcd *xhci)
 	if (hcd->msix_enabled) {
 		struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
 
-		/* for now, the driver only supports one primary interrupter */
-		synchronize_irq(pci_irq_vector(pdev, 0));
+		for (int i = 0; i < xhci->nvecs; i++)
+			synchronize_irq(pci_irq_vector(pdev, i));
 	}
 }
 
@@ -115,7 +115,15 @@ static void xhci_cleanup_msix(struct xhci_hcd *xhci)
 	if (hcd->irq > 0)
 		return;
 
-	free_irq(pci_irq_vector(pdev, 0), xhci_to_hcd(xhci));
+	if (hcd->msix_enabled) {
+		while (xhci->nvecs > 0) {
+			xhci->nvecs--;
+			free_irq(pci_irq_vector(pdev, xhci->nvecs), xhci_to_hcd(xhci));
+		}
+	} else {
+		free_irq(pci_irq_vector(pdev, 0), xhci_to_hcd(xhci));
+	}
+
 	pci_free_irq_vectors(pdev);
 	hcd->msix_enabled = 0;
 }
@@ -125,7 +133,7 @@ static int xhci_try_enable_msi(struct usb_hcd *hcd)
 {
 	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	int ret;
+	int ret, i;
 
 	/*
 	 * Some Fresco Logic host controllers advertise MSI, but fail to
@@ -158,10 +166,12 @@ static int xhci_try_enable_msi(struct usb_hcd *hcd)
 		goto legacy_irq;
 	}
 
-	ret = request_irq(pci_irq_vector(pdev, 0), xhci_msi_irq, 0, "xhci_hcd",
-			  xhci_to_hcd(xhci));
-	if (ret)
-		goto free_irq_vectors;
+	for (i = 0; i < xhci->nvecs; i++) {
+		ret = request_irq(pci_irq_vector(pdev, i), xhci_msi_irq, 0, "xhci_hcd",
+				  xhci_to_hcd(xhci));
+		if (ret)
+			goto free_irq_vectors;
+	}
 
 	hcd->msi_enabled = 1;
 	hcd->msix_enabled = pdev->msix_enabled;
@@ -170,6 +180,8 @@ static int xhci_try_enable_msi(struct usb_hcd *hcd)
 free_irq_vectors:
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "disable %s interrupt",
 		       pdev->msix_enabled ? "MSI-X" : "MSI");
+	while (--i >= 0)
+		free_irq(pci_irq_vector(pdev, i), xhci_to_hcd(xhci));
 	pci_free_irq_vectors(pdev);
 
 legacy_irq:
@@ -194,14 +206,35 @@ legacy_irq:
 
 static int xhci_pci_run(struct usb_hcd *hcd)
 {
+	struct xhci_interrupter *ir;
+	struct xhci_hcd *xhci;
+	struct pci_dev *pdev;
 	int ret;
 
 	if (usb_hcd_is_primary_hcd(hcd)) {
 		ret = xhci_try_enable_msi(hcd);
 		if (ret)
 			return ret;
+
+		xhci = hcd_to_xhci(hcd);
+		if (xhci->nvecs <= 1)
+			goto run;
+
+		/* Try alloc secondary interrupter */
+		ir = xhci_create_secondary_interrupter(hcd, 0);
+		if (ir)
+			goto run;
+
+		pdev = to_pci_dev(hcd->self.controller);
+
+		/* Remove all MSI/MSI-X vector except for one */
+		while (xhci->nvecs > 1) {
+			xhci->nvecs--;
+			free_irq(pci_irq_vector(pdev, xhci->nvecs), xhci_to_hcd(xhci));
+		}
 	}
 
+run:
 	return xhci_run(hcd);
 }
 

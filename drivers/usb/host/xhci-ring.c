@@ -3125,7 +3125,7 @@ static irqreturn_t xhci_handle_irq(int irq, struct usb_hcd *hcd)
 	writel(status, &xhci->op_regs->status);
 
 	/* This is the handler of the primary interrupter */
-	xhci_handle_events(xhci, xhci->interrupters[0]);
+	xhci_handle_events(xhci, xhci->interrupters[irq]);
 out:
 	spin_unlock(&xhci->lock);
 
