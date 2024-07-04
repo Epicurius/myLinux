@@ -62,6 +62,26 @@ static int queue_command(struct xhci_hcd *xhci, struct xhci_command *cmd,
 			 u32 field1, u32 field2,
 			 u32 field3, u32 field4, bool command_must_succeed);
 
+static unsigned int xhci_trb_interrupter_target(struct xhci_hcd *xhci, u32 trb_type)
+{
+	if (xhci->nvecs <= 1)
+		return 0;
+
+	switch (trb_type) {
+	case TRB_NORMAL:
+	case TRB_SETUP:
+	case TRB_DATA:
+	case TRB_STATUS:
+	case TRB_ISOC:
+	case TRB_LINK:
+	case TRB_EVENT_DATA:
+	case TRB_TR_NOOP:
+		return 1;
+	}
+
+	return 0;
+}
+
 /*
  * Returns zero if the TRB isn't in this segment, otherwise it returns the DMA
  * address of the TRB.
@@ -3622,7 +3642,7 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 	unsigned int start_cycle, num_sgs = 0;
 	unsigned int enqd_len, block_len, trb_buff_len, full_len;
 	int sent_len, ret;
-	u32 field, length_field, remainder;
+	u32 field, length_field, remainder, intr_tgt;
 	u64 addr, send_addr;
 
 	ring = xhci_urb_to_transfer_ring(xhci, urb);
@@ -3664,6 +3684,8 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 	start_trb = &ring->enqueue->generic;
 	start_cycle = ring->cycle_state;
 	send_addr = addr;
+
+	intr_tgt = xhci_trb_interrupter_target(xhci, TRB_NORMAL);
 
 	/* Queue the TRBs, even if they are zero-length */
 	for (enqd_len = 0; first_trb || enqd_len < full_len;
@@ -3724,7 +3746,7 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 
 		length_field = TRB_LEN(trb_buff_len) |
 			TRB_TD_SIZE(remainder) |
-			TRB_INTR_TARGET(0);
+			TRB_INTR_TARGET(intr_tgt);
 
 		queue_trb(xhci, ring, more_trbs_coming | need_zero_pkt,
 				lower_32_bits(send_addr),
@@ -3757,7 +3779,7 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 		urb_priv->td[1].last_trb = ring->enqueue;
 		urb_priv->td[1].last_trb_seg = ring->enq_seg;
 		field = TRB_TYPE(TRB_NORMAL) | ring->cycle_state | TRB_IOC;
-		queue_trb(xhci, ring, 0, 0, 0, TRB_INTR_TARGET(0), field);
+		queue_trb(xhci, ring, 0, 0, 0, TRB_INTR_TARGET(intr_tgt), field);
 		urb_priv->td[1].num_trbs++;
 	}
 
@@ -3777,7 +3799,7 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 	struct usb_ctrlrequest *setup;
 	struct xhci_generic_trb *start_trb;
 	int start_cycle;
-	u32 field;
+	u32 field, intr_tgt;
 	struct urb_priv *urb_priv;
 	struct xhci_td *td;
 
@@ -3824,6 +3846,7 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 	setup = (struct usb_ctrlrequest *) urb->setup_packet;
 	field = 0;
 	field |= TRB_IDT | TRB_TYPE(TRB_SETUP);
+	intr_tgt = xhci_trb_interrupter_target(xhci, TRB_SETUP);
 	if (start_cycle == 0)
 		field |= 0x1;
 
@@ -3840,7 +3863,7 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 	queue_trb(xhci, ep_ring, true,
 		  setup->bRequestType | setup->bRequest << 8 | le16_to_cpu(setup->wValue) << 16,
 		  le16_to_cpu(setup->wIndex) | le16_to_cpu(setup->wLength) << 16,
-		  TRB_LEN(8) | TRB_INTR_TARGET(0),
+		  TRB_LEN(8) | TRB_INTR_TARGET(intr_tgt),
 		  /* Immediate data in pointer */
 		  field);
 
@@ -3850,6 +3873,7 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 		field = TRB_ISP | TRB_TYPE(TRB_DATA);
 	else
 		field = TRB_TYPE(TRB_DATA);
+	intr_tgt = xhci_trb_interrupter_target(xhci, TRB_DATA);
 
 	if (urb->transfer_buffer_length > 0) {
 		u32 length_field, remainder;
@@ -3870,7 +3894,7 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 				urb, 1);
 		length_field = TRB_LEN(urb->transfer_buffer_length) |
 				TRB_TD_SIZE(remainder) |
-				TRB_INTR_TARGET(0);
+				TRB_INTR_TARGET(intr_tgt);
 		if (setup->bRequestType & USB_DIR_IN)
 			field |= TRB_DIR_IN;
 		queue_trb(xhci, ep_ring, true,
@@ -3890,10 +3914,11 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 		field = 0;
 	else
 		field = TRB_DIR_IN;
+	intr_tgt = xhci_trb_interrupter_target(xhci, TRB_STATUS);
 	queue_trb(xhci, ep_ring, false,
 			0,
 			0,
-			TRB_INTR_TARGET(0),
+			TRB_INTR_TARGET(intr_tgt),
 			/* Event on completion */
 			field | TRB_IOC | TRB_TYPE(TRB_STATUS) | ep_ring->cycle_state);
 
@@ -4069,7 +4094,6 @@ static bool trb_block_event_intr(struct xhci_hcd *xhci, int num_tds, int i,
 static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 		struct urb *urb, int slot_id, unsigned int ep_index)
 {
-	struct xhci_interrupter *ir;
 	struct xhci_ring *ep_ring;
 	struct urb_priv *urb_priv;
 	struct xhci_td *td;
@@ -4077,7 +4101,7 @@ static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 	struct xhci_generic_trb *start_trb;
 	bool first_trb;
 	int start_cycle;
-	u32 field, length_field;
+	u32 field, length_field, intr_tgt;
 	int running_total, trb_buff_len, td_len, td_remain_len, ret;
 	u64 start_addr, addr;
 	int i, j;
@@ -4087,7 +4111,6 @@ static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 
 	xep = &xhci->devs[slot_id]->eps[ep_index];
 	ep_ring = xhci->devs[slot_id]->eps[ep_index].ring;
-	ir = xhci->interrupters[0];
 
 	num_tds = urb->number_of_packets;
 	if (num_tds < 1) {
@@ -4148,6 +4171,7 @@ static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 			TRB_TLBPC(last_burst_pkt_count) |
 			sia_frame_id |
 			(i ? ep_ring->cycle_state : !start_cycle);
+		intr_tgt = xhci_trb_interrupter_target(xhci, TRB_ISOC);
 
 		/* xhci 1.1 with ETE uses TD_Size field for TBC, old is Rsvdz */
 		if (!xep->use_extended_tbc)
@@ -4158,9 +4182,11 @@ static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 			u32 remainder = 0;
 
 			/* only first TRB is isoc, overwrite otherwise */
-			if (!first_trb)
+			if (!first_trb) {
 				field = TRB_TYPE(TRB_NORMAL) |
 					ep_ring->cycle_state;
+				intr_tgt = xhci_trb_interrupter_target(xhci, TRB_NORMAL);
+			}
 
 			/* Only set interrupt on short packet for IN EPs */
 			if (usb_urb_dir_in(urb))
@@ -4175,7 +4201,8 @@ static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 				td->last_trb = ep_ring->enqueue;
 				td->last_trb_seg = ep_ring->enq_seg;
 				field |= TRB_IOC;
-				if (trb_block_event_intr(xhci, num_tds, i, ir))
+				if (trb_block_event_intr(xhci, num_tds, i,
+							 xhci->interrupters[intr_tgt]))
 					field |= TRB_BEI;
 			}
 			/* Calculate TRB length */
@@ -4188,8 +4215,7 @@ static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 						   trb_buff_len, td_len,
 						   urb, more_trbs_coming);
 
-			length_field = TRB_LEN(trb_buff_len) |
-				TRB_INTR_TARGET(0);
+			length_field = TRB_LEN(trb_buff_len) | TRB_INTR_TARGET(intr_tgt);
 
 			/* xhci 1.1 with ETE uses TD Size field for TBC */
 			if (first_trb && xep->use_extended_tbc)
