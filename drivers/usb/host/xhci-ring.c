@@ -3086,7 +3086,7 @@ static int xhci_handle_events(struct xhci_hcd *xhci, struct xhci_interrupter *ir
  * we might get bad data out of the event ring.  Section 4.10.2.7 has a list of
  * indicators of an event TRB error, but we check the status *first* to be safe.
  */
-irqreturn_t xhci_irq(struct usb_hcd *hcd)
+static irqreturn_t xhci_handle_irq(int irq, struct usb_hcd *hcd)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	irqreturn_t ret = IRQ_HANDLED;
@@ -3132,9 +3132,14 @@ out:
 	return ret;
 }
 
+irqreturn_t xhci_legacy_irq(struct usb_hcd *hcd)
+{
+	return xhci_handle_irq(0, hcd);
+}
+
 irqreturn_t xhci_msi_irq(int irq, void *hcd)
 {
-	return xhci_irq(hcd);
+	return xhci_handle_irq(irq, hcd);
 }
 EXPORT_SYMBOL_GPL(xhci_msi_irq);
 
