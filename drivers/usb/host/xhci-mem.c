@@ -2332,7 +2332,7 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs)
 	unsigned int i;
 	int err = -ENOSPC;
 
-	if (!xhci->interrupters || xhci->num_interrupters <= 1)
+	if (!xhci->interrupters || xhci->nvecs <= 1)
 		return NULL;
 
 	ir = xhci_alloc_interrupter(xhci, segs, GFP_KERNEL);
