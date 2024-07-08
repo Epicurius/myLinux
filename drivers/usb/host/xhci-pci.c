@@ -115,7 +115,7 @@ static void xhci_cleanup_msix(struct xhci_hcd *xhci)
 	if (hcd->irq > 0)
 		return;
 
-	free_irq(pci_irq_vector(pdev, 0), xhci_to_hcd(xhci));
+	free_irq(pci_irq_vector(pdev, 0), xhci->interrupters[0]);
 	pci_free_irq_vectors(pdev);
 	hcd->msix_enabled = 0;
 }
@@ -149,7 +149,7 @@ static int xhci_try_enable_msi(struct usb_hcd *hcd)
 	}
 
 	ret = request_irq(pci_irq_vector(pdev, 0), xhci_msi_irq, 0, "xhci_hcd",
-			  xhci_to_hcd(xhci));
+			  xhci->interrupters[0]);
 	if (ret)
 		goto free_irq_vectors;
 

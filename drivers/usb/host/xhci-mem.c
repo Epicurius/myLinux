@@ -2282,6 +2282,7 @@ xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
 		return NULL;
 	}
 
+	ir->xhci = xhci;
 	return ir;
 }
 
