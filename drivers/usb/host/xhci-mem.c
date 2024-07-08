@@ -2343,6 +2343,8 @@ xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir, unsigne
 
 	if (ir->internal)
 		xhci_internal_interrupt_state(xhci, ir);
+
+	ir->xhci = xhci;
 }
 
 struct xhci_interrupter *
