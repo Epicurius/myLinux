@@ -202,6 +202,9 @@ static int xhci_pci_run(struct usb_hcd *hcd)
 		ret = xhci_setup_primary_interrupter(hcd);
 		if (ret)
 			return ret;
+
+		/* In case secondary interrupter fails, only interrupter 0 is used */
+		xhci_setup_secondary_interrupter(hcd, 0, "xhci_hcd", xhci_msi_irq);
 	}
 
 	return xhci_run(hcd);
