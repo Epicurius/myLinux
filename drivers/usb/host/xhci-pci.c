@@ -96,12 +96,18 @@ static const struct xhci_driver_overrides xhci_pci_overrides __initconst = {
 static void xhci_msix_sync_irqs(struct xhci_hcd *xhci)
 {
 	struct usb_hcd *hcd = xhci_to_hcd(xhci);
+	struct pci_dev *pdev;
 
-	if (hcd->msix_enabled) {
-		struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
+	if (!hcd->msix_enabled)
+		return;
 
-		/* for now, the driver only supports one primary interrupter */
-		synchronize_irq(pci_irq_vector(pdev, 0));
+	pdev = to_pci_dev(hcd->self.controller);
+
+	for (int i = 0; i < xhci->nvecs; i++) {
+		if (!xhci->interrupters[i])
+			continue;
+
+		synchronize_irq(pci_irq_vector(pdev, i));
 	}
 }
 
@@ -111,11 +117,15 @@ static void xhci_cleanup_msix(struct xhci_hcd *xhci)
 	struct usb_hcd *hcd = xhci_to_hcd(xhci);
 	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
 
-	/* return if using legacy interrupt */
-	if (hcd->irq > 0)
+	if (!hcd->msi_enabled)
 		return;
 
-	free_irq(pci_irq_vector(pdev, 0), xhci->interrupters[0]);
+	for (int i = 0; i < xhci->nvecs; i++) {
+		if (!xhci->interrupters[i])
+			continue;
+
+		free_irq(pci_irq_vector(pdev, i), xhci->interrupters[i]);
+	}
 	pci_free_irq_vectors(pdev);
 	hcd->msix_enabled = 0;
 }
