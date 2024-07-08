@@ -1844,7 +1844,7 @@ void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrup
 	spin_lock_irq(&xhci->lock);
 
 	/* interrupter 0 is primary interrupter, don't touch it */
-	if (!ir || !ir->ir_num || ir->ir_num >= xhci->max_interrupters) {
+	if (!ir || !ir->ir_num || ir->ir_num >= xhci->num_interrupters) {
 		xhci_dbg(xhci, "Invalid secondary interrupter, can't remove\n");
 		spin_unlock_irq(&xhci->lock);
 		return;
@@ -1868,7 +1868,7 @@ void xhci_mem_cleanup(struct xhci_hcd *xhci)
 
 	cancel_delayed_work_sync(&xhci->cmd_timer);
 
-	for (i = 0; i < xhci->max_interrupters; i++) {
+	for (i = 0; i < xhci->num_interrupters; i++) {
 		if (xhci->interrupters[i]) {
 			xhci_remove_interrupter(xhci, xhci->interrupters[i]);
 			xhci_free_interrupter(xhci, xhci->interrupters[i]);
@@ -2292,9 +2292,9 @@ xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
 	u64 erst_base;
 	u32 erst_size;
 
-	if (ir_num >= xhci->max_interrupters) {
+	if (ir_num >= xhci->num_interrupters) {
 		xhci_warn(xhci, "Can't add interrupter %d, max interrupters %d\n",
-			  ir_num, xhci->max_interrupters);
+			  ir_num, xhci->num_interrupters);
 		return -EINVAL;
 	}
 
@@ -2332,7 +2332,7 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs)
 	unsigned int i;
 	int err = -ENOSPC;
 
-	if (!xhci->interrupters || xhci->max_interrupters <= 1)
+	if (!xhci->interrupters || xhci->num_interrupters <= 1)
 		return NULL;
 
 	ir = xhci_alloc_interrupter(xhci, segs, GFP_KERNEL);
@@ -2342,7 +2342,7 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs)
 	spin_lock_irq(&xhci->lock);
 
 	/* Find available secondary interrupter, interrupter 0 is reserved for primary */
-	for (i = 1; i < xhci->max_interrupters; i++) {
+	for (i = 1; i < xhci->num_interrupters; i++) {
 		if (xhci->interrupters[i] == NULL) {
 			err = xhci_add_interrupter(xhci, ir, i);
 			break;
@@ -2353,13 +2353,13 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs)
 
 	if (err) {
 		xhci_warn(xhci, "Failed to add secondary interrupter, max interrupters %d\n",
-			  xhci->max_interrupters);
+			  xhci->num_interrupters);
 		xhci_free_interrupter(xhci, ir);
 		return NULL;
 	}
 
 	xhci_dbg(xhci, "Add secondary interrupter %d, max interrupters %d\n",
-		 i, xhci->max_interrupters);
+		 i, xhci->num_interrupters);
 
 	return ir;
 }
@@ -2493,7 +2493,7 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	/* Allocate and set up primary interrupter 0 with an event ring. */
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 		       "Allocating primary event ring");
-	xhci->interrupters = kcalloc_node(xhci->max_interrupters, sizeof(*xhci->interrupters),
+	xhci->interrupters = kcalloc_node(xhci->num_interrupters, sizeof(*xhci->interrupters),
 					  flags, dev_to_node(dev));
 
 	ir = xhci_alloc_interrupter(xhci, 0, flags);

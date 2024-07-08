@@ -716,7 +716,7 @@ static void xhci_save_registers(struct xhci_hcd *xhci)
 
 	/* save both primary and all secondary interrupters */
 	/* fixme, shold we lock  to prevent race with remove secondary interrupter? */
-	for (i = 0; i < xhci->max_interrupters; i++) {
+	for (i = 0; i < xhci->num_interrupters; i++) {
 		ir = xhci->interrupters[i];
 		if (!ir)
 			continue;
@@ -740,7 +740,7 @@ static void xhci_restore_registers(struct xhci_hcd *xhci)
 	writel(xhci->s3.config_reg, &xhci->op_regs->config_reg);
 
 	/* FIXME should we lock to protect against freeing of interrupters */
-	for (i = 0; i < xhci->max_interrupters; i++) {
+	for (i = 0; i < xhci->num_interrupters; i++) {
 		ir = xhci->interrupters[i];
 		if (!ir)
 			continue;
@@ -5208,10 +5208,14 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 	if (xhci->hci_version > 0x100)
 		xhci->hcc_params2 = readl(&xhci->cap_regs->hcc_params2);
 
-	/* xhci-plat or xhci-pci might have set max_interrupters already */
-	if ((!xhci->max_interrupters) ||
-	    xhci->max_interrupters > HCS_MAX_INTRS(xhci->hcs_params1))
-		xhci->max_interrupters = HCS_MAX_INTRS(xhci->hcs_params1);
+	/*
+	 * Calculate number of MSI-X vectors supported.
+	 * - HCS_MAX_INTRS: the max number of interrupts the host can handle,
+	 *   with max number of interrupters based on the xhci HCSPARAMS1.
+	 * - num_online_cpus: maximum MSI-X vectors per CPUs core.
+	 *   Add additional 1 vector to ensure always available interrupt.
+	 */
+	xhci->num_interrupters = min(num_online_cpus() + 1, HCS_MAX_INTRS(xhci->hcs_params1));
 
 	xhci->quirks |= quirks;
 
