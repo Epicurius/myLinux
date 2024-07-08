@@ -1425,6 +1425,7 @@ struct xhci_bus_state {
 };
 
 struct xhci_interrupter {
+	struct xhci_hcd		*xhci;
 	struct xhci_ring	*event_ring;
 	struct xhci_erst	erst;
 	struct xhci_intr_reg __iomem *ir_set;
@@ -1769,7 +1770,8 @@ struct xhci_interrupter *xhci_create_secondary_interrupter(struct usb_hcd *hcd, 
 void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrupter *ir);
 int xhci_setup_interrupters(struct usb_hcd *hcd, gfp_t flags);
 int xhci_request_legacy_irq(struct usb_hcd *hcd);
-int xhci_request_msi_irq(struct usb_hcd *hcd, unsigned int intr_num);
+int xhci_request_msi_irq(struct usb_hcd *hcd, unsigned int intr_num, void *dev_id, char *name,
+			 irqreturn_t (*func)(int, void *));
 
 /* xHCI memory management */
 void xhci_mem_cleanup(struct xhci_hcd *xhci);
@@ -1872,8 +1874,8 @@ int xhci_ext_cap_init(struct xhci_hcd *xhci);
 int xhci_suspend(struct xhci_hcd *xhci, bool do_wakeup);
 int xhci_resume(struct xhci_hcd *xhci, pm_message_t msg);
 
-irqreturn_t xhci_irq(struct usb_hcd *hcd);
-irqreturn_t xhci_msi_irq(int irq, void *hcd);
+irqreturn_t xhci_legacy_irq(struct usb_hcd *hcd);
+irqreturn_t xhci_msi_irq(int irq, void *ir);
 int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev);
 int xhci_alloc_tt_info(struct xhci_hcd *xhci,
 		struct xhci_virt_device *virt_dev,

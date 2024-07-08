@@ -211,7 +211,8 @@ int xhci_request_legacy_irq(struct usb_hcd *hcd)
 	return 0;
 }
 
-int xhci_request_msi_irq(struct usb_hcd *hcd, unsigned int intr_num)
+int xhci_request_msi_irq(struct usb_hcd *hcd, unsigned int intr_num, void *dev_id, char *name,
+			 irqreturn_t (*func)(int, void *))
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
@@ -220,9 +221,10 @@ int xhci_request_msi_irq(struct usb_hcd *hcd, unsigned int intr_num)
 
 	xhci_dbg(xhci, "Request %s interrupt %u\n", pdev->msix_enabled ? "MSI-X" : "MSI", intr_num);
 
-	ret = request_irq(irq_num, xhci_msi_irq, 0, "xhci_hcd", xhci);
+	ret = request_irq(irq_num, func, 0, name, dev_id);
 	if (ret == -EBUSY) {
-		xhci_dbg(xhci, "Interrupt %u already exists\n", intr_num);
+		xhci_dbg(xhci, "Interrupt %u already exists, updating data\n", intr_num);
+		irq_set_handler_data(irq_num, dev_id);
 	} else if (ret) {
 		xhci_warn(xhci, "Request interrupt %d failed\n", intr_num);
 		return ret;

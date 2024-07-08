@@ -2298,6 +2298,7 @@ static void xhci_init_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter
 	xhci->interrupters[intr_num] = ir;
 	ir->intr_num = intr_num;
 	ir->ir_set = &xhci->run_regs->ir_set[intr_num];
+	ir->xhci = xhci;
 
 	/* set ERST count with the number of entries in the segment table */
 	erst_size = readl(&ir->ir_set->erst_size);
@@ -2341,7 +2342,7 @@ static int xhci_setup_interrupt(struct xhci_hcd *xhci, unsigned int intr_num, gf
 		return -ENOMEM;
 
 	if (hcd->msi_enabled)
-		ret = xhci_request_msi_irq(hcd, intr_num);
+		ret = xhci_request_msi_irq(hcd, intr_num, ir, "xhci_hcd", xhci_msi_irq);
 	else
 		ret = xhci_request_legacy_irq(hcd);
 
