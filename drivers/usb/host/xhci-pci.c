@@ -87,6 +87,7 @@ static int xhci_pci_update_hub_device(struct usb_hcd *hcd, struct usb_device *hd
 				      struct usb_tt *tt, gfp_t mem_flags);
 
 static const struct xhci_driver_overrides xhci_pci_overrides __initconst = {
+	/* "reset" is misnamed; its role is now one-time init */
 	.reset = xhci_pci_setup,
 	.start = xhci_pci_start,
 	.update_hub_device = xhci_pci_update_hub_device,
@@ -108,73 +109,14 @@ static void xhci_msix_sync_irqs(struct xhci_hcd *xhci)
 	}
 }
 
-/* Free any IRQs and disable MSI-X */
-void xhci_cleanup_msi_irq(struct xhci_hcd *xhci)
+int xhci_setup_legacy_irq(struct xhci_hcd *xhci)
 {
 	struct usb_hcd *hcd = xhci_to_hcd(xhci);
 	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
-
-	if (!hcd->msi_enabled)
-		return;
-
-	for (int i = 0; i < xhci->nvecs; i++) {
-		if (!xhci->interrupters[i])
-			continue;
-
-		free_irq(pci_irq_vector(pdev, i), xhci->interrupters[i]);
-	}
-
-	pci_free_irq_vectors(pdev);
-	hcd->msix_enabled = 0;
-	hcd->msi_enabled = 0;
-	xhci->nvecs = 0;
-}
-
-/* Try enabling MSI-X with MSI and legacy IRQ as fallback */
-static int xhci_try_enable_msi(struct usb_hcd *hcd)
-{
-	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
-	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	int ret;
 
-	/*
-	 * Some Fresco Logic host controllers advertise MSI, but fail to
-	 * generate interrupts.  Don't even try to enable MSI.
-	 */
-	if (xhci->quirks & XHCI_BROKEN_MSI)
-		goto legacy_irq;
-
-	/* unregister the legacy interrupt */
-	if (hcd->irq)
-		free_irq(hcd->irq, hcd);
-	hcd->irq = 0;
-
-	/* TODO: Check with MSI Soc for sysdev */
-	xhci->nvecs = pci_alloc_irq_vectors(pdev, 1, xhci->max_interrupters,
-					    PCI_IRQ_MSIX | PCI_IRQ_MSI);
-	if (xhci->nvecs < 0) {
-		xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			       "failed to allocate IRQ vectors");
-		goto legacy_irq;
-	}
-
-	ret = request_irq(pci_irq_vector(pdev, 0), xhci_msi_irq, 0, "xhci_hcd",
-			  xhci->interrupters[0]);
-	if (ret)
-		goto free_irq_vectors;
-
-	hcd->msi_enabled = 1;
-	hcd->msix_enabled = pdev->msix_enabled;
-	return 0;
-
-free_irq_vectors:
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "disable %s interrupt",
-		       pdev->msix_enabled ? "MSI-X" : "MSI");
-	pci_free_irq_vectors(pdev);
-
-legacy_irq:
 	if (!pdev->irq) {
-		xhci_err(xhci, "No msi-x/msi found and no IRQ in BIOS\n");
+		xhci_err(xhci, "No IRQ in BIOS\n");
 		return -EINVAL;
 	}
 
@@ -188,31 +130,74 @@ legacy_irq:
 		xhci_err(xhci, "request interrupt %d failed\n", pdev->irq);
 		return ret;
 	}
+
+	xhci->nvecs = 1;
 	hcd->irq = pdev->irq;
+	xhci_dbg(xhci, "Primary interrupter setup, using legacy IRQ\n");
+	return 0;
+}
+
+int xhci_alloc_msi_irq_vectors(struct xhci_hcd *xhci)
+{
+	struct usb_hcd *hcd = xhci_to_hcd(xhci);
+	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
+
+	/*
+	 * Some Fresco Logic host controllers advertise MSI, but fail to generate interrupts.
+	 * Don't even try to enable MSI.
+	 */
+	if (xhci->quirks & XHCI_BROKEN_MSI)
+		return -EINVAL;
+
+	/* Unregister the legacy interrupt */
+	if (hcd->irq) {
+		free_irq(hcd->irq, hcd);
+		hcd->irq = 0;
+	}
+
+	xhci->nvecs = pci_alloc_irq_vectors(pdev, 1, xhci->max_interrupters,
+					    PCI_IRQ_MSIX | PCI_IRQ_MSI);
+	if (xhci->nvecs < 0) {
+		xhci_dbg_trace(xhci, trace_xhci_dbg_init, "failed to allocate IRQ vectors");
+		return -ENOMEM;
+	};
+
+	hcd->msi_enabled = 1;
+	hcd->msix_enabled = pdev->msix_enabled;
+	xhci_dbg(xhci, "Primary interrupter using %s, vectors %d\n",
+		 pdev->msix_enabled ? "MSI-X" : "MSI", xhci->nvecs);
+	return 0;
+}
+
+int xhci_setup_msi_irq(struct xhci_hcd *xhci, unsigned int intr_num, char *name,
+		       irqreturn_t (*func)(int, void *), void *dev_id)
+{
+	struct usb_hcd *hcd = xhci_to_hcd(xhci);
+	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
+	unsigned int irq_num;
+	int ret;
+
+	irq_num = pci_irq_vector(pdev, intr_num);
+
+	ret = request_irq(irq_num, func, 0, name, dev_id);
+	if (ret) {
+		xhci_warn(xhci, "Failed to allocate irq vector %d\n", irq_num);
+		return ret;
+	}
+
+	xhci_dbg(xhci, "Setup %s irq %d, intr_num %d\n",
+		 pdev->msix_enabled ? "MSI-X" : "MSI", irq_num, intr_num);
 	return 0;
 }
 
 static int xhci_pci_start(struct usb_hcd *hcd)
 {
-	int ret;
-
-	if (usb_hcd_is_primary_hcd(hcd)) {
-		ret = xhci_try_enable_msi(hcd);
-		if (ret)
-			return ret;
-	}
-
 	return xhci_start(hcd);
 }
 
 static void xhci_pci_stop(struct usb_hcd *hcd)
 {
-	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-
 	xhci_stop(hcd);
-
-	if (usb_hcd_is_primary_hcd(hcd))
-		xhci_cleanup_msix(xhci);
 }
 
 /* called after powerup, by probe or system-pm "wakeup" */
@@ -872,7 +857,17 @@ static void xhci_pci_shutdown(struct usb_hcd *hcd)
 	struct pci_dev		*pdev = to_pci_dev(hcd->self.controller);
 
 	xhci_shutdown(hcd);
-	xhci_cleanup_msix(xhci);
+
+	if (hcd->msi_enabled) {
+		for (int i = 0; i < xhci->nvecs; i++) {
+			if (!xhci->interrupters[i])
+				continue;
+
+			free_irq(pci_irq_vector(pdev, i), xhci->interrupters[i]);
+		}
+
+		pci_free_irq_vectors(pdev);
+	}
 
 	/* Yet another workaround for spurious wakeups at shutdown with HSW */
 	if (xhci->quirks & XHCI_SPURIOUS_WAKEUP)

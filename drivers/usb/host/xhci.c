@@ -537,7 +537,6 @@ int xhci_start(struct usb_hcd *hcd)
 		goto run;
 
 	set_bit(HCD_FLAG_DEFER_RH_REGISTER, &hcd->flags);
-
 	return 0;
 
 run:
