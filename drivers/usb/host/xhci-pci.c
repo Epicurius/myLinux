@@ -120,41 +120,41 @@ static void xhci_cleanup_msix(struct xhci_hcd *xhci)
 	hcd->msix_enabled = 0;
 }
 
-/* Try enabling MSI-X with MSI and legacy IRQ as fallback */
-static int xhci_try_enable_msi(struct usb_hcd *hcd)
+static int xhci_setup_primary_interrupter(struct usb_hcd *hcd)
 {
 	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	int ret;
 
 	/*
-	 * Some Fresco Logic host controllers advertise MSI, but fail to
-	 * generate interrupts.  Don't even try to enable MSI.
+	 * Some Fresco Logic host controllers advertise MSI, but fail to generate interrupts.
+	 * Don't even try to enable MSI.
 	 */
 	if (xhci->quirks & XHCI_BROKEN_MSI)
 		goto legacy_irq;
 
-	/* unregister the legacy interrupt */
-	if (hcd->irq)
+	/* Unregister the legacy interrupt */
+	if (hcd->irq) {
 		free_irq(hcd->irq, hcd);
-	hcd->irq = 0;
+		hcd->irq = 0;
+	}
 
-	/* TODO: Check with MSI Soc for sysdev */
 	xhci->nvecs = pci_alloc_irq_vectors(pdev, 1, xhci->num_interrupters,
 					    PCI_IRQ_MSIX | PCI_IRQ_MSI);
 	if (xhci->nvecs < 0) {
-		xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			       "failed to allocate IRQ vectors");
+		xhci_dbg_trace(xhci, trace_xhci_dbg_init, "failed to allocate IRQ vectors");
+		/* Fall back to legacy interrupt */
 		goto legacy_irq;
-	}
+	};
 
-	ret = request_irq(pci_irq_vector(pdev, 0), xhci_msi_irq, 0, "xhci_hcd",
-			  xhci->interrupters[0]);
+	ret = request_irq(pci_irq_vector(pdev, 0), xhci_msi_irq, 0, "xhci_hcd", xhci->interrupters[0]);
 	if (ret)
 		goto free_irq_vectors;
 
 	hcd->msi_enabled = 1;
 	hcd->msix_enabled = pdev->msix_enabled;
+	xhci_dbg(xhci, "Primary interrupter using %s, vectors %d\n",
+		 pdev->msix_enabled ? "MSI-X" : "MSI", xhci->nvecs);
 	return 0;
 
 free_irq_vectors:
@@ -178,7 +178,9 @@ legacy_irq:
 		xhci_err(xhci, "request interrupt %d failed\n", pdev->irq);
 		return ret;
 	}
+
 	hcd->irq = pdev->irq;
+	xhci_dbg(xhci, "Primary interrupter setup, using legacy IRQ\n");
 	return 0;
 }
 
@@ -187,7 +189,7 @@ static int xhci_pci_run(struct usb_hcd *hcd)
 	int ret;
 
 	if (usb_hcd_is_primary_hcd(hcd)) {
-		ret = xhci_try_enable_msi(hcd);
+		ret = xhci_setup_primary_interrupter(hcd);
 		if (ret)
 			return ret;
 	}
