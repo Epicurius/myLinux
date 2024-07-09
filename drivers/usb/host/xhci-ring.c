@@ -3113,6 +3113,10 @@ static irqreturn_t xhci_handle_irq(struct xhci_interrupter *ir)
 	u32 status;
 
 	spin_lock(&xhci->lock);
+
+	if (ir->intr_num)
+		printk("NIK: xhci_handle_irq(%d)\n", ir->intr_num);
+
 	/* Check if the xHC generated the interrupt, or the irq is shared */
 	status = readl(&xhci->op_regs->status);
 	if (status == ~(u32)0) {
@@ -3159,8 +3163,10 @@ irqreturn_t xhci_legacy_irq(struct usb_hcd *hcd)
 
 irqreturn_t xhci_msi_irq(int irq, void *ir)
 {
-	if (!ir)
+	if (ir == NULL) {
+		printk("NIK: FFFFFFFFFFFFFFFFFFFFFFFFUUUUUCK\n");
 		return IRQ_NONE;
+	}
 
 	return xhci_handle_irq(ir);
 }
