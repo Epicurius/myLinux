@@ -497,7 +497,6 @@ static int xhci_init(struct usb_hcd *hcd)
 
 static int xhci_run_finished(struct xhci_hcd *xhci)
 {
-	struct xhci_interrupter *ir = xhci->interrupters[0];
 	unsigned long	flags;
 	u32		temp;
 
@@ -513,7 +512,11 @@ static int xhci_run_finished(struct xhci_hcd *xhci)
 	writel(temp, &xhci->op_regs->command);
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Enable primary interrupter");
-	xhci_enable_interrupter(ir);
+	xhci_enable_interrupter(xhci->interrupters[0]);
+	if (xhci->interrupters[1]) {
+		xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Enable secondary interrupter");
+		xhci_enable_interrupter(xhci->interrupters[1]);
+	}
 
 	if (xhci_start(xhci)) {
 		xhci_halt(xhci);
@@ -548,26 +551,30 @@ int xhci_run(struct usb_hcd *hcd)
 	u64 temp_64;
 	int ret;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	struct xhci_interrupter *ir = xhci->interrupters[0];
 	/* Start the xHCI host controller running only after the USB 2.0 roothub
 	 * is setup.
 	 */
 
 	hcd->uses_new_polling = 1;
-	if (hcd->msi_enabled)
-		ir->ip_autoclear = true;
+	if (hcd->msi_enabled) {
+		xhci->interrupters[0]->ip_autoclear = true;
+		if (xhci->interrupters[1])
+			xhci->interrupters[1]->ip_autoclear = true;
+	}
 
 	if (!usb_hcd_is_primary_hcd(hcd))
-		return xhci_run_finished(xhci);
+		goto run_finished;
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_run");
 
-	temp_64 = xhci_read_64(xhci, &ir->ir_set->erst_dequeue);
+	temp_64 = xhci_read_64(xhci, &xhci->interrupters[0]->ir_set->erst_dequeue);
 	temp_64 &= ERST_PTR_MASK;
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 			"ERST deq = 64'h%0lx", (long unsigned int) temp_64);
 
-	xhci_set_interrupter_moderation(ir, xhci->imod_interval);
+	xhci_set_interrupter_moderation(xhci->interrupters[0], xhci->imod_interval);
+	if (xhci->interrupters[1])
+		xhci_set_interrupter_moderation(xhci->interrupters[1], xhci->imod_interval);
 
 	if (xhci->quirks & XHCI_NEC_HOST) {
 		struct xhci_command *command;
@@ -589,11 +596,13 @@ int xhci_run(struct usb_hcd *hcd)
 	xhci_debugfs_init(xhci);
 
 	if (xhci_has_one_roothub(xhci))
-		return xhci_run_finished(xhci);
+		goto run_finished;
 
 	set_bit(HCD_FLAG_DEFER_RH_REGISTER, &hcd->flags);
-
 	return 0;
+
+run_finished:
+	return xhci_run_finished(xhci);
 }
 EXPORT_SYMBOL_GPL(xhci_run);
 
@@ -610,7 +619,6 @@ void xhci_stop(struct usb_hcd *hcd)
 {
 	u32 temp;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	struct xhci_interrupter *ir = xhci->interrupters[0];
 
 	mutex_lock(&xhci->mutex);
 
@@ -645,7 +653,9 @@ void xhci_stop(struct usb_hcd *hcd)
 			"// Disabling event ring interrupts");
 	temp = readl(&xhci->op_regs->status);
 	writel((temp & ~0x1fff) | STS_EINT, &xhci->op_regs->status);
-	xhci_disable_interrupter(ir);
+	xhci_disable_interrupter(xhci->interrupters[0]);
+	if (xhci->interrupters[1])
+		xhci_disable_interrupter(xhci->interrupters[1]);
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "cleaning up memory");
 	xhci_mem_cleanup(xhci);
@@ -1102,6 +1112,8 @@ int xhci_resume(struct xhci_hcd *xhci, pm_message_t msg)
 		temp = readl(&xhci->op_regs->status);
 		writel((temp & ~0x1fff) | STS_EINT, &xhci->op_regs->status);
 		xhci_disable_interrupter(xhci->interrupters[0]);
+		if (xhci->interrupters[1])
+			xhci_disable_interrupter(xhci->interrupters[1]);
 
 		xhci_dbg(xhci, "cleaning up memory\n");
 		xhci_mem_cleanup(xhci);
