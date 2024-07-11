@@ -2249,8 +2249,7 @@ static int xhci_setup_port_arrays(struct xhci_hcd *xhci, gfp_t flags)
 	return 0;
 }
 
-static struct xhci_interrupter *
-xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
+struct xhci_interrupter *xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
 {
 	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
 	struct xhci_interrupter *ir;
@@ -2286,9 +2285,7 @@ xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
 	return ir;
 }
 
-static int
-xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
-		     unsigned int ir_num)
+int xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir, unsigned int ir_num)
 {
 	u64 erst_base;
 	u32 erst_size;
@@ -2325,9 +2322,8 @@ xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
 	return 0;
 }
 
-struct xhci_interrupter *
-xhci_setup_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs, char *name,
-				 irqreturn_t (*func)(int, void *))
+struct xhci_interrupter *xhci_setup_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
+		char *name, irqreturn_t (*func)(int, void *))
 {
 	struct xhci_hcd *xhci;
 	struct pci_dev *pdev;
@@ -2386,7 +2382,7 @@ EXPORT_SYMBOL_GPL(xhci_setup_secondary_interrupter);
 
 int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 {
-	struct xhci_interrupter *ir;
+	// struct xhci_interrupter *ir;
 	struct device	*dev = xhci_to_hcd(xhci)->self.sysdev;
 	dma_addr_t	dma;
 	unsigned int	val, val2;
@@ -2510,19 +2506,19 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	xhci->dba = (void __iomem *) xhci->cap_regs + val;
 
 	/* Allocate and set up primary interrupter 0 with an event ring. */
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-		       "Allocating primary event ring");
-	xhci->interrupters = kcalloc_node(xhci->num_interrupters, sizeof(*xhci->interrupters),
-					  flags, dev_to_node(dev));
+	// xhci_dbg_trace(xhci, trace_xhci_dbg_init,
+	// 	       "Allocating primary event ring");
+	// xhci->interrupters = kcalloc_node(xhci->num_interrupters, sizeof(*xhci->interrupters),
+	// 				  flags, dev_to_node(dev));
 
-	ir = xhci_alloc_interrupter(xhci, 0, flags);
-	if (!ir)
-		goto fail;
+	// ir = xhci_alloc_interrupter(xhci, 0, flags);
+	// if (!ir)
+	// 	goto fail;
 
-	if (xhci_add_interrupter(xhci, ir, 0))
-		goto fail;
+	// if (xhci_add_interrupter(xhci, ir, 0))
+	// 	goto fail;
 
-	ir->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
+	// ir->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
 
 	/*
 	 * XXX: Might need to set the Interrupter Moderation Register to

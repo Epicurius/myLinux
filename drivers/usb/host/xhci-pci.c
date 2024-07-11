@@ -88,6 +88,7 @@ static int xhci_pci_update_hub_device(struct usb_hcd *hcd, struct usb_device *hd
 				      struct usb_tt *tt, gfp_t mem_flags);
 
 static const struct xhci_driver_overrides xhci_pci_overrides __initconst = {
+	/* "reset" is misnamed; its role is now one-time init */
 	.reset = xhci_pci_setup,
 	.start = xhci_pci_run,
 	.update_hub_device = xhci_pci_update_hub_device,
@@ -130,10 +131,11 @@ static void xhci_cleanup_msix(struct xhci_hcd *xhci)
 	hcd->msix_enabled = 0;
 }
 
-static int xhci_setup_primary_interrupter(struct usb_hcd *hcd)
+static int xhci_setup_primary_interrupter(struct usb_hcd *hcd, struct xhci_interrupter *ir)
 {
 	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+	unsigned int max_intr;
 	int ret;
 
 	/*
@@ -149,15 +151,15 @@ static int xhci_setup_primary_interrupter(struct usb_hcd *hcd)
 		hcd->irq = 0;
 	}
 
-	xhci->nvecs = pci_alloc_irq_vectors(pdev, 1, xhci->num_interrupters,
-					    PCI_IRQ_MSIX | PCI_IRQ_MSI);
+	max_intr = min(num_online_cpus() + 1, HCS_MAX_INTRS(xhci->hcs_params1));
+	xhci->nvecs = pci_alloc_irq_vectors(pdev, 1, max_intr, PCI_IRQ_MSIX | PCI_IRQ_MSI);
 	if (xhci->nvecs < 0) {
 		xhci_dbg_trace(xhci, trace_xhci_dbg_init, "failed to allocate IRQ vectors");
 		/* Fall back to legacy interrupt */
 		goto legacy_irq;
 	};
 
-	ret = request_irq(pci_irq_vector(pdev, 0), xhci_msi_irq, 0, "xhci_hcd", xhci->interrupters[0]);
+	ret = request_irq(pci_irq_vector(pdev, 0), xhci_msi_irq, 0, "xhci_hcd", ir);
 	if (ret)
 		goto free_irq_vectors;
 
@@ -189,8 +191,42 @@ legacy_irq:
 		return ret;
 	}
 
+	xhci->nvecs = 1;
 	hcd->irq = pdev->irq;
 	xhci_dbg(xhci, "Primary interrupter setup, using legacy IRQ\n");
+	return 0;
+}
+
+static int xhci_setup_interrupters(struct usb_hcd *hcd)
+{
+	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
+	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+	struct xhci_interrupter *ir;
+
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Allocating primary event ring");
+	ir = xhci_alloc_interrupter(xhci, 0, GFP_KERNEL);
+	if (!ir)
+		return -EINVAL;
+
+	int ret = xhci_setup_primary_interrupter(hcd, ir);
+	if (ret) {
+		xhci_free_interrupter(xhci, ir);
+		return ret;
+	}
+
+	xhci->interrupters = kcalloc_node(xhci->nvecs, sizeof(*xhci->interrupters),
+					  GFP_KERNEL, dev_to_node(xhci->self.sysdev));
+
+	if (xhci_add_interrupter(xhci, ir, 0)) {
+		xhci_free_interrupter(xhci, ir);
+		kfree(xhci->interrupters);
+		return -EINVAL;
+	}
+
+	ir->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
+
+	/* In case secondary interrupter fails, only interrupter 0 is used */
+	xhci_setup_secondary_interrupter(hcd, 0, "xhci_hcd", xhci_msi_irq);
 	return 0;
 }
 
@@ -199,12 +235,9 @@ static int xhci_pci_run(struct usb_hcd *hcd)
 	int ret;
 
 	if (usb_hcd_is_primary_hcd(hcd)) {
-		ret = xhci_setup_primary_interrupter(hcd);
+		ret = xhci_setup_interrupters(hcd);
 		if (ret)
 			return ret;
-
-		/* In case secondary interrupter fails, only interrupter 0 is used */
-		xhci_setup_secondary_interrupter(hcd, 0, "xhci_hcd", xhci_msi_irq);
 	}
 
 	return xhci_run(hcd);
