@@ -1839,21 +1839,21 @@ static void xhci_free_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter
 void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrupter *ir)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	unsigned int intr_num;
+	unsigned int ir_num;
 
 	spin_lock_irq(&xhci->lock);
 
 	/* interrupter 0 is primary interrupter, don't touch it */
-	if (!ir || !ir->intr_num || ir->intr_num >= xhci->max_interrupters) {
+	if (!ir || !ir->ir_num || ir->ir_num >= xhci->max_interrupters) {
 		xhci_dbg(xhci, "Invalid secondary interrupter, can't remove\n");
 		spin_unlock_irq(&xhci->lock);
 		return;
 	}
 
-	intr_num = ir->intr_num;
+	ir_num = ir->ir_num;
 
 	xhci_remove_interrupter(xhci, ir);
-	xhci->interrupters[intr_num] = NULL;
+	xhci->interrupters[ir_num] = NULL;
 
 	spin_unlock_irq(&xhci->lock);
 
@@ -2287,25 +2287,25 @@ xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
 
 static int
 xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
-		     unsigned int intr_num)
+		     unsigned int ir_num)
 {
 	u64 erst_base;
 	u32 erst_size;
 
-	if (intr_num >= xhci->max_interrupters) {
+	if (ir_num >= xhci->max_interrupters) {
 		xhci_warn(xhci, "Can't add interrupter %d, max interrupters %d\n",
-			  intr_num, xhci->max_interrupters);
+			  ir_num, xhci->max_interrupters);
 		return -EINVAL;
 	}
 
-	if (xhci->interrupters[intr_num]) {
-		xhci_warn(xhci, "Interrupter %d\n already set up", intr_num);
+	if (xhci->interrupters[ir_num]) {
+		xhci_warn(xhci, "Interrupter %d\n already set up", ir_num);
 		return -EINVAL;
 	}
 
-	xhci->interrupters[intr_num] = ir;
-	ir->intr_num = intr_num;
-	ir->ir_set = &xhci->run_regs->ir_set[intr_num];
+	xhci->interrupters[ir_num] = ir;
+	ir->ir_num = ir_num;
+	ir->ir_set = &xhci->run_regs->ir_set[ir_num];
 
 	/* set ERST count with the number of entries in the segment table */
 	erst_size = readl(&ir->ir_set->erst_size);
