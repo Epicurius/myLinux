@@ -1763,7 +1763,6 @@ void xhci_dbg_trace(struct xhci_hcd *xhci, void (*trace)(struct va_format *),
 			const char *fmt, ...);
 
 /* xHCI interrupt management */
-
 int xhci_setup_legacy_irq(struct xhci_hcd *xhci);
 int xhci_alloc_msi_irq_vectors(struct xhci_hcd *xhci);
 int xhci_setup_msi_irq(struct xhci_hcd *xhci, unsigned int ir_num, char *name,
@@ -1771,6 +1770,8 @@ int xhci_setup_msi_irq(struct xhci_hcd *xhci, unsigned int ir_num, char *name,
 void xhci_cleanup_msi_irq(struct xhci_hcd *xhci);
 
 void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrupter *ir);
+struct xhci_interrupter *xhci_setup_secondary_interrupter(struct usb_hcd *hcd, char *name,
+							  irqreturn_t (*func)(int, void *));
 
 /* xHCI memory management */
 void xhci_mem_cleanup(struct xhci_hcd *xhci);

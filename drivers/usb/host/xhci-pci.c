@@ -213,22 +213,10 @@ int xhci_setup_msi_irq(struct xhci_hcd *xhci, unsigned int ir_num, char *name,
 		return ret;
 	}
 
-	xhci_dbg(xhci, "Setup %s irq %d, intr_num %d\n",
+	xhci_dbg(xhci, "Setup %s irq %d, ir_num %d\n",
 		 pdev->msix_enabled ? "MSI-X" : "MSI", irq_num, ir_num);
 	return 0;
 }
-
-// int xhci_setup_secondary_interrupter(struct usb_hcd *hcd, unsigned int ir_num, char *name,
-// 		       		     irqreturn_t (*func)(int, void *), void *dev_id)
-// {
-// 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-
-// 	if (!hcd->msi_enabled || !xhci->interrupters || xhci->nvecs <= 1 || !xhci->interrupters[ir_num])
-// 		return -EINVAL;
-
-// 	return xhci_setup_msi_irq(xhci, ir_num, name, func, dev_id);
-// }
-// EXPORT_SYMBOL_GPL(xhci_setup_secondary_interrupter);
 
 static int xhci_pci_run(struct usb_hcd *hcd)
 {

@@ -3114,8 +3114,8 @@ static irqreturn_t xhci_handle_irq(struct xhci_interrupter *ir)
 
 	spin_lock(&xhci->lock);
 
-	if (ir->intr_num)
-		printk("NIK: xhci_handle_irq(%d)\n", ir->intr_num);
+	if (ir->ir_num)
+		printk("NIK: xhci_handle_irq(%d)\n", ir->ir_num);
 
 	/* Check if the xHC generated the interrupt, or the irq is shared */
 	status = readl(&xhci->op_regs->status);

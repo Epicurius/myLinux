@@ -1844,7 +1844,7 @@ void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrup
 	spin_lock_irq(&xhci->lock);
 
 	/* interrupter 0 is primary interrupter, don't touch it */
-	if (!ir || !ir->ir_num || ir->ir_num >= xhci->num_interrupters) {
+	if (!ir || !ir->ir_num || ir->ir_num >= xhci->nvecs) {
 		xhci_dbg(xhci, "Invalid secondary interrupter, can't remove\n");
 		spin_unlock_irq(&xhci->lock);
 		return;
@@ -2290,16 +2290,16 @@ static int xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *
 	u64 erst_base;
 	u32 erst_size;
 
-	if (ir_num >= xhci->num_interrupters) {
-		xhci_warn(xhci, "Can't add interrupter %d, max interrupters %d\n",
-			  ir_num, xhci->num_interrupters);
-		return -EINVAL;
-	}
+	// if (ir_num >= xhci->num_interrupters) {
+	// 	xhci_warn(xhci, "Can't add interrupter %d, max interrupters %d\n",
+	// 		  ir_num, xhci->num_interrupters);
+	// 	return -EINVAL;
+	// }
 
-	if (xhci->interrupters[ir_num]) {
-		xhci_warn(xhci, "Interrupter %d\n already set up", ir_num);
-		return -EINVAL;
-	}
+	// if (xhci->interrupters[ir_num]) {
+	// 	xhci_warn(xhci, "Interrupter %d\n already set up", ir_num);
+	// 	return -EINVAL;
+	// }
 
 	xhci->interrupters[ir_num] = ir;
 	ir->ir_num = ir_num;
@@ -2335,11 +2335,7 @@ static int xhci_setup_msi_interrupt(struct xhci_hcd *xhci, unsigned int ir_num, 
 		return 1;
 	}
 
-	if (xhci_add_interrupter(xhci, ir, ir_num)) {
-		xhci_free_interrupter(xhci, ir);
-		return -EINVAL;
-	}
-
+	xhci_add_interrupter(xhci, ir, ir_num);
 	return 0;
 }
 
@@ -2396,6 +2392,41 @@ legacy:
 	ir->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
 	return 0;
 }
+
+struct xhci_interrupter *xhci_setup_secondary_interrupter(struct usb_hcd *hcd, char *name,
+							  irqreturn_t (*func)(int, void *))
+{
+	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+	struct xhci_interrupter *ir;
+	unsigned int ir_num;
+
+	if (!hcd->msi_enabled || !xhci->interrupters || xhci->nvecs <= 1)
+		return NULL;
+
+	ir = xhci_alloc_interrupter(xhci, 0, GFP_KERNEL);
+	if (!ir)
+		return NULL;
+
+	spin_lock_irq(&xhci->lock);
+
+	for (ir_num = 1; xhci->interrupters[ir_num]; ir_num++) {
+		if (ir_num == xhci->nvecs)
+			return NULL;
+	}
+
+	if (xhci_setup_msi_irq(xhci, ir_num, name, func, ir)) {
+		xhci_free_interrupter(xhci, ir);
+		return NULL;
+	}
+
+	xhci_add_interrupter(xhci, ir, ir_num);
+
+	spin_unlock_irq(&xhci->lock);
+
+	xhci_dbg(xhci, "Add secondary interrupter %d\n", ir_num);
+	return ir;
+}
+EXPORT_SYMBOL_GPL(xhci_setup_secondary_interrupter);
 
 int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 {
