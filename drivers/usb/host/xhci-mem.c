@@ -2249,7 +2249,7 @@ static int xhci_setup_port_arrays(struct xhci_hcd *xhci, gfp_t flags)
 	return 0;
 }
 
-struct xhci_interrupter *xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
+static struct xhci_interrupter *xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
 {
 	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
 	struct xhci_interrupter *ir;
@@ -2285,7 +2285,7 @@ struct xhci_interrupter *xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned 
 	return ir;
 }
 
-int xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir, unsigned int ir_num)
+static int xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir, unsigned int ir_num)
 {
 	u64 erst_base;
 	u32 erst_size;
@@ -2322,63 +2322,80 @@ int xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir, uns
 	return 0;
 }
 
-struct xhci_interrupter *xhci_setup_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
-		char *name, irqreturn_t (*func)(int, void *))
+static int xhci_setup_msi_interrupt(struct xhci_hcd *xhci, unsigned int ir_num, gfp_t flags)
 {
-	struct xhci_hcd *xhci;
-	struct pci_dev *pdev;
 	struct xhci_interrupter *ir;
-	unsigned int irq_num, intr_num;
+
+	ir = xhci_alloc_interrupter(xhci, 0, flags);
+	if (!ir)
+		return -EINVAL;
+
+	if (xhci_setup_msi_irq(xhci, ir_num, "xhci_hcd", xhci_msi_irq, ir)) {
+		xhci_free_interrupter(xhci, ir);
+		return 1;
+	}
+
+	if (xhci_add_interrupter(xhci, ir, ir_num)) {
+		xhci_free_interrupter(xhci, ir);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int xhci_setup_interrupters(struct xhci_hcd *xhci, struct device	*dev, gfp_t flags)
+{
+	struct xhci_interrupter *ir;
 	int ret;
 
-	if (!hcd->msi_enabled)
-		return 0;
+	ret = xhci_alloc_msi_irq_vectors(xhci);
+	if (ret)
+		goto legacy;
 
-	xhci = hcd_to_xhci(hcd);
-	if (!xhci->interrupters || xhci->nvecs <= 1)
-		return 0;
+	xhci->interrupters = kcalloc_node(xhci->nvecs, sizeof(*xhci->interrupters), flags, dev_to_node(dev));
 
-	for (intr_num = 1; xhci->interrupters[intr_num]; intr_num++) {
-		if (intr_num == xhci->nvecs)
-			return 0;
+	/* Primarty interrupter, fall-back to legacy IRQ in case of failure */
+	ret = xhci_setup_msi_interrupt(xhci, 0, flags);
+	if (ret) {
+		xhci_cleanup_msi_irq(xhci);
+		kfree(xhci->interrupters);
+		if (ret > 0)
+			goto legacy;
+		return ret;
 	}
 
-	ir = xhci_alloc_interrupter(xhci, 0, GFP_KERNEL);
+	/* Secondary interrupters, ignore on failure */
+	ret = xhci_setup_msi_interrupt(xhci, 1, flags);
+	if (!ret) {
+		xhci_dbg(xhci, "Add secondary interrupter %d\n", 1);
+		ir->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
+	}
+
+	return 0;
+
+legacy:
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Allocating primary event ring");
+	ret = xhci_setup_legacy_irq(xhci);
+	if (ret) {
+		return ret;
+	}
+
+	ir = xhci_alloc_interrupter(xhci, 0, flags);
 	if (!ir) {
-		xhci_warn(xhci, "Failed to allocate secondary interrupter\n");
-		return NULL;
+		return -EINVAL;
 	}
 
-	// spin_lock_irq(&xhci->lock);
+	xhci->interrupters = kcalloc_node(1, sizeof(*xhci->interrupters), flags, dev_to_node(dev));
 
-	ret = xhci_add_interrupter(xhci, ir, intr_num);
-	if (ret) {
-		xhci_warn(xhci, "Failed to add secondary interrupter\n");
-		goto free_interrupt;
-	}
-
-	pdev = to_pci_dev(hcd->self.controller);
-	irq_num = pci_irq_vector(pdev, intr_num);
-	ret = request_irq(irq_num, func, 0, name, ir);
-	if (ret) {
-		xhci_warn(xhci, "Failed to allocate irq vector %d\n", irq_num);
+	if (xhci_add_interrupter(xhci, ir, 0)) {
 		xhci_free_interrupter(xhci, ir);
-		goto free_interrupt;
+		kfree(xhci->interrupters);
+		return -EINVAL;
 	}
 
-	// spin_unlock_irq(&xhci->lock);
-
-	xhci_dbg(xhci, "Add secondary interrupter %d : irq %d\n", intr_num, irq_num);
-	return ir;
-
-free_interrupt:
-	// spin_unlock_irq(&xhci->lock);
-
-	xhci_free_interrupter(xhci, ir);
-	xhci->nvecs = 1;
-	return NULL;
+	ir->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
+	return 0;
 }
-EXPORT_SYMBOL_GPL(xhci_setup_secondary_interrupter);
 
 int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 {
@@ -2506,6 +2523,10 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	xhci->dba = (void __iomem *) xhci->cap_regs + val;
 
 	/* Allocate and set up primary interrupter 0 with an event ring. */
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Allocating primary event ring");
+	if (xhci_setup_interrupters(xhci, dev, flags))
+		goto fail;
+
 	// xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 	// 	       "Allocating primary event ring");
 	// xhci->interrupters = kcalloc_node(xhci->num_interrupters, sizeof(*xhci->interrupters),

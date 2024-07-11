@@ -1762,13 +1762,19 @@ char *xhci_get_slot_state(struct xhci_hcd *xhci,
 void xhci_dbg_trace(struct xhci_hcd *xhci, void (*trace)(struct va_format *),
 			const char *fmt, ...);
 
+/* xHCI interrupt management */
+
+int xhci_setup_legacy_irq(struct xhci_hcd *xhci);
+int xhci_alloc_msi_irq_vectors(struct xhci_hcd *xhci);
+int xhci_setup_msi_irq(struct xhci_hcd *xhci, unsigned int ir_num, char *name,
+		       irqreturn_t (*func)(int, void *), void *dev_id);
+void xhci_cleanup_msi_irq(struct xhci_hcd *xhci);
+
+void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrupter *ir);
+
 /* xHCI memory management */
 void xhci_mem_cleanup(struct xhci_hcd *xhci);
 int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags);
-struct xhci_interrupter *xhci_setup_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
-		char *name, irqreturn_t (*func)(int, void *));
-int xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir, unsigned int intr_num);
-struct xhci_interrupter *xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags);
 void xhci_free_virt_device(struct xhci_hcd *xhci, int slot_id);
 int xhci_alloc_virt_device(struct xhci_hcd *xhci, int slot_id, struct usb_device *udev, gfp_t flags);
 int xhci_setup_addressable_virt_dev(struct xhci_hcd *xhci, struct usb_device *udev);
@@ -1833,11 +1839,7 @@ struct xhci_container_ctx *xhci_alloc_container_ctx(struct xhci_hcd *xhci,
 		int type, gfp_t flags);
 void xhci_free_container_ctx(struct xhci_hcd *xhci,
 		struct xhci_container_ctx *ctx);
-struct xhci_interrupter *
-xhci_setup_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs, char *name,
-				  irqreturn_t (*func)(int, void *));
-void xhci_remove_secondary_interrupter(struct usb_hcd
-				       *hcd, struct xhci_interrupter *ir);
+
 
 /* xHCI host controller glue */
 typedef void (*xhci_get_quirks_t)(struct device *, struct xhci_hcd *);
