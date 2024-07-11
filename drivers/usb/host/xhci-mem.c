@@ -1819,27 +1819,23 @@ void xhci_remove_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
 	}
 }
 
-static void
-xhci_free_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
+static void xhci_free_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
 {
-	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
-	size_t erst_size;
-
 	if (!ir)
 		return;
 
-	erst_size = array_size(sizeof(struct xhci_erst_entry), ir->erst.num_entries);
-	if (ir->erst.entries)
-		dma_free_coherent(dev, erst_size,
+	if (ir->erst.entries) {
+		dma_free_coherent(xhci_to_hcd(xhci)->self.sysdev,
+				  array_size(sizeof(struct xhci_erst_entry), ir->erst.num_entries),
 				  ir->erst.entries,
 				  ir->erst.erst_dma_addr);
-	ir->erst.entries = NULL;
+		ir->erst.entries = NULL;
+	}
 
-	/* free interrupter event ring */
-	if (ir->event_ring)
+	if (ir->event_ring) {
 		xhci_ring_free(xhci, ir->event_ring);
-
-	ir->event_ring = NULL;
+		ir->event_ring = NULL;
+	}
 
 	kfree(ir);
 }
