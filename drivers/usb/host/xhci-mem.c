@@ -2321,7 +2321,6 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	struct xhci_interrupter *ir;
 	unsigned int i;
-	int err = -ENOSPC;
 
 	if (!xhci->interrupters || xhci->max_interrupters <= 1)
 		return NULL;
@@ -2337,28 +2336,25 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
 		if (xhci->interrupters[i] == NULL) {
 			xhci->interrupters[i] = ir;
 			xhci_init_interrupter(xhci, i);
-			err = 0;
 			break;
 		}
 	}
 
 	spin_unlock_irq(&xhci->lock);
 
-	if (err) {
+	if (i >= xhci->max_interrupters) {
 		xhci_warn(xhci, "Failed to add secondary interrupter, max interrupters %d\n",
 			  xhci->max_interrupters);
 		xhci_free_interrupter(xhci, ir);
 		return NULL;
 	}
 
-	err = xhci_set_interrupter_moderation(ir, imod_interval);
-	if (err)
+	if (xhci_set_interrupter_moderation(ir, imod_interval))
 		xhci_warn(xhci, "Failed to set interrupter %d moderation to %uns\n",
 			  i, imod_interval);
 
 	xhci_dbg(xhci, "Add secondary interrupter %d, max interrupters %d\n",
 		 i, xhci->max_interrupters);
-
 	return ir;
 }
 EXPORT_SYMBOL_GPL(xhci_create_secondary_interrupter);
