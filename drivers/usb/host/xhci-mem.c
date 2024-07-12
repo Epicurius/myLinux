@@ -2289,23 +2289,12 @@ xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
 	return ir;
 }
 
-static int
+static void
 xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
 		     unsigned int intr_num)
 {
 	u64 erst_base;
 	u32 erst_size;
-
-	if (intr_num >= xhci->max_interrupters) {
-		xhci_warn(xhci, "Can't add interrupter %d, max interrupters %d\n",
-			  intr_num, xhci->max_interrupters);
-		return -EINVAL;
-	}
-
-	if (xhci->interrupters[intr_num]) {
-		xhci_warn(xhci, "Interrupter %d\n already set up", intr_num);
-		return -EINVAL;
-	}
 
 	xhci->interrupters[intr_num] = ir;
 	ir->intr_num = intr_num;
@@ -2327,8 +2316,6 @@ xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
 
 	/* Set the event ring dequeue address of this interrupter */
 	xhci_set_hc_event_deq(xhci, ir);
-
-	return 0;
 }
 
 struct xhci_interrupter *
@@ -2351,7 +2338,8 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs)
 	/* Find available secondary interrupter, interrupter 0 is reserved for primary */
 	for (i = 1; i < xhci->max_interrupters; i++) {
 		if (xhci->interrupters[i] == NULL) {
-			err = xhci_add_interrupter(xhci, ir, i);
+			xhci_add_interrupter(xhci, ir, i);
+			err = 0;
 			break;
 		}
 	}
@@ -2507,8 +2495,7 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	if (!ir)
 		goto fail;
 
-	if (xhci_add_interrupter(xhci, ir, 0))
-		goto fail;
+	xhci_add_interrupter(xhci, ir, 0);
 
 	ir->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
 
