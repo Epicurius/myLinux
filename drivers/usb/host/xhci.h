@@ -1428,12 +1428,28 @@ struct xhci_bus_state {
 	unsigned long		resuming_ports;
 };
 
+static inline const char *xhci_interrupt_name_string(struct usb_hcd *hcd)
+{
+	if (hcd->irq)
+		return "Legacy";
+
+	if (hcd->msix_enabled)
+		return "MSI-X";
+
+	if (hcd->msi_enabled)
+		return "MSI";
+
+	return "";
+}
+
 struct xhci_interrupter {
+	struct xhci_hcd		*xhci;
 	struct xhci_ring	*event_ring;
 	struct xhci_erst	erst;
 	struct xhci_intr_reg __iomem *ir_set;
 	unsigned int		intr_num;
-	bool			ip_autoclear;
+	unsigned int		enabled:1;
+	unsigned int		ip_autoclear:1;
 	u32			isoc_bei_interval;
 	/* For interrupter registers save and restore over suspend/resume */
 	u32	s3_irq_pending;
