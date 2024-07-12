@@ -1429,7 +1429,8 @@ struct xhci_interrupter {
 	struct xhci_erst	erst;
 	struct xhci_intr_reg __iomem *ir_set;
 	unsigned int		intr_num;
-	bool			ip_autoclear;
+	unsigned int		enabled:1;
+	unsigned int		ip_autoclear:1;
 	u32			isoc_bei_interval;
 	/* For interrupter registers save and restore over suspend/resume */
 	u32	s3_irq_pending;
