@@ -2303,7 +2303,7 @@ static void xhci_internal_interrupt_state(struct xhci_hcd *xhci, struct xhci_int
 		writel(imod, &ir->ir_set->irq_control);
 	}
 
-	if (xhci_to_hcd(xhci)->msi_enabled == 1)
+	if (!ir->legacy)
 		ir->ip_autoclear = 1;
 
 	ir->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
@@ -2314,6 +2314,7 @@ xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir, unsigne
 {
 	u64 erst_base;
 	u32 erst_size;
+	struct usb_hcd *hcd = xhci_to_hcd(xhci);
 
 	xhci->interrupters[intr_num] = ir;
 	ir->intr_num = intr_num;
@@ -2332,6 +2333,13 @@ xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir, unsigne
 
 	/* Set the event ring dequeue address of this interrupter */
 	xhci_set_hc_event_deq(xhci, ir);
+
+	if (hcd->irq > 0)
+		ir->legacy = 1;
+	else if (hcd->msix_enabled)
+		ir->msix = 1;
+	else
+		ir->msi = 1;
 
 	if (ir->internal)
 		xhci_internal_interrupt_state(xhci, ir);

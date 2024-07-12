@@ -429,6 +429,35 @@ static struct dentry *xhci_debugfs_create_ring_dir(struct xhci_hcd *xhci,
 	return dir;
 }
 
+static int xhci_interrupt_show(struct seq_file *s, void *unused)
+{
+	struct xhci_interrupter	*ir = (struct xhci_interrupter *)s->private;
+
+	seq_printf(s, "Enabled:      %d\n", ir->enabled);
+	seq_printf(s, "Intr num:     %d\n", ir->intr_num);
+	seq_printf(s, "IP autoclear: %d\n", ir->ip_autoclear);
+
+	if (ir->legacy)
+		seq_printf(s, "Type:         Legacy IRQ\n");
+	else if (ir->msix)
+		seq_printf(s, "Type:         MSI-X\n");
+	else
+		seq_printf(s, "Type:         MSI\n");
+	return 0;
+}
+
+static int xhci_interrupt_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, xhci_interrupt_show, inode->i_private);
+}
+
+static const struct file_operations interrupt_fops = {
+	.open			= xhci_interrupt_open,
+	.read			= seq_read,
+	.llseek			= seq_lseek,
+	.release		= single_release,
+};
+
 void xhci_debugfs_create_event_ring(struct xhci_hcd *xhci, unsigned int intr_num)
 {
 	struct xhci_interrupt_priv *irpriv;
@@ -446,6 +475,9 @@ void xhci_debugfs_create_event_ring(struct xhci_hcd *xhci, unsigned int intr_num
 	irpriv->root = debugfs_create_dir(irpriv->name, xhci->debugfs_root);
 	xhci_debugfs_create_files(xhci, ring_files, ARRAY_SIZE(ring_files),
 				  &irpriv->show_ring, irpriv->root, &xhci_ring_fops);
+
+	debugfs_create_file("interrupt", 0444, irpriv->root,
+			    xhci->interrupters[intr_num], &interrupt_fops);
 }
 
 void xhci_debugfs_remove_event_ring(struct xhci_hcd *xhci, unsigned int intr_num)

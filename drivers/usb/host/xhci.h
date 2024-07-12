@@ -1430,9 +1430,12 @@ struct xhci_interrupter {
 	struct xhci_erst	erst;
 	struct xhci_intr_reg __iomem *ir_set;
 	unsigned int		intr_num;
+	unsigned int		msi:1;
+	unsigned int		msix:1;
+	unsigned int		legacy:1;
+	unsigned int		enabled:1;
 	/* If set to 1, the interrupt is owned by xhci */
 	unsigned int		internal:1;
-	unsigned int		enabled:1;
 	unsigned int		ip_autoclear:1;
 	u32			isoc_bei_interval;
 	/* For interrupter registers save and restore over suspend/resume */
