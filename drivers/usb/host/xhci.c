@@ -330,6 +330,7 @@ static int xhci_enable_interrupter(struct xhci_interrupter *ir)
 
 	iman = readl(&ir->ir_set->irq_pending);
 	writel(ER_IRQ_ENABLE(iman), &ir->ir_set->irq_pending);
+	ir->enabled = 1;
 
 	return 0;
 }
@@ -343,6 +344,7 @@ static int xhci_disable_interrupter(struct xhci_interrupter *ir)
 
 	iman = readl(&ir->ir_set->irq_pending);
 	writel(ER_IRQ_DISABLE(iman), &ir->ir_set->irq_pending);
+	ir->enabled = 0;
 
 	return 0;
 }
@@ -553,7 +555,7 @@ int xhci_start(struct usb_hcd *hcd)
 		goto run;
 
 	if (hcd->msi_enabled)
-		ir->ip_autoclear = true;
+		ir->ip_autoclear = 1;
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_start");
 

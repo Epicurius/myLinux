@@ -2285,6 +2285,7 @@ void xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir, un
 	u64 erst_base;
 	u32 erst_size;
 
+	ir->xhci = xhci;
 	ir->intr_num = num;
 	ir->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
 	ir->ir_set = &xhci->run_regs->ir_set[num];
