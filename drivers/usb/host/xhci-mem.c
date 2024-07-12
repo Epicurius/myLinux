@@ -2284,6 +2284,7 @@ static void xhci_add_interrupter(struct xhci_hcd *xhci, struct list_head *pos,
 	u64 erst_base;
 	u32 erst_size;
 
+	ir->xhci = xhci;
 	ir->intr_num = intr_num;
 	ir->ir_set = &xhci->run_regs->ir_set[intr_num];
 	list_add_tail(&ir->list, pos);
