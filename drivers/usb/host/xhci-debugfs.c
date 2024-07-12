@@ -427,6 +427,31 @@ static struct dentry *xhci_debugfs_create_ring_dir(struct xhci_hcd *xhci,
 	return dir;
 }
 
+static int xhci_interrupt_show(struct seq_file *s, void *unused)
+{
+	struct xhci_interrupter	*ir = (struct xhci_interrupter *)s->private;
+	struct usb_hcd *hcd = xhci_to_hcd(ir->xhci);
+
+	seq_printf(s, "Enabled:      %d\n", ir->enabled);
+	seq_printf(s, "Intr num:     %d\n", ir->intr_num);
+	seq_printf(s, "IP autoclear: %d\n", ir->ip_autoclear);
+	seq_printf(s, "Type:         %s\n", xhci_interrupt_name_string(hcd));
+
+	return 0;
+}
+
+static int xhci_interrupt_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, xhci_interrupt_show, inode->i_private);
+}
+
+static const struct file_operations interrupt_fops = {
+	.open			= xhci_interrupt_open,
+	.read			= seq_read,
+	.llseek			= seq_lseek,
+	.release		= single_release,
+};
+
 void xhci_debugfs_create_event_ring(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
 {
 	struct xhci_event_ring_priv *erpriv;
@@ -439,6 +464,8 @@ void xhci_debugfs_create_event_ring(struct xhci_hcd *xhci, struct xhci_interrupt
 	erpriv->root = debugfs_create_dir(erpriv->name, xhci->debugfs_root);
 	xhci_debugfs_create_files(xhci, ring_files, ARRAY_SIZE(ring_files),
 				  ir->event_ring, erpriv->root, &xhci_ring_fops);
+
+	debugfs_create_file("interrupt", 0444, erpriv->root, ir, &interrupt_fops);
 	ir->debugfs = erpriv;
 }
 
