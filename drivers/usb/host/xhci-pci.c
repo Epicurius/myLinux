@@ -112,17 +112,21 @@ static void xhci_sync_irqs(struct xhci_hcd *xhci, struct pci_dev *pdev)
  * Note: Legacy IRQ will be freed by usb_hcd_pci_shutdown() for Priamry HCD and
  * usb_remove_hcd() for Secondary HCD.
  */
-static void xhci_cleanup_msix(struct xhci_hcd *xhci)
+static void xhci_release_irqs(struct usb_hcd *hcd)
 {
-	struct usb_hcd *hcd = xhci_to_hcd(xhci);
 	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
+	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 
-	if (hcd->irq > 0)
-		return;
+	for (unsigned int i = 0; i < xhci->nvecs; i++) {
+		if (xhci->interrupters[i] == NULL)
+			continue;
 
-	free_irq(pci_irq_vector(pdev, 0), xhci_to_hcd(xhci));
+		free_irq(pci_irq_vector(pdev, i), xhci);
+	}
+
 	pci_free_irq_vectors(pdev);
 	hcd->msix_enabled = 0;
+	hcd->msi_enabled = 0;
 	xhci->nvecs = 0;
 }
 
@@ -213,12 +217,10 @@ static int xhci_pci_start(struct usb_hcd *hcd)
 
 static void xhci_pci_stop(struct usb_hcd *hcd)
 {
-	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-
 	xhci_stop(hcd);
 
-	if (usb_hcd_is_primary_hcd(hcd))
-		xhci_cleanup_msix(xhci);
+	if (hcd->msi_enabled && usb_hcd_is_primary_hcd(hcd))
+		xhci_release_irqs(hcd);
 }
 
 /* called after powerup, by probe or system-pm "wakeup" */
@@ -877,7 +879,9 @@ static void xhci_pci_shutdown(struct usb_hcd *hcd)
 	struct pci_dev		*pdev = to_pci_dev(hcd->self.controller);
 
 	xhci_shutdown(hcd);
-	xhci_cleanup_msix(xhci);
+
+	if (hcd->msi_enabled)
+		xhci_release_irqs(hcd);
 
 	/* Yet another workaround for spurious wakeups at shutdown with HSW */
 	if (xhci->quirks & XHCI_SPURIOUS_WAKEUP)
