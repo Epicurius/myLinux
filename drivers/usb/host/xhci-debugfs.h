@@ -103,6 +103,11 @@ struct xhci_slot_priv {
 	struct xhci_virt_device	*dev;
 };
 
+struct xhci_event_ring_priv {
+	char			name[DEBUGFS_NAMELEN];
+	struct dentry		*root;
+};
+
 #ifdef CONFIG_DEBUG_FS
 void xhci_debugfs_init(struct xhci_hcd *xhci);
 void xhci_debugfs_exit(struct xhci_hcd *xhci);
@@ -119,6 +124,10 @@ void xhci_debugfs_remove_endpoint(struct xhci_hcd *xhci,
 void xhci_debugfs_create_stream_files(struct xhci_hcd *xhci,
 				      struct xhci_virt_device *virt_dev,
 				      int ep_index);
+void xhci_debugfs_create_event_ring(struct xhci_hcd *xhci,
+				    struct xhci_interrupter *ir);
+void xhci_debugfs_remove_event_ring(struct xhci_hcd *xhci,
+				    struct xhci_interrupter *ir);
 #else
 static inline void xhci_debugfs_init(struct xhci_hcd *xhci) { }
 static inline void xhci_debugfs_exit(struct xhci_hcd *xhci) { }
@@ -138,6 +147,12 @@ static inline void
 xhci_debugfs_create_stream_files(struct xhci_hcd *xhci,
 				 struct xhci_virt_device *virt_dev,
 				 int ep_index) { }
+static inline void
+xhci_debugfs_create_event_ring(struct xhci_hcd *xhci,
+			       struct xhci_interrupter *ir) { }
+static inline void
+vxhci_debugfs_remove_event_ring(struct xhci_hcd *xhci,
+			        struct xhci_interrupter *ir) { }
 #endif /* CONFIG_DEBUG_FS */
 
 #endif /* __LINUX_XHCI_DEBUGFS_H */
