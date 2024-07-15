@@ -345,23 +345,6 @@ static void xhci_toggle_interrupters(struct xhci_hcd *xhci, bool status)
 	xhci_dbg(xhci, "All interrupters have been %s\n", status ? "enabled" : "disabled");
 }
 
-/* interrupt moderation interval imod_interval in nanoseconds */
-static int xhci_set_interrupter_moderation(struct xhci_interrupter *ir,
-					   u32 imod_interval)
-{
-	u32 imod;
-
-	if (!ir || !ir->ir_set || imod_interval > U16_MAX * 250)
-		return -EINVAL;
-
-	imod = readl(&ir->ir_set->irq_control);
-	imod &= ~ER_IRQ_INTERVAL_MASK;
-	imod |= (imod_interval / 250) & ER_IRQ_INTERVAL_MASK;
-	writel(imod, &ir->ir_set->irq_control);
-
-	return 0;
-}
-
 static void compliance_mode_recovery(struct timer_list *t)
 {
 	struct xhci_hcd *xhci;
@@ -519,8 +502,6 @@ int xhci_start(struct usb_hcd *hcd)
 	 */
 
 	hcd->uses_new_polling = 1;
-	if (hcd->msi_enabled)
-		ir->ip_autoclear = 1;
 
 	if (!usb_hcd_is_primary_hcd(hcd))
 		goto run;
@@ -531,8 +512,6 @@ int xhci_start(struct usb_hcd *hcd)
 	temp_64 &= ERST_PTR_MASK;
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 			"ERST deq = 64'h%0lx", (long unsigned int) temp_64);
-
-	xhci_set_interrupter_moderation(ir, xhci->imod_interval);
 
 	if (xhci->quirks & XHCI_NEC_HOST) {
 		struct xhci_command *command;
