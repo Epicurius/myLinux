@@ -1849,7 +1849,7 @@ void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrup
 	spin_lock_irq(&xhci->lock);
 
 	/* interrupter 0 is primary interrupter, don't touch it */
-	if (!ir || !ir->intr_num || ir->intr_num >= xhci->max_interrupters) {
+	if (!ir || !ir->intr_num || ir->intr_num >= xhci->nvecs) {
 		xhci_dbg(xhci, "Invalid secondary interrupter, can't remove\n");
 		spin_unlock_irq(&xhci->lock);
 		return;
@@ -2324,7 +2324,7 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs)
 	unsigned int i;
 	int err = -ENOSPC;
 
-	if (!xhci->interrupters || xhci->max_interrupters <= 1)
+	if (!xhci->interrupters || xhci->nvecs <= 1)
 		return NULL;
 
 	ir = xhci_alloc_interrupter(xhci, segs, GFP_KERNEL);
@@ -2334,7 +2334,7 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs)
 	spin_lock_irq(&xhci->lock);
 
 	/* Find available secondary interrupter, interrupter 0 is reserved for primary */
-	for (i = 1; i < xhci->max_interrupters; i++) {
+	for (i = 1; i < xhci->nvecs; i++) {
 		if (xhci->interrupters[i] == NULL) {
 			xhci_add_interrupter(xhci, ir, i);
 			err = 0;
@@ -2345,14 +2345,13 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs)
 	spin_unlock_irq(&xhci->lock);
 
 	if (err) {
-		xhci_warn(xhci, "Failed to add secondary interrupter, max interrupters %d\n",
-			  xhci->max_interrupters);
+		xhci_warn(xhci, "Failed to add secondary interrupter, max vectors %u\n",
+			  xhci->nvecs);
 		xhci_free_interrupter(xhci, ir);
 		return NULL;
 	}
 
-	xhci_dbg(xhci, "Add secondary interrupter %d, max interrupters %d\n",
-		 i, xhci->max_interrupters);
+	xhci_dbg(xhci, "Add secondary interrupter %u, max vectors %u\n", i, xhci->nvecs);
 
 	return ir;
 }
