@@ -149,7 +149,7 @@ static int xhci_try_enable_msi(struct usb_hcd *hcd)
 			  HCS_MAX_INTRS(xhci->hcs_params1));
 
 	/* TODO: Check with MSI Soc for sysdev */
-	xhci->nvecs = pci_alloc_irq_vectors(pdev, 1, xhci->nvecs,
+	xhci->nvecs = pci_alloc_irq_vectors(pdev, 1, xhci->max_interrupters,
 					    PCI_IRQ_MSIX | PCI_IRQ_MSI);
 	if (xhci->nvecs < 0) {
 		xhci_dbg_trace(xhci, trace_xhci_dbg_init,
