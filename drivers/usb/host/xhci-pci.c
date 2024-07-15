@@ -125,6 +125,7 @@ static void xhci_cleanup_msix(struct xhci_hcd *xhci)
 	free_irq(pci_irq_vector(pdev, 0), xhci_to_hcd(xhci));
 	pci_free_irq_vectors(pdev);
 	hcd->msix_enabled = 0;
+	xhci->nvecs = 0;
 }
 
 /* Try enabling MSI-X with MSI and legacy IRQ as fallback */
@@ -174,6 +175,7 @@ free_irq_vectors:
 legacy_irq:
 	if (!pdev->irq) {
 		xhci_err(xhci, "No msi-x/msi found and no IRQ in BIOS\n");
+		xhci->nvecs = 0;
 		return -EINVAL;
 	}
 
@@ -186,6 +188,8 @@ legacy_irq:
 		xhci_err(xhci, "request interrupt %d failed\n", pdev->irq);
 		return ret;
 	}
+
+	xhci->nvecs = 1;
 	hcd->irq = pdev->irq;
 	return 0;
 }
