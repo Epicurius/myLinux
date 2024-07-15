@@ -253,8 +253,9 @@ int xhci_reset(struct xhci_hcd *xhci, u64 timeout_us)
 static void xhci_zero_64b_regs(struct xhci_hcd *xhci)
 {
 	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
+	struct xhci_intr_reg __iomem *ir;
 	struct iommu_domain *domain;
-	int err, i;
+	int err;
 	u64 val;
 
 	/*
@@ -296,10 +297,11 @@ static void xhci_zero_64b_regs(struct xhci_hcd *xhci)
 	if (upper_32_bits(val))
 		xhci_write_64(xhci, 0, &xhci->op_regs->cmd_ring);
 
-	for (i = 0; i < xhci->max_interrupters; i++) {
-		struct xhci_intr_reg __iomem *ir;
+	for (unsigned int i = 0; i < xhci->nvecs; i++) {
+		if (!xhci->interrupters[i])
+			continue;
 
-		ir = &xhci->run_regs->ir_set[i];
+		ir = xhci->interrupters[i]->ir_set;
 		val = xhci_read_64(xhci, &ir->erst_base);
 		if (upper_32_bits(val))
 			xhci_write_64(xhci, 0, &ir->erst_base);
