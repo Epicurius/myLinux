@@ -95,12 +95,16 @@ static const struct xhci_driver_overrides xhci_pci_overrides __initconst = {
 static void xhci_msix_sync_irqs(struct xhci_hcd *xhci)
 {
 	struct usb_hcd *hcd = xhci_to_hcd(xhci);
+	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
 
-	if (hcd->msix_enabled) {
-		struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
+	if (!hcd->msix_enabled)
+		return;
 
-		/* for now, the driver only supports one primary interrupter */
-		synchronize_irq(pci_irq_vector(pdev, 0));
+	for (int i = 0; i < xhci->nvecs; i++) {
+		if (!xhci->interrupters[i])
+			continue;
+
+		synchronize_irq(pci_irq_vector(pdev, i));
 	}
 }
 
