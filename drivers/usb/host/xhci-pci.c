@@ -139,18 +139,8 @@ static int xhci_try_enable_msi(struct usb_hcd *hcd)
 		free_irq(hcd->irq, hcd);
 	hcd->irq = 0;
 
-	/*
-	 * calculate number of MSI-X vectors supported.
-	 * - HCS_MAX_INTRS: the max number of interrupts the host can handle,
-	 *   with max number of interrupters based on the xhci HCSPARAMS1.
-	 * - num_online_cpus: maximum MSI-X vectors per CPUs core.
-	 *   Add additional 1 vector to ensure always available interrupt.
-	 */
-	xhci->nvecs = min(num_online_cpus() + 1,
-			  HCS_MAX_INTRS(xhci->hcs_params1));
-
 	/* TODO: Check with MSI Soc for sysdev */
-	xhci->nvecs = pci_alloc_irq_vectors(pdev, 1, xhci->nvecs,
+	xhci->nvecs = pci_alloc_irq_vectors(pdev, 1, xhci->max_interrupters,
 					    PCI_IRQ_MSIX | PCI_IRQ_MSI);
 	if (xhci->nvecs < 0) {
 		xhci_dbg_trace(xhci, trace_xhci_dbg_init,
