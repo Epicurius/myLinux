@@ -321,31 +321,24 @@ static void xhci_zero_64b_regs(struct xhci_hcd *xhci)
 		xhci_info(xhci, "Fault detected\n");
 }
 
-static int xhci_enable_interrupter(struct xhci_interrupter *ir)
+static int xhci_toggle_interrupter(struct xhci_interrupter *ir, bool status)
 {
 	u32 iman;
 
 	if (!ir || !ir->ir_set)
 		return -EINVAL;
 
-	iman = readl(&ir->ir_set->irq_pending);
-	writel(ER_IRQ_ENABLE(iman), &ir->ir_set->irq_pending);
-	ir->enabled = 1;
-
-	return 0;
-}
-
-static int xhci_disable_interrupter(struct xhci_interrupter *ir)
-{
-	u32 iman;
-
-	if (!ir || !ir->ir_set)
-		return -EINVAL;
+	if (ir->enabled == status)
+		return 1;
 
 	iman = readl(&ir->ir_set->irq_pending);
-	writel(ER_IRQ_DISABLE(iman), &ir->ir_set->irq_pending);
-	ir->enabled = 0;
 
+	if (status)
+		writel(ER_IRQ_ENABLE(iman), &ir->ir_set->irq_pending);
+	else
+		writel(ER_IRQ_DISABLE(iman), &ir->ir_set->irq_pending);
+
+	ir->enabled = status;
 	return 0;
 }
 
@@ -604,8 +597,9 @@ run:
 	temp_32 |= (CMD_EIE);
 	writel(temp_32, &xhci->op_regs->command);
 
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Enable primary interrupter");
-	xhci_enable_interrupter(ir);
+	list_for_each_entry(ir, &xhci->ir_list, list)
+		xhci_toggle_interrupter(ir, true);
+	xhci_dbg(xhci, "All interrupters have are enabled\n");
 
 	if (xhci_run(xhci)) {
 		xhci_halt(xhci);
@@ -637,7 +631,7 @@ void xhci_stop(struct usb_hcd *hcd)
 {
 	u32 temp;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	struct xhci_interrupter *ir = xhci->primary_ir;
+	struct xhci_interrupter *ir;
 
 	mutex_lock(&xhci->mutex);
 
@@ -672,7 +666,10 @@ void xhci_stop(struct usb_hcd *hcd)
 			"// Disabling event ring interrupts");
 	temp = readl(&xhci->op_regs->status);
 	writel((temp & ~0x1fff) | STS_EINT, &xhci->op_regs->status);
-	xhci_disable_interrupter(ir);
+
+	list_for_each_entry(ir, &xhci->ir_list, list)
+		xhci_toggle_interrupter(ir, false);
+	xhci_dbg(xhci, "All interrupters have are disabled\n");
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "cleaning up memory");
 	xhci_mem_cleanup(xhci);
@@ -1033,7 +1030,7 @@ static int xhci_reinit(struct xhci_hcd *xhci)
 	writel((val_32 & ~0x1fff) | STS_EINT, &xhci->op_regs->status);
 
 	list_for_each_entry(ir, &xhci->ir_list, list) {
-		xhci_disable_interrupter(ir);
+		xhci_toggle_interrupter(ir, false);
 		xhci_remove_interrupter(xhci, ir);
 	}
 
