@@ -707,8 +707,8 @@ static void xhci_save_registers(struct xhci_hcd *xhci)
 	xhci->s3.config_reg = readl(&xhci->op_regs->config_reg);
 
 	/* save both primary and all secondary interrupters */
-	/* fixme, shold we lock  to prevent race with remove secondary interrupter? */
-	for (i = 0; i < xhci->max_interrupters; i++) {
+	/* fixme, shold we lock to prevent race with remove secondary interrupter? */
+	for (i = 0; i < xhci->nvecs; i++) {
 		ir = xhci->interrupters[i];
 		if (!ir)
 			continue;
@@ -732,7 +732,7 @@ static void xhci_restore_registers(struct xhci_hcd *xhci)
 	writel(xhci->s3.config_reg, &xhci->op_regs->config_reg);
 
 	/* FIXME should we lock to protect against freeing of interrupters */
-	for (i = 0; i < xhci->max_interrupters; i++) {
+	for (i = 0; i < xhci->nvecs; i++) {
 		ir = xhci->interrupters[i];
 		if (!ir)
 			continue;

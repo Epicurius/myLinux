@@ -118,6 +118,7 @@ static void xhci_cleanup_msix(struct xhci_hcd *xhci)
 	free_irq(pci_irq_vector(pdev, 0), xhci_to_hcd(xhci));
 	pci_free_irq_vectors(pdev);
 	hcd->msix_enabled = 0;
+	xhci->nvecs = 0;
 }
 
 /* Try enabling MSI-X with MSI and legacy IRQ as fallback */
@@ -145,6 +146,7 @@ static int xhci_try_enable_msi(struct usb_hcd *hcd)
 	if (xhci->nvecs < 0) {
 		xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 			       "failed to allocate IRQ vectors");
+		xhci->nvecs = 0;
 		goto legacy_irq;
 	}
 
@@ -161,6 +163,7 @@ free_irq_vectors:
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "disable %s interrupt",
 		       pdev->msix_enabled ? "MSI-X" : "MSI");
 	pci_free_irq_vectors(pdev);
+	xhci->nvecs = 0;
 
 legacy_irq:
 	if (!pdev->irq) {
@@ -178,6 +181,8 @@ legacy_irq:
 		xhci_err(xhci, "request interrupt %d failed\n", pdev->irq);
 		return ret;
 	}
+
+	xhci->nvecs = 1;
 	hcd->irq = pdev->irq;
 	return 0;
 }
