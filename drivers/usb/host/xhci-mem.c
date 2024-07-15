@@ -2290,9 +2290,26 @@ xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
 	return ir;
 }
 
+static void xhci_internal_interrupt_state(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
+{
+	u32 imod;
+
+	/* Interrupt moderation interval imod_interval in nanoseconds */
+	if (xhci->imod_interval > U16_MAX * 250) {
+		imod = readl(&ir->ir_set->irq_control);
+		imod &= ~ER_IRQ_INTERVAL_MASK;
+		imod |= (xhci->imod_interval / 250) & ER_IRQ_INTERVAL_MASK;
+		writel(imod, &ir->ir_set->irq_control);
+	}
+
+	if (xhci_to_hcd(xhci)->msi_enabled == 1)
+		ir->ip_autoclear = 1;
+
+	ir->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
+}
+
 static void
-xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
-		     unsigned int intr_num)
+xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir, unsigned int intr_num)
 {
 	u64 erst_base;
 	u32 erst_size;
@@ -2314,6 +2331,9 @@ xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
 
 	/* Set the event ring dequeue address of this interrupter */
 	xhci_set_hc_event_deq(xhci, ir);
+
+	if (ir->internal)
+		xhci_internal_interrupt_state(xhci, ir);
 }
 
 struct xhci_interrupter *
@@ -2492,9 +2512,8 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	if (!ir)
 		goto fail;
 
+	ir->internal = 1;
 	xhci_add_interrupter(xhci, ir, 0);
-
-	ir->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
 
 	/*
 	 * XXX: Might need to set the Interrupter Moderation Register to
