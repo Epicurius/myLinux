@@ -1855,6 +1855,8 @@ void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrup
 	xhci_remove_interrupter(xhci, ir);
 	xhci->interrupters[intr_num] = NULL;
 
+	xhci_debugfs_remove_event_ring(xhci, intr_num);
+
 	spin_unlock_irq(&xhci->lock);
 
 	xhci_free_interrupter(xhci, ir);
@@ -2336,6 +2338,7 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs)
 	for (i = 1; i < xhci->nvecs; i++) {
 		if (xhci->interrupters[i] == NULL) {
 			xhci_add_interrupter(xhci, ir, i);
+			xhci_debugfs_create_event_ring(xhci, i);
 			err = 0;
 			break;
 		}
