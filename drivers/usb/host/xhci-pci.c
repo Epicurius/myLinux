@@ -109,18 +109,25 @@ static void xhci_msix_sync_irqs(struct xhci_hcd *xhci)
 }
 
 /* Free any IRQs and disable MSI-X */
-static void xhci_cleanup_msix(struct xhci_hcd *xhci)
+void xhci_cleanup_msi_irq(struct xhci_hcd *xhci)
 {
 	struct usb_hcd *hcd = xhci_to_hcd(xhci);
 	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
 
-	/* return if using legacy interrupt */
-	if (hcd->irq > 0)
+	if (!hcd->msi_enabled)
 		return;
 
-	free_irq(pci_irq_vector(pdev, 0), xhci_to_hcd(xhci));
+	for (int i = 0; i < xhci->nvecs; i++) {
+		if (!xhci->interrupters[i])
+			continue;
+
+		free_irq(pci_irq_vector(pdev, i), xhci->interrupters[i]);
+	}
+
 	pci_free_irq_vectors(pdev);
 	hcd->msix_enabled = 0;
+	hcd->msi_enabled = 0;
+	xhci->nvecs = 0;
 }
 
 /* Try enabling MSI-X with MSI and legacy IRQ as fallback */
