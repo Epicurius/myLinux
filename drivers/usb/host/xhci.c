@@ -320,32 +320,35 @@ static void xhci_zero_64b_regs(struct xhci_hcd *xhci)
 		xhci_info(xhci, "Fault detected\n");
 }
 
-static int xhci_enable_interrupter(struct xhci_interrupter *ir)
+static int xhci_toggle_interrupter(struct xhci_interrupter *ir, bool status)
 {
 	u32 iman;
 
 	if (!ir || !ir->ir_set)
 		return -EINVAL;
 
-	iman = readl(&ir->ir_set->irq_pending);
-	writel(ER_IRQ_ENABLE(iman), &ir->ir_set->irq_pending);
-	ir->enabled = 1;
+	if (ir->enabled == status)
+		return 1;
 
+	iman = readl(&ir->ir_set->irq_pending);
+
+	if (status)
+		writel(ER_IRQ_ENABLE(iman), &ir->ir_set->irq_pending);
+	else
+		writel(ER_IRQ_DISABLE(iman), &ir->ir_set->irq_pending);
+
+	ir->enabled = status;
 	return 0;
 }
 
-static int xhci_disable_interrupter(struct xhci_interrupter *ir)
+static void xhci_toggle_interrupters(struct xhci_hcd *xhci, bool status)
 {
-	u32 iman;
+	struct xhci_interrupter *ir;
 
-	if (!ir || !ir->ir_set)
-		return -EINVAL;
+	list_for_each_entry(ir, &xhci->ir_list, list)
+		xhci_toggle_interrupter(ir, status);
 
-	iman = readl(&ir->ir_set->irq_pending);
-	writel(ER_IRQ_DISABLE(iman), &ir->ir_set->irq_pending);
-	ir->enabled = 0;
-
-	return 0;
+	xhci_dbg(xhci, "All interrupters have been %s\n", status ? "enabled" : "disabled");
 }
 
 /* interrupt moderation interval imod_interval in nanoseconds */
@@ -594,8 +597,7 @@ run:
 	temp_32 |= (CMD_EIE);
 	writel(temp_32, &xhci->op_regs->command);
 
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Enable primary interrupter");
-	xhci_enable_interrupter(ir);
+	xhci_toggle_interrupters(xhci, true);
 
 	if (xhci_run(xhci)) {
 		xhci_halt(xhci);
@@ -626,7 +628,6 @@ void xhci_stop(struct usb_hcd *hcd)
 {
 	u32 temp;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	struct xhci_interrupter *ir = xhci->primary_ir;
 
 	mutex_lock(&xhci->mutex);
 
@@ -661,7 +662,7 @@ void xhci_stop(struct usb_hcd *hcd)
 			"// Disabling event ring interrupts");
 	temp = readl(&xhci->op_regs->status);
 	writel((temp & ~0x1fff) | STS_EINT, &xhci->op_regs->status);
-	xhci_disable_interrupter(ir);
+	xhci_toggle_interrupters(xhci, false);
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "cleaning up memory");
 	xhci_mem_cleanup(xhci);
@@ -1171,6 +1172,48 @@ int xhci_resume(struct xhci_hcd *xhci, pm_message_t msg)
 		retval = xhci_reinit(xhci);
 		if (retval)
 			return retval;
+
+		xhci_dbg(xhci, "// Disabling event ring interrupts\n");
+		temp = readl(&xhci->op_regs->status);
+		writel((temp & ~0x1fff) | STS_EINT, &xhci->op_regs->status);
+		xhci_toggle_interrupters(xhci, false);
+
+		xhci_dbg(xhci, "cleaning up memory\n");
+		xhci_mem_cleanup(xhci);
+		xhci_debugfs_exit(xhci);
+		xhci_dbg(xhci, "xhci_stop completed - status = %x\n",
+			    readl(&xhci->op_regs->status));
+
+		/* USB core calls the PCI reinit and start functions twice:
+		 * first with the primary HCD, and then with the secondary HCD.
+		 * If we don't do the same, the host will never be started.
+		 */
+		xhci_dbg(xhci, "Initialize the xhci_hcd\n");
+		retval = xhci_init(xhci);
+		if (retval)
+			return retval;
+		comp_timer_running = true;
+
+		xhci_dbg(xhci, "Start the primary HCD\n");
+		retval = xhci_start(hcd);
+		if (!retval && xhci->shared_hcd) {
+			xhci_dbg(xhci, "Start the secondary HCD\n");
+			retval = xhci_start(xhci->shared_hcd);
+		}
+		if (retval)
+			return retval;
+		/*
+		 * Resume roothubs unconditionally as PORTSC change bits are not
+		 * immediately visible after xHC reset
+		 */
+		hcd->state = HC_STATE_SUSPENDED;
+
+		if (xhci->shared_hcd) {
+			xhci->shared_hcd->state = HC_STATE_SUSPENDED;
+			usb_hcd_resume_root_hub(xhci->shared_hcd);
+		}
+		usb_hcd_resume_root_hub(hcd);
+
 		goto done;
 	}
 
