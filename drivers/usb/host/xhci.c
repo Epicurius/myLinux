@@ -537,7 +537,7 @@ int xhci_start(struct usb_hcd *hcd)
 	u32 temp_32;
 	unsigned long flags;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	struct xhci_interrupter *ir = xhci->primary_ir;
+	struct xhci_interrupter *ir;
 	/* Start the xHCI host controller running only after the USB 2.0 roothub
 	 * is setup.
 	 */
@@ -547,17 +547,12 @@ int xhci_start(struct usb_hcd *hcd)
 	if (!usb_hcd_is_primary_hcd(hcd))
 		goto run;
 
-	if (hcd->msi_enabled)
-		ir->ip_autoclear = 1;
-
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_start");
 
-	temp_64 = xhci_read_64(xhci, &ir->ir_set->erst_dequeue);
+	temp_64 = xhci_read_64(xhci, &xhci->primary_ir->ir_set->erst_dequeue);
 	temp_64 &= ERST_PTR_MASK;
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 			"ERST deq = 64'h%0lx", (long unsigned int) temp_64);
-
-	xhci_set_interrupter_moderation(xhci, ir, xhci->imod_interval);
 
 	if (xhci->quirks & XHCI_NEC_HOST) {
 		struct xhci_command *command;

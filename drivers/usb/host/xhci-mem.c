@@ -2282,6 +2282,7 @@ xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
 
 void xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir, unsigned int num)
 {
+	struct usb_hcd *hcd = xhci_to_hcd(xhci);
 	u64 erst_base;
 	u32 erst_size;
 
@@ -2306,11 +2307,15 @@ void xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir, un
 
 	/* Set the event ring dequeue address of this interrupter */
 	xhci_set_hc_event_deq(xhci, ir);
+
+	if (hcd->msi_enabled)
+		ir->ip_autoclear = 1;
+
+	/* Interrupt moderation interval imod_interval in nanoseconds */
+	xhci_set_interrupter_moderation(xhci, ir, xhci->imod_interval);
 }
 
-struct xhci_interrupter *
-xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
-				  u32 imod_interval)
+struct xhci_interrupter *xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	struct xhci_interrupter *ir, *_ir;
@@ -2351,7 +2356,7 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
 
 	spin_unlock_irq(&xhci->lock);
 
-	xhci_set_interrupter_moderation(xhci, ir, imod_interval);
+	// Make user set their own IMOD.
 
 	xhci_dbg(xhci, "Add secondary interrupter %u, max vectors %u\n", i, xhci->nvecs);
 

@@ -1791,8 +1791,7 @@ void xhci_dbg_trace(struct xhci_hcd *xhci, void (*trace)(struct va_format *),
 irqreturn_t xhci_primary_irq(int irq, void *hcd);
 irqreturn_t xhci_secondary_irq(int irq, void *ir);
 irqreturn_t xhci_legacy_irq(struct usb_hcd *hcd);
-struct xhci_interrupter *xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
-							   u32 imod_interval);
+struct xhci_interrupter *xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs);
 void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrupter *ir);
 void xhci_remove_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir);
 int xhci_request_secondary_irq(struct usb_hcd *hcd, struct xhci_interrupter *ir, unsigned int num);
