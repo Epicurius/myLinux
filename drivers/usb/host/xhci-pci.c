@@ -99,6 +99,13 @@ static void xhci_sync_irqs(struct xhci_hcd *xhci)
 	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
 
 	synchronize_irq(pci_irq_vector(pdev, 0));
+
+	for (int i = 1; i < xhci->nvecs; i++) {
+		if (xhci->interrupters[i] == NULL)
+			continue;
+
+		synchronize_irq(pci_irq_vector(pdev, i));
+	}
 }
 
 /* Free any IRQs and disable MSI-X */
