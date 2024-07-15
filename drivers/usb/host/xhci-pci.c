@@ -101,16 +101,12 @@ static const struct xhci_driver_overrides xhci_pci_overrides __initconst = {
  * Primary Legacy and MSI IRQ are synced in suspend_common().
  * All MSI-X IRQs and secondary MSI IRQs should be synced here.
  */
-static void xhci_msix_sync_irqs(struct xhci_hcd *xhci)
+static void xhci_sync_irqs(struct xhci_hcd *xhci, struct pci_dev *pdev)
 {
-	struct usb_hcd *hcd = xhci_to_hcd(xhci);
+	struct xhci_interrupter *ir;
 
-	if (hcd->msix_enabled) {
-		struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
-
-		/* for now, the driver only supports one primary interrupter */
-		synchronize_irq(pci_irq_vector(pdev, 0));
-	}
+	list_for_each_entry(ir, &xhci->ir_list, list)
+		synchronize_irq(pci_irq_vector(pdev, ir->intr_num));
 }
 
 /* Legacy IRQ is freed by usb_remove_hcd() or usb_hcd_pci_shutdown() */
@@ -795,8 +791,8 @@ static int xhci_pci_suspend(struct usb_hcd *hcd, bool do_wakeup)
 
 	ret = xhci_suspend(xhci, do_wakeup);
 
-	/* synchronize irq when using MSI-X */
-	xhci_msix_sync_irqs(xhci);
+	if (hcd->msix_enabled)
+		xhci_sync_irqs(xhci, pdev);
 
 	if (ret && (xhci->quirks & XHCI_SSIC_PORT_UNUSED))
 		xhci_ssic_port_unused_quirk(hcd, false);
