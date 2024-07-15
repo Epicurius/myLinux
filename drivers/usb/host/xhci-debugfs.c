@@ -427,6 +427,29 @@ static struct dentry *xhci_debugfs_create_ring_dir(struct xhci_hcd *xhci,
 	return dir;
 }
 
+void xhci_debugfs_create_event_ring(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
+{
+	struct xhci_event_ring_priv *erpriv;
+
+	erpriv = kzalloc(sizeof(*erpriv), GFP_KERNEL);
+	if (!erpriv)
+		return;
+
+	snprintf(erpriv->name, sizeof(erpriv->name), "event-ring:%02d", ir->intr_num);
+	erpriv->root = debugfs_create_dir(erpriv->name, xhci->debugfs_root);
+	xhci_debugfs_create_files(xhci, ring_files, ARRAY_SIZE(ring_files),
+				  ir->event_ring, erpriv->root, &xhci_ring_fops);
+	ir->debugfs = erpriv;
+}
+
+void xhci_debugfs_remove_event_ring(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
+{
+	struct xhci_event_ring_priv *erpriv = ir->debugfs;
+
+	debugfs_remove_recursive(erpriv->root);
+	kfree(erpriv);
+}
+
 static void xhci_debugfs_create_context_files(struct xhci_hcd *xhci,
 					      struct dentry *parent,
 					      int slot_id)
@@ -691,9 +714,9 @@ void xhci_debugfs_init(struct xhci_hcd *xhci)
 				     "command-ring",
 				     xhci->debugfs_root);
 
-	xhci_debugfs_create_ring_dir(xhci, &xhci->primary_ir->event_ring,
-				     "event-ring",
-				     xhci->debugfs_root);
+	struct xhci_interrupter *ir;
+	list_for_each_entry(ir, &xhci->ir_list, list)
+		xhci_debugfs_create_event_ring(xhci, ir);
 
 	xhci->debugfs_slots = debugfs_create_dir("devices", xhci->debugfs_root);
 
