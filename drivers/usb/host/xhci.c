@@ -320,32 +320,35 @@ static void xhci_zero_64b_regs(struct xhci_hcd *xhci)
 		xhci_info(xhci, "Fault detected\n");
 }
 
-static int xhci_enable_interrupter(struct xhci_interrupter *ir)
+static int xhci_toggle_interrupter(struct xhci_interrupter *ir, bool status)
 {
 	u32 iman;
 
 	if (!ir || !ir->ir_set)
 		return -EINVAL;
 
-	iman = readl(&ir->ir_set->irq_pending);
-	writel(ER_IRQ_ENABLE(iman), &ir->ir_set->irq_pending);
-	ir->enabled = 1;
+	if (ir->enabled == status)
+		return 1;
 
+	iman = readl(&ir->ir_set->irq_pending);
+
+	if (status)
+		writel(ER_IRQ_ENABLE(iman), &ir->ir_set->irq_pending);
+	else
+		writel(ER_IRQ_DISABLE(iman), &ir->ir_set->irq_pending);
+
+	ir->enabled = status;
 	return 0;
 }
 
-static int xhci_disable_interrupter(struct xhci_interrupter *ir)
+static void xhci_toggle_interrupters(struct xhci_hcd *xhci, bool status)
 {
-	u32 iman;
+	struct xhci_interrupter *ir;
 
-	if (!ir || !ir->ir_set)
-		return -EINVAL;
+	list_for_each_entry(ir, &xhci->ir_list, list)
+		xhci_toggle_interrupter(ir, status);
 
-	iman = readl(&ir->ir_set->irq_pending);
-	writel(ER_IRQ_DISABLE(iman), &ir->ir_set->irq_pending);
-	ir->enabled = 0;
-
-	return 0;
+	xhci_dbg(xhci, "All interrupters have been %s\n", status ? "enabled" : "disabled");
 }
 
 /* interrupt moderation interval imod_interval in nanoseconds */
@@ -572,8 +575,7 @@ run:
 	temp_32 |= (CMD_EIE);
 	writel(temp_32, &xhci->op_regs->command);
 
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Enable primary interrupter");
-	xhci_enable_interrupter(ir);
+	xhci_toggle_interrupters(xhci, true);
 
 	if (xhci_run(xhci)) {
 		xhci_halt(xhci);
@@ -604,7 +606,6 @@ void xhci_stop(struct usb_hcd *hcd)
 {
 	u32 temp;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	struct xhci_interrupter *ir = xhci->primary_ir;
 
 	mutex_lock(&xhci->mutex);
 
@@ -639,7 +640,7 @@ void xhci_stop(struct usb_hcd *hcd)
 			"// Disabling event ring interrupts");
 	temp = readl(&xhci->op_regs->status);
 	writel((temp & ~0x1fff) | STS_EINT, &xhci->op_regs->status);
-	xhci_disable_interrupter(ir);
+	xhci_toggle_interrupters(xhci, false);
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "cleaning up memory");
 	xhci_mem_cleanup(xhci);
@@ -1085,7 +1086,7 @@ int xhci_resume(struct xhci_hcd *xhci, pm_message_t msg)
 		xhci_dbg(xhci, "// Disabling event ring interrupts\n");
 		temp = readl(&xhci->op_regs->status);
 		writel((temp & ~0x1fff) | STS_EINT, &xhci->op_regs->status);
-		xhci_disable_interrupter(xhci->primary_ir);
+		xhci_toggle_interrupters(xhci, false);
 
 		xhci_dbg(xhci, "cleaning up memory\n");
 		xhci_mem_cleanup(xhci);
