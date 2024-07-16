@@ -523,42 +523,6 @@ static int xhci_init(struct usb_hcd *hcd)
 
 /*-------------------------------------------------------------------------*/
 
-static int xhci_run_finished(struct xhci_hcd *xhci)
-{
-	struct xhci_interrupter *ir = xhci->interrupters[0];
-	unsigned long	flags;
-	u32		temp;
-
-	/*
-	 * Enable interrupts before starting the host (xhci 4.2 and 5.5.2).
-	 * Protect the short window before host is running with a lock
-	 */
-	spin_lock_irqsave(&xhci->lock, flags);
-
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Enable interrupts");
-	temp = readl(&xhci->op_regs->command);
-	temp |= (CMD_EIE);
-	writel(temp, &xhci->op_regs->command);
-
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Enable primary interrupter");
-	xhci_enable_interrupter(ir);
-
-	if (xhci_start(xhci)) {
-		xhci_halt(xhci);
-		spin_unlock_irqrestore(&xhci->lock, flags);
-		return -ENODEV;
-	}
-
-	xhci->cmd_ring_state = CMD_RING_STATE_RUNNING;
-
-	if (xhci->quirks & XHCI_NEC_HOST)
-		xhci_ring_cmd_db(xhci);
-
-	spin_unlock_irqrestore(&xhci->lock, flags);
-
-	return 0;
-}
-
 /*
  * Start the HC after it was halted.
  *
@@ -573,8 +537,10 @@ static int xhci_run_finished(struct xhci_hcd *xhci)
  */
 int xhci_run(struct usb_hcd *hcd)
 {
-	u64 temp_64;
 	int ret;
+	u64 temp_64;
+	u32 temp_32;
+	unsigned long flags;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	struct xhci_interrupter *ir = xhci->interrupters[0];
 	/* Start the xHCI host controller running only after the USB 2.0 roothub
@@ -584,7 +550,7 @@ int xhci_run(struct usb_hcd *hcd)
 	hcd->uses_new_polling = 1;
 
 	if (!usb_hcd_is_primary_hcd(hcd))
-		return xhci_run_finished(xhci);
+		goto run;
 
 	if (hcd->msi_enabled)
 		ir->ip_autoclear = true;
@@ -618,9 +584,39 @@ int xhci_run(struct usb_hcd *hcd)
 	xhci_debugfs_init(xhci);
 
 	if (xhci_has_one_roothub(xhci))
-		return xhci_run_finished(xhci);
+		goto run;
 
 	set_bit(HCD_FLAG_DEFER_RH_REGISTER, &hcd->flags);
+
+	return 0;
+
+run:
+	/*
+	 * Enable host interrupts before starting the host (xhci 4.2 and 5.5.2).
+	 * Protect the short window before host is running with a lock
+	 */
+	spin_lock_irqsave(&xhci->lock, flags);
+
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Enable host interrupts");
+	temp_32 = readl(&xhci->op_regs->command);
+	temp_32 |= (CMD_EIE);
+	writel(temp_32, &xhci->op_regs->command);
+
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Enable primary interrupter");
+	xhci_enable_interrupter(ir);
+
+	if (xhci_start(xhci)) {
+		xhci_halt(xhci);
+		spin_unlock_irqrestore(&xhci->lock, flags);
+		return -ENODEV;
+	}
+
+	xhci->cmd_ring_state = CMD_RING_STATE_RUNNING;
+
+	if (xhci->quirks & XHCI_NEC_HOST)
+		xhci_ring_cmd_db(xhci);
+
+	spin_unlock_irqrestore(&xhci->lock, flags);
 
 	return 0;
 }
