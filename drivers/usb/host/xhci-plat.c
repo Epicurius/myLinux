@@ -97,7 +97,7 @@ static int xhci_plat_setup(struct usb_hcd *hcd)
 static int xhci_plat_start(struct usb_hcd *hcd)
 {
 	xhci_priv_plat_start(hcd);
-	return xhci_run(hcd);
+	return xhci_start(hcd);
 }
 
 #ifdef CONFIG_OF
