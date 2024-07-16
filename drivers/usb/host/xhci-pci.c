@@ -83,13 +83,13 @@ static const char hcd_name[] = "xhci_hcd";
 static struct hc_driver __read_mostly xhci_pci_hc_driver;
 
 static int xhci_pci_setup(struct usb_hcd *hcd);
-static int xhci_pci_run(struct usb_hcd *hcd);
+static int xhci_pci_start(struct usb_hcd *hcd);
 static int xhci_pci_update_hub_device(struct usb_hcd *hcd, struct usb_device *hdev,
 				      struct usb_tt *tt, gfp_t mem_flags);
 
 static const struct xhci_driver_overrides xhci_pci_overrides __initconst = {
 	.reset = xhci_pci_setup,
-	.start = xhci_pci_run,
+	.start = xhci_pci_start,
 	.update_hub_device = xhci_pci_update_hub_device,
 };
 
@@ -192,7 +192,7 @@ legacy_irq:
 	return 0;
 }
 
-static int xhci_pci_run(struct usb_hcd *hcd)
+static int xhci_pci_start(struct usb_hcd *hcd)
 {
 	int ret;
 
