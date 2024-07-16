@@ -155,7 +155,7 @@ int xhci_halt(struct xhci_hcd *xhci)
 /*
  * Set the run bit and wait for the host to be running.
  */
-int xhci_start(struct xhci_hcd *xhci)
+int xhci_run(struct xhci_hcd *xhci)
 {
 	u32 temp;
 	int ret;
@@ -535,7 +535,7 @@ static int xhci_init(struct usb_hcd *hcd)
  *
  * Setup MSI-X vectors and enable interrupts.
  */
-int xhci_run(struct usb_hcd *hcd)
+int xhci_start(struct usb_hcd *hcd)
 {
 	int ret;
 	u64 temp_64;
@@ -555,7 +555,7 @@ int xhci_run(struct usb_hcd *hcd)
 	if (hcd->msi_enabled)
 		ir->ip_autoclear = true;
 
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_run");
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_start");
 
 	temp_64 = xhci_read_64(xhci, &ir->ir_set->erst_dequeue);
 	temp_64 &= ERST_PTR_MASK;
@@ -605,7 +605,7 @@ run:
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Enable primary interrupter");
 	xhci_enable_interrupter(ir);
 
-	if (xhci_start(xhci)) {
+	if (xhci_run(xhci)) {
 		xhci_halt(xhci);
 		spin_unlock_irqrestore(&xhci->lock, flags);
 		return -ENODEV;
@@ -620,7 +620,7 @@ run:
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(xhci_run);
+EXPORT_SYMBOL_GPL(xhci_start);
 
 /*
  * Stop xHCI driver.
@@ -1090,13 +1090,13 @@ static int xhci_reinit(struct xhci_hcd *xhci)
 	}
 
 	xhci_dbg(xhci, "Start primary HCD\n");
-	ret = xhci_run(hcd);
+	ret = xhci_start(hcd);
 	if (ret)
 		return ret;
 
 	if (xhci->shared_hcd) {
 		xhci_dbg(xhci, "Start secondary HCD\n");
-		ret = xhci_run(xhci->shared_hcd);
+		ret = xhci_start(xhci->shared_hcd);
 		if (ret)
 			return ret;
 
@@ -5491,7 +5491,7 @@ static const struct hc_driver xhci_hc_driver = {
 	 * basic lifecycle operations
 	 */
 	.reset =		NULL, /* set in xhci_init_driver() */
-	.start =		xhci_run,
+	.start =		xhci_start,
 	.stop =			xhci_stop,
 	.shutdown =		xhci_shutdown,
 

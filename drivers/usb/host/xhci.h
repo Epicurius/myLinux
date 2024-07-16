@@ -1848,9 +1848,9 @@ int xhci_handshake_check_state(struct xhci_hcd *xhci, void __iomem *ptr,
 		u32 mask, u32 done, int usec, unsigned int exit_state);
 void xhci_quiesce(struct xhci_hcd *xhci);
 int xhci_halt(struct xhci_hcd *xhci);
-int xhci_start(struct xhci_hcd *xhci);
+int xhci_run(struct xhci_hcd *xhci);
 int xhci_reset(struct xhci_hcd *xhci, u64 timeout_us);
-int xhci_run(struct usb_hcd *hcd);
+int xhci_start(struct usb_hcd *hcd);
 int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks);
 void xhci_shutdown(struct usb_hcd *hcd);
 void xhci_stop(struct usb_hcd *hcd);
