@@ -202,7 +202,7 @@ static int xhci_pci_run(struct usb_hcd *hcd)
 			return ret;
 	}
 
-	return xhci_run(hcd);
+	return xhci_start(hcd);
 }
 
 static void xhci_pci_stop(struct usb_hcd *hcd)
