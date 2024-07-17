@@ -192,7 +192,7 @@ legacy_irq:
 	return 0;
 }
 
-static int xhci_request_legacy_irq(struct usb_hcd *hcd)
+int xhci_request_legacy_irq(struct usb_hcd *hcd)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
@@ -211,7 +211,7 @@ static int xhci_request_legacy_irq(struct usb_hcd *hcd)
 	return 0;
 }
 
-static int xhci_request_msi_irq(struct usb_hcd *hcd, unsigned int intr_num)
+int xhci_request_msi_irq(struct usb_hcd *hcd, unsigned int intr_num)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
@@ -239,16 +239,6 @@ static int xhci_pci_start(struct usb_hcd *hcd)
 		ret = xhci_alloc_irq(hcd);
 		if (ret)
 			return ret;
-
-		if (hcd->msi_enabled)
-			ret = xhci_request_msi_irq(hcd, 0);
-		else
-			ret = xhci_request_legacy_irq(hcd);
-
-		if (ret) {
-			xhci_release_msi_irq(hcd);
-			return ret;
-		}
 	}
 
 	return xhci_start(hcd);

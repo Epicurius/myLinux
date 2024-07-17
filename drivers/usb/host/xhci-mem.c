@@ -2330,6 +2330,56 @@ static void xhci_init_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter
 	}
 }
 
+static int xhci_setup_interrupt(struct xhci_hcd *xhci, unsigned int intr_num, gfp_t flags)
+{
+	struct usb_hcd *hcd = xhci_to_hcd(xhci);
+	struct xhci_interrupter *ir;
+	int ret;
+
+	ir = xhci_alloc_interrupter(xhci, 0, flags);
+	if (!ir)
+		return -ENOMEM;
+
+	if (hcd->msi_enabled)
+		ret = xhci_request_msi_irq(hcd, intr_num);
+	else
+		ret = xhci_request_legacy_irq(hcd);
+
+	if (ret) {
+		xhci_free_interrupter(xhci, ir);
+		return ret;
+	}
+
+	xhci_add_interrupter(xhci, ir, intr_num);
+	return 0;
+}
+
+int xhci_setup_interrupters(struct usb_hcd *hcd, gfp_t flags)
+{
+	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+	int ret;
+
+	xhci->interrupters = kcalloc_node(xhci->nvecs, sizeof(*xhci->interrupters), flags,
+					  dev_to_node(hcd->self.sysdev));
+
+	/* Allocate and set up primary interrupter 0 with an event ring. */
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Allocating primary event ring");
+
+	ret = xhci_setup_interrupt(xhci, 0, flags);
+	if (ret)
+		goto fail;
+
+	return 0;
+
+fail:
+	pci_free_irq_vectors(to_pci_dev(hcd->self.controller));
+	hcd->msix_enabled = 0;
+	hcd->msi_enabled = 0;
+	xhci->nvecs = 0;
+	kfree(xhci->interrupters);
+	return ret;
+}
+
 struct xhci_interrupter *
 xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs)
 {
@@ -2374,7 +2424,6 @@ EXPORT_SYMBOL_GPL(xhci_create_secondary_interrupter);
 
 int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 {
-	struct xhci_interrupter *ir;
 	struct device	*dev = xhci_to_hcd(xhci)->self.sysdev;
 	dma_addr_t	dma;
 	unsigned int	val, val2;
@@ -2496,18 +2545,6 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 		       "// Doorbell array is located at offset 0x%x from cap regs base addr",
 		       val);
 	xhci->dba = (void __iomem *) xhci->cap_regs + val;
-
-	/* Allocate and set up primary interrupter 0 with an event ring. */
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-		       "Allocating primary event ring");
-	xhci->interrupters = kcalloc_node(xhci->max_interrupters, sizeof(*xhci->interrupters),
-					  flags, dev_to_node(dev));
-
-	ir = xhci_alloc_interrupter(xhci, 0, flags);
-	if (!ir)
-		goto fail;
-
-	xhci_init_interrupter(xhci, ir, 0);
 
 	/*
 	 * XXX: Might need to set the Interrupter Moderation Register to

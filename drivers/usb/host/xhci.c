@@ -507,6 +507,9 @@ int xhci_start(struct usb_hcd *hcd)
 		goto run;
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_start");
+	ret = xhci_setup_interrupters(hcd, GFP_KERNEL);
+	if (ret)
+		return ret;
 
 	temp_64 = xhci_read_64(xhci, &ir->ir_set->erst_dequeue);
 	temp_64 &= ERST_PTR_MASK;
