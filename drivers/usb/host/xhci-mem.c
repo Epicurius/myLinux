@@ -2424,6 +2424,16 @@ int xhci_interrupters_init(struct xhci_hcd *xhci, gfp_t flags)
 
 	xhci_init_interrupter(xhci, ir, 0);
 
+	if (xhci->nvecs <= 1)
+		return 0;
+
+	/* Secondary interrupters, on failure only primary interrupt is used. */
+	ir = xhci_alloc_interrupter(xhci, 1, flags);
+	if (!ir)
+		return 0;
+
+	xhci_init_interrupter(xhci, ir, 1);
+
 	return 0;
 }
 

@@ -156,9 +156,21 @@ static int xhci_request_irqs(struct usb_hcd *hcd)
 		return ret;
 	}
 
-	if (!hcd->msi_enabled)
+	if (!hcd->msi_enabled) {
 		hcd->irq = pdev->irq;
+		goto request_sucess;
+	}
 
+	if (xhci->nvecs == 1)
+		goto request_sucess;
+
+	/* Request Secondary interrutpers, i.e. 1 to 'max_interrutpers' */
+	ret = xhci_request_msi_irq(xhci, pdev, xhci->interrupters[1], 1);
+	if (ret)
+		xhci_warn(xhci, "Requesting Secondary interrupt failed, using only primary interrupt\n");
+		/* TODO: free secondary interrutper */
+
+request_sucess:
 	xhci_dbg(xhci, "Succesfully requested %s interrupts\n", xhci_interrupt_name_string(hcd));
 	return 0;
 }
