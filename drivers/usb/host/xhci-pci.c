@@ -8,6 +8,7 @@
  * Some code borrowed from the Linux EHCI driver.
  */
 
+#include <linux/irq.h>
 #include <linux/pci.h>
 #include <linux/slab.h>
 #include <linux/module.h>
@@ -131,11 +132,10 @@ static void xhci_release_msi_irq(struct usb_hcd *hcd)
 }
 
 /* Try enabling MSI-X with MSI and legacy IRQ as fallback */
-static int xhci_try_enable_msi(struct usb_hcd *hcd)
+static int xhci_alloc_irq(struct usb_hcd *hcd)
 {
 	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	int ret;
 
 	/*
 	 * Some Fresco Logic host controllers advertise MSI, but fail to
@@ -159,16 +159,18 @@ static int xhci_try_enable_msi(struct usb_hcd *hcd)
 		goto legacy_irq;
 	}
 
-	ret = request_irq(pci_irq_vector(pdev, 0), xhci_msi_irq, 0, "xhci_hcd",
-			  xhci_to_hcd(xhci));
-	if (ret)
-		goto free_irq_vectors;
+	/*
+	 * Make sure that at least one MSI-X/MSI interrupt can be requested.
+	 * Otherwise fall back to legacy interrupts.
+	 */
+	if (can_request_irq(pci_irq_vector(pdev, 0), 0)) {
+		hcd->msi_enabled = 1;
+		hcd->msix_enabled = pdev->msix_enabled;
+		xhci_dbg(xhci, "Allocated %d %s interrupts\n", xhci->nvecs,
+			 pdev->msix_enabled ? "MSI-X" : "MSI");
+		return 0;
+	}
 
-	hcd->msi_enabled = 1;
-	hcd->msix_enabled = pdev->msix_enabled;
-	return 0;
-
-free_irq_vectors:
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "disable %s interrupt",
 		       pdev->msix_enabled ? "MSI-X" : "MSI");
 	pci_free_irq_vectors(pdev);
@@ -184,15 +186,48 @@ legacy_irq:
 		snprintf(hcd->irq_descr, sizeof(hcd->irq_descr), "%s:usb%d",
 			 hcd->driver->description, hcd->self.busnum);
 
-	/* fall back to legacy interrupt */
+	xhci->nvecs = 1;
+	hcd->irq = pdev->irq;
+	xhci_dbg(xhci, "Allocated 1 legacy interrupt\n");
+	return 0;
+}
+
+static int xhci_request_legacy_irq(struct usb_hcd *hcd)
+{
+	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
+	int ret;
+
+	xhci_dbg(xhci, "Request legacy interrupt %u\n", pdev->irq);
+
 	ret = request_irq(pdev->irq, &usb_hcd_irq, IRQF_SHARED, hcd->irq_descr, hcd);
-	if (ret) {
-		xhci_err(xhci, "request interrupt %d failed\n", pdev->irq);
+	if (ret == -EBUSY) {
+		xhci_dbg(xhci, "Interrupt %u already exists\n", pdev->irq);
+	} else if (ret) {
+		xhci_err(xhci, "Request interrupt %d failed\n", pdev->irq);
 		return ret;
 	}
 
-	xhci->nvecs = 1;
-	hcd->irq = pdev->irq;
+	return 0;
+}
+
+static int xhci_request_msi_irq(struct usb_hcd *hcd, unsigned int intr_num)
+{
+	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
+	unsigned int irq_num = pci_irq_vector(pdev, intr_num);
+	int ret;
+
+	xhci_dbg(xhci, "Request %s interrupt %u\n", pdev->msix_enabled ? "MSI-X" : "MSI", intr_num);
+
+	ret = request_irq(irq_num, xhci_msi_irq, 0, "xhci_hcd", xhci);
+	if (ret == -EBUSY) {
+		xhci_dbg(xhci, "Interrupt %u already exists\n", intr_num);
+	} else if (ret) {
+		xhci_warn(xhci, "Request interrupt %d failed\n", intr_num);
+		return ret;
+	}
+
 	return 0;
 }
 
@@ -201,9 +236,19 @@ static int xhci_pci_start(struct usb_hcd *hcd)
 	int ret;
 
 	if (usb_hcd_is_primary_hcd(hcd)) {
-		ret = xhci_try_enable_msi(hcd);
+		ret = xhci_alloc_irq(hcd);
 		if (ret)
 			return ret;
+
+		if (hcd->msi_enabled)
+			ret = xhci_request_msi_irq(hcd, 0);
+		else
+			ret = xhci_request_legacy_irq(hcd);
+
+		if (ret) {
+			xhci_release_msi_irq(hcd);
+			return ret;
+		}
 	}
 
 	return xhci_start(hcd);
