@@ -316,7 +316,7 @@ static void xhci_zero_64b_regs(struct xhci_hcd *xhci)
 		xhci_info(xhci, "Fault detected\n");
 }
 
-static int xhci_toggle_interrupter(struct xhci_interrupter *ir, bool status)
+int xhci_toggle_interrupter(struct xhci_interrupter *ir, bool status)
 {
 	u32 iman;
 

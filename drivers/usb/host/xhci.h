@@ -1766,7 +1766,9 @@ void xhci_dbg_trace(struct xhci_hcd *xhci, void (*trace)(struct va_format *),
 			const char *fmt, ...);
 
 /* xHCI interrupt management */
-struct xhci_interrupter *xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs);
+int xhci_toggle_interrupter(struct xhci_interrupter *ir, bool status);
+struct xhci_interrupter *xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
+		void *dev_id, char *name, irqreturn_t (*func)(int, void *));
 void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrupter *ir);
 unsigned int xhci_interrupt_target(struct xhci_hcd *xhci, unsigned int event_type);
 int xhci_setup_interrupters(struct usb_hcd *hcd, gfp_t flags);
@@ -1841,10 +1843,6 @@ struct xhci_container_ctx *xhci_alloc_container_ctx(struct xhci_hcd *xhci,
 		int type, gfp_t flags);
 void xhci_free_container_ctx(struct xhci_hcd *xhci,
 		struct xhci_container_ctx *ctx);
-struct xhci_interrupter *
-xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs);
-void xhci_remove_secondary_interrupter(struct usb_hcd
-				       *hcd, struct xhci_interrupter *ir);
 
 /* xHCI host controller glue */
 typedef void (*xhci_get_quirks_t)(struct device *, struct xhci_hcd *);
