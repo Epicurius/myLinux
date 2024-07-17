@@ -2370,6 +2370,14 @@ int xhci_setup_interrupters(struct usb_hcd *hcd, gfp_t flags)
 	if (ret)
 		goto fail;
 
+	if (!hcd->msi_enabled || xhci->nvecs <= 1)
+		return 0;
+
+	/* Secondary interrupters, on failure only primary interrupt is used. */
+	ret = xhci_setup_interrupt(xhci, 1, flags);
+	if (ret)
+		xhci->nvecs = 1;
+
 	return 0;
 
 fail:

@@ -1520,7 +1520,7 @@ static int xhci_urb_enqueue(struct usb_hcd *hcd, struct urb *urb, gfp_t mem_flag
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	unsigned long flags;
 	int ret = 0;
-	unsigned int slot_id, ep_index;
+	unsigned int slot_id, ep_index, intr_tgt;
 	unsigned int *ep_state;
 	struct urb_priv	*urb_priv;
 	int num_tds;
@@ -1590,23 +1590,21 @@ static int xhci_urb_enqueue(struct usb_hcd *hcd, struct urb *urb, gfp_t mem_flag
 		goto free_priv;
 	}
 
+	intr_tgt = xhci_interrupt_target(xhci, TRB_TRANSFER);
+
 	switch (usb_endpoint_type(&urb->ep->desc)) {
 
 	case USB_ENDPOINT_XFER_CONTROL:
-		ret = xhci_queue_ctrl_tx(xhci, GFP_ATOMIC, urb,
-					 slot_id, ep_index);
+		ret = xhci_queue_ctrl_tx(xhci, GFP_ATOMIC, urb, slot_id, ep_index, intr_tgt);
 		break;
 	case USB_ENDPOINT_XFER_BULK:
-		ret = xhci_queue_bulk_tx(xhci, GFP_ATOMIC, urb,
-					 slot_id, ep_index);
+		ret = xhci_queue_bulk_tx(xhci, GFP_ATOMIC, urb, slot_id, ep_index, intr_tgt);
 		break;
 	case USB_ENDPOINT_XFER_INT:
-		ret = xhci_queue_intr_tx(xhci, GFP_ATOMIC, urb,
-				slot_id, ep_index);
+		ret = xhci_queue_intr_tx(xhci, GFP_ATOMIC, urb, slot_id, ep_index, intr_tgt);
 		break;
 	case USB_ENDPOINT_XFER_ISOC:
-		ret = xhci_queue_isoc_tx_prepare(xhci, GFP_ATOMIC, urb,
-				slot_id, ep_index);
+		ret = xhci_queue_isoc_tx_prepare(xhci, GFP_ATOMIC, urb, slot_id, ep_index, intr_tgt);
 	}
 
 	if (ret) {

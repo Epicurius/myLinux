@@ -63,6 +63,31 @@ static int queue_command(struct xhci_hcd *xhci, struct xhci_command *cmd,
 			 u32 field3, u32 field4, bool command_must_succeed);
 
 /*
+ * TRB Interrupt Target field
+ *  - Transfer event
+ *  - Host controller event
+ *  - Vendor defined event (optional)
+ * Device Slot's Slot Context Interrupt Target field
+ *  - Bandwidth request event
+ *  - Device notification event
+ */
+unsigned int xhci_interrupt_target(struct xhci_hcd *xhci, unsigned int event_type)
+{
+	if (xhci->nvecs <= 1)
+		return 0;
+
+	switch (event_type) {
+	case TRB_TRANSFER:
+	case TRB_HC_EVENT:
+	case TRB_DEV_NOTE:
+	case TRB_BANDWIDTH_EVENT:
+		return 1;
+	}
+
+	return 0;
+}
+
+/*
  * Returns zero if the TRB isn't in this segment, otherwise it returns the DMA
  * address of the TRB.
  */
@@ -745,9 +770,13 @@ static void td_to_noop(struct xhci_hcd *xhci, struct xhci_ring *ep_ring,
 {
 	struct xhci_segment *seg	= td->start_seg;
 	union xhci_trb *trb		= td->first_trb;
+	unsigned int intr_tgt           = xhci_interrupt_target(xhci, TRB_TRANSFER);
 
 	while (1) {
 		trb_to_noop(trb, TRB_TR_NOOP);
+
+		if (intr_tgt)
+			trb->generic.field[2] |= TRB_INTR_TARGET(intr_tgt);
 
 		/* flip cycle if asked to */
 		if (flip_cycle && trb != td->first_trb && trb != td->last_trb)
@@ -3415,15 +3444,15 @@ static void check_interval(struct urb *urb, struct xhci_ep_ctx *ep_ctx)
  * (comprised of sg list entries) can take several service intervals to
  * transmit.
  */
-int xhci_queue_intr_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
-		struct urb *urb, int slot_id, unsigned int ep_index)
+int xhci_queue_intr_tx(struct xhci_hcd *xhci, gfp_t mem_flags, struct urb *urb, int slot_id,
+		       unsigned int ep_index, unsigned int intr_tgt)
 {
 	struct xhci_ep_ctx *ep_ctx;
 
 	ep_ctx = xhci_get_ep_ctx(xhci, xhci->devs[slot_id]->out_ctx, ep_index);
 	check_interval(urb, ep_ctx);
 
-	return xhci_queue_bulk_tx(xhci, mem_flags, urb, slot_id, ep_index);
+	return xhci_queue_bulk_tx(xhci, mem_flags, urb, slot_id, ep_index, intr_tgt);
 }
 
 /*
@@ -3543,8 +3572,8 @@ static int xhci_align_td(struct xhci_hcd *xhci, struct urb *urb, u32 enqd_len,
 }
 
 /* This is very similar to what ehci-q.c qtd_fill() does */
-int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
-		struct urb *urb, int slot_id, unsigned int ep_index)
+int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags, struct urb *urb, int slot_id,
+		       unsigned int ep_index, unsigned int intr_tgt)
 {
 	struct xhci_ring *ring;
 	struct urb_priv *urb_priv;
@@ -3660,7 +3689,7 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 
 		length_field = TRB_LEN(trb_buff_len) |
 			TRB_TD_SIZE(remainder) |
-			TRB_INTR_TARGET(0);
+			TRB_INTR_TARGET(intr_tgt);
 
 		queue_trb(xhci, ring, more_trbs_coming | need_zero_pkt,
 				lower_32_bits(send_addr),
@@ -3692,7 +3721,7 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 		urb_priv->td[1].last_trb = ring->enqueue;
 		urb_priv->td[1].last_trb_seg = ring->enq_seg;
 		field = TRB_TYPE(TRB_NORMAL) | ring->cycle_state | TRB_IOC;
-		queue_trb(xhci, ring, 0, 0, 0, TRB_INTR_TARGET(0), field);
+		queue_trb(xhci, ring, 0, 0, 0, TRB_INTR_TARGET(intr_tgt), field);
 	}
 
 	check_trb_math(urb, enqd_len);
@@ -3702,8 +3731,8 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 }
 
 /* Caller must have locked xhci->lock */
-int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
-		struct urb *urb, int slot_id, unsigned int ep_index)
+int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags, struct urb *urb, int slot_id,
+		       unsigned int ep_index, unsigned int intr_tgt)
 {
 	struct xhci_ring *ep_ring;
 	int num_trbs;
@@ -3773,7 +3802,7 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 	queue_trb(xhci, ep_ring, true,
 		  setup->bRequestType | setup->bRequest << 8 | le16_to_cpu(setup->wValue) << 16,
 		  le16_to_cpu(setup->wIndex) | le16_to_cpu(setup->wLength) << 16,
-		  TRB_LEN(8) | TRB_INTR_TARGET(0),
+		  TRB_LEN(8) | TRB_INTR_TARGET(intr_tgt),
 		  /* Immediate data in pointer */
 		  field);
 
@@ -3803,7 +3832,7 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 				urb, 1);
 		length_field = TRB_LEN(urb->transfer_buffer_length) |
 				TRB_TD_SIZE(remainder) |
-				TRB_INTR_TARGET(0);
+				TRB_INTR_TARGET(intr_tgt);
 		if (setup->bRequestType & USB_DIR_IN)
 			field |= TRB_DIR_IN;
 		queue_trb(xhci, ep_ring, true,
@@ -3823,10 +3852,11 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 		field = 0;
 	else
 		field = TRB_DIR_IN;
+
 	queue_trb(xhci, ep_ring, false,
 			0,
 			0,
-			TRB_INTR_TARGET(0),
+			TRB_INTR_TARGET(intr_tgt),
 			/* Event on completion */
 			field | TRB_IOC | TRB_TYPE(TRB_STATUS) | ep_ring->cycle_state);
 
@@ -3995,10 +4025,9 @@ static bool trb_block_event_intr(struct xhci_hcd *xhci, int num_tds, int i,
 }
 
 /* This is for isoc transfer */
-static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
-		struct urb *urb, int slot_id, unsigned int ep_index)
+static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags, struct urb *urb, int slot_id,
+			      unsigned int ep_index, unsigned int intr_tgt)
 {
-	struct xhci_interrupter *ir;
 	struct xhci_ring *ep_ring;
 	struct urb_priv *urb_priv;
 	struct xhci_td *td;
@@ -4016,7 +4045,6 @@ static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 
 	xep = &xhci->devs[slot_id]->eps[ep_index];
 	ep_ring = xhci->devs[slot_id]->eps[ep_index].ring;
-	ir = xhci->interrupters[0];
 
 	num_tds = urb->number_of_packets;
 	if (num_tds < 1) {
@@ -4103,7 +4131,8 @@ static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 				td->last_trb = ep_ring->enqueue;
 				td->last_trb_seg = ep_ring->enq_seg;
 				field |= TRB_IOC;
-				if (trb_block_event_intr(xhci, num_tds, i, ir))
+				if (trb_block_event_intr(xhci, num_tds, i,
+							 xhci->interrupters[intr_tgt]))
 					field |= TRB_BEI;
 			}
 			/* Calculate TRB length */
@@ -4117,7 +4146,7 @@ static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 						   urb, more_trbs_coming);
 
 			length_field = TRB_LEN(trb_buff_len) |
-				TRB_INTR_TARGET(0);
+				TRB_INTR_TARGET(intr_tgt);
 
 			/* xhci 1.1 with ETE uses TD Size field for TBC */
 			if (first_trb && xep->use_extended_tbc)
@@ -4188,8 +4217,8 @@ cleanup:
  * update urb->start_frame if URB_ISO_ASAP is set in transfer_flags or
  * Contiguous Frame ID is not supported by HC.
  */
-int xhci_queue_isoc_tx_prepare(struct xhci_hcd *xhci, gfp_t mem_flags,
-		struct urb *urb, int slot_id, unsigned int ep_index)
+int xhci_queue_isoc_tx_prepare(struct xhci_hcd *xhci, gfp_t mem_flags, struct urb *urb, int slot_id,
+			       unsigned int ep_index, unsigned int intr_tgt)
 {
 	struct xhci_virt_device *xdev;
 	struct xhci_ring *ep_ring;
@@ -4259,7 +4288,7 @@ int xhci_queue_isoc_tx_prepare(struct xhci_hcd *xhci, gfp_t mem_flags,
 
 skip_start_over:
 
-	return xhci_queue_isoc_tx(xhci, mem_flags, urb, slot_id, ep_index);
+	return xhci_queue_isoc_tx(xhci, mem_flags, urb, slot_id, ep_index, intr_tgt);
 }
 
 /****		Command Ring Operations		****/
