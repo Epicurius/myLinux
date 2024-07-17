@@ -1784,6 +1784,8 @@ int xhci_request_msi_irq(struct xhci_hcd *xhci, struct pci_dev *pdev, struct xhc
 int xhci_toggle_interrupter(struct xhci_interrupter *ir, bool status);
 void xhci_interrupters_cleanup(struct xhci_hcd *xhci);
 int xhci_interrupters_init(struct xhci_hcd *xhci, gfp_t flags);
+bool interrupter_enabled(struct xhci_hcd *xhci, unsigned int intr_num);
+unsigned int xhci_interrupt_target(struct xhci_hcd *xhci, unsigned int event_type);
 
 /* xHCI memory management */
 void xhci_mem_cleanup(struct xhci_hcd *xhci);
@@ -1909,13 +1911,13 @@ int xhci_queue_vendor_command(struct xhci_hcd *xhci, struct xhci_command *cmd,
 int xhci_queue_stop_endpoint(struct xhci_hcd *xhci, struct xhci_command *cmd,
 		int slot_id, unsigned int ep_index, int suspend);
 int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags, struct urb *urb,
-		int slot_id, unsigned int ep_index);
+		int slot_id, unsigned int ep_index, unsigned int intr_tgt);
 int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags, struct urb *urb,
-		int slot_id, unsigned int ep_index);
+		int slot_id, unsigned int ep_index, unsigned int intr_tgt);
 int xhci_queue_intr_tx(struct xhci_hcd *xhci, gfp_t mem_flags, struct urb *urb,
-		int slot_id, unsigned int ep_index);
+		int slot_id, unsigned int ep_index, unsigned int intr_tgt);
 int xhci_queue_isoc_tx_prepare(struct xhci_hcd *xhci, gfp_t mem_flags,
-		struct urb *urb, int slot_id, unsigned int ep_index);
+		struct urb *urb, int slot_id, unsigned int ep_index, unsigned int intr_tgt);
 int xhci_queue_configure_endpoint(struct xhci_hcd *xhci,
 		struct xhci_command *cmd, dma_addr_t in_ctx_ptr, u32 slot_id,
 		bool command_must_succeed);
