@@ -2662,6 +2662,8 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	trb_comp_code = GET_COMP_CODE(le32_to_cpu(event->transfer_len));
 	ep_trb_dma = le64_to_cpu(event->buffer);
 
+	// printk("      NIK: handle_tx_event(%u) Start\n", trb_comp_code);
+
 	ep = xhci_get_virt_ep(xhci, slot_id, ep_index);
 	if (!ep) {
 		xhci_err(xhci, "ERROR Invalid Transfer event\n");
@@ -2960,6 +2962,8 @@ check_endpoint_halted:
 	if (xhci_halted_host_endpoint(ep_ctx, trb_comp_code))
 		xhci_handle_halted_endpoint(xhci, ep, td, EP_HARD_RESET);
 
+	// printk("      NIK: handle_tx_event(%u) End\n", trb_comp_code);
+
 	return 0;
 
 err_out:
@@ -2993,17 +2997,25 @@ static int xhci_handle_event_trb(struct xhci_hcd *xhci, struct xhci_interrupter 
 	trb_type = TRB_FIELD_TO_TYPE(le32_to_cpu(event->event_cmd.flags));
 	/* FIXME: Handle more event types. */
 
+	// printk("    NIK: xhci_handle_event_trb(%u)\n Start", trb_type);
 	switch (trb_type) {
+	case TRB_TRANSFER:
+		handle_tx_event(xhci, ir, &event->trans_event);
+		break;
 	case TRB_COMPLETION:
 		handle_cmd_completion(xhci, &event->event_cmd);
 		break;
 	case TRB_PORT_STATUS:
 		handle_port_status(xhci, event);
 		break;
-	case TRB_TRANSFER:
-		handle_tx_event(xhci, ir, &event->trans_event);
+	case TRB_BANDWIDTH_EVENT:
+		xhci_warn(xhci, "NIK: Driver doesn't support Bandwidth Request Event\n");
+		break;
+	case TRB_HC_EVENT:
+		xhci_warn(xhci, "NIK: Driver doesn't support Host Controller Event\n");
 		break;
 	case TRB_DEV_NOTE:
+		printk("NIK: TRB_DEV_NOTE on intr:%u\n", ir->intr_num);
 		handle_device_notification(xhci, event);
 		break;
 	default:
@@ -3020,6 +3032,7 @@ static int xhci_handle_event_trb(struct xhci_hcd *xhci, struct xhci_interrupter 
 		return -ENODEV;
 	}
 
+	// printk("    NIK: xhci_handle_event_trb(%u)\n End", trb_type);
 	return 0;
 }
 
@@ -3079,6 +3092,7 @@ static int xhci_handle_events(struct xhci_hcd *xhci, struct xhci_interrupter *ir
 	int err;
 	u64 temp;
 
+	// printk("  NIK: xhci_handle_events() Start\n");
 	xhci_clear_interrupt_pending(ir);
 
 	/* Event ring hasn't been allocated yet. */
@@ -3123,6 +3137,7 @@ static int xhci_handle_events(struct xhci_hcd *xhci, struct xhci_interrupter *ir
 
 	xhci_update_erst_dequeue(xhci, ir, true);
 
+	// printk("  NIK: xhci_handle_events() End\n");
 	return 0;
 }
 
@@ -3138,6 +3153,7 @@ static irqreturn_t xhci_handle_irq(struct xhci_interrupter *ir)
 	u32 status;
 
 	spin_lock(&xhci->lock);
+	// printk("NIK: xhci_handle_irq(%u) Start\n", ir->intr_num);
 	/* Check if the xHC generated the interrupt, or the irq is shared */
 	status = readl(&xhci->op_regs->status);
 	if (status == ~(u32)0) {
@@ -3146,6 +3162,7 @@ static irqreturn_t xhci_handle_irq(struct xhci_interrupter *ir)
 	}
 
 	if (!(status & STS_EINT)) {
+		xhci_warn(xhci, "WARNING: Interrupt without event\n");
 		ret = IRQ_NONE;
 		goto out;
 	}
@@ -3164,6 +3181,7 @@ static irqreturn_t xhci_handle_irq(struct xhci_interrupter *ir)
 	/* This is the handler of the primary interrupter */
 	xhci_handle_events(xhci, ir);
 out:
+	// printk("NIK: xhci_handle_irq(%u) End\n", ir->intr_num);
 	spin_unlock(&xhci->lock);
 
 	return ret;

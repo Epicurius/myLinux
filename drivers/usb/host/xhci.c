@@ -1549,6 +1549,7 @@ static int xhci_urb_enqueue(struct usb_hcd *hcd, struct urb *urb, gfp_t mem_flag
 
 	spin_lock_irqsave(&xhci->lock, flags);
 
+	// printk("NIK: xhci_queue(%u) Start\n", intr_tgt);
 	ret = xhci_check_args(hcd, urb->dev, urb->ep,
 			      true, true, __func__);
 	if (ret <= 0) {
@@ -1592,6 +1593,7 @@ static int xhci_urb_enqueue(struct usb_hcd *hcd, struct urb *urb, gfp_t mem_flag
 
 	intr_tgt = xhci_interrupt_target(xhci, TRB_TRANSFER);
 
+	// printk("  NIK: xhci_queue(%u)\n", usb_endpoint_type(&urb->ep->desc));
 	switch (usb_endpoint_type(&urb->ep->desc)) {
 
 	case USB_ENDPOINT_XFER_CONTROL:
@@ -1612,6 +1614,7 @@ free_priv:
 		xhci_urb_free_priv(urb_priv);
 		urb->hcpriv = NULL;
 	}
+	// printk("NIK: xhci_queue(%d) End\n", ret);
 	spin_unlock_irqrestore(&xhci->lock, flags);
 	return ret;
 }

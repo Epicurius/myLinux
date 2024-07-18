@@ -96,6 +96,7 @@ static const struct xhci_driver_overrides xhci_pci_overrides __initconst = {
 
 static void xhci_sync_irqs(struct xhci_hcd *xhci)
 {
+	printk("NIK: xhci_sync_irqs() Start\n");
 	struct usb_hcd *hcd = xhci_to_hcd(xhci);
 	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
 
@@ -107,6 +108,7 @@ static void xhci_sync_irqs(struct xhci_hcd *xhci)
 
 		synchronize_irq(pci_irq_vector(pdev, i));
 	}
+	printk("NIK: xhci_sync_irqs() End\n");
 }
 
 /* Free any IRQs and disable MSI-X */
