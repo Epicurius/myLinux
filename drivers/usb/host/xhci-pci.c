@@ -93,16 +93,12 @@ static const struct xhci_driver_overrides xhci_pci_overrides __initconst = {
 	.update_hub_device = xhci_pci_update_hub_device,
 };
 
-static void xhci_msix_sync_irqs(struct xhci_hcd *xhci)
+static void xhci_sync_irqs(struct xhci_hcd *xhci)
 {
 	struct usb_hcd *hcd = xhci_to_hcd(xhci);
+	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
 
-	if (hcd->msix_enabled) {
-		struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
-
-		/* for now, the driver only supports one primary interrupter */
-		synchronize_irq(pci_irq_vector(pdev, 0));
-	}
+	synchronize_irq(pci_irq_vector(pdev, 0));
 }
 
 /* Free any IRQs and disable MSI-X */
@@ -765,8 +761,7 @@ static int xhci_pci_suspend(struct usb_hcd *hcd, bool do_wakeup)
 
 	ret = xhci_suspend(xhci, do_wakeup);
 
-	/* synchronize irq when using MSI-X */
-	xhci_msix_sync_irqs(xhci);
+	xhci_sync_irqs(xhci);
 
 	if (ret && (xhci->quirks & XHCI_SSIC_PORT_UNUSED))
 		xhci_ssic_port_unused_quirk(hcd, false);
