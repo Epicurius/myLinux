@@ -336,7 +336,7 @@ struct xhci_container_ctx {
  * @tt_info:	tt_info is used to construct split transaction tokens
  * @dev_state:	slot state and device address
  *
- * Slot Context - section 6.2.1.1.  This assumes the HC uses 32-byte context
+ * Slot Context - section 6.2.2.  This assumes the HC uses 32-byte context
  * structures.  If the HC uses 64-byte contexts, there is an additional 32 bytes
  * reserved at the end of the slot context for HC internal use.
  */
