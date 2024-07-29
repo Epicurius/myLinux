@@ -461,13 +461,22 @@ static int xhci_init(struct xhci_hcd *xhci)
 	spin_lock_init(&xhci->lock);
 
 	ret = xhci_mem_init(xhci, GFP_KERNEL);
+	if (ret)
+		goto fail;
+
+	ret = xhci_interrupters_init(xhci, GFP_KERNEL);
+	if (ret)
+		goto fail;
 
 	/* Initializing Compliance Mode Recovery Data If Needed */
 	if (xhci->quirks & XHCI_COMP_MODE_QUIRK)
 		compliance_mode_recovery_timer_init(xhci);
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Finished xhci_init");
+	return 0;
 
+fail:
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Failed xhci_init");
 	return ret;
 }
 
@@ -619,6 +628,7 @@ void xhci_stop(struct usb_hcd *hcd)
 	xhci_toggle_interrupters(xhci, false);
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "cleaning up memory");
+	xhci_interrupters_cleanup(xhci);
 	xhci_mem_cleanup(xhci);
 	xhci_debugfs_exit(xhci);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
@@ -1075,6 +1085,7 @@ int xhci_resume(struct xhci_hcd *xhci, pm_message_t msg)
 		xhci_toggle_interrupters(xhci, false);
 
 		xhci_dbg(xhci, "cleaning up memory\n");
+		xhci_interrupters_cleanup(xhci);
 		xhci_mem_cleanup(xhci);
 		xhci_debugfs_exit(xhci);
 		xhci_dbg(xhci, "xhci_stop completed - status = %x\n",

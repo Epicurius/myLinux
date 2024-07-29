@@ -1781,6 +1781,8 @@ struct xhci_interrupter *xhci_create_secondary_interrupter(struct usb_hcd *hcd, 
 void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrupter *ir);
 int xhci_request_msi_irq(struct usb_hcd *hcd, struct pci_dev *pdev, unsigned int intr_num);
 int xhci_toggle_interrupter(struct xhci_interrupter *ir, bool status);
+void xhci_interrupters_cleanup(struct xhci_hcd *xhci);
+int xhci_interrupters_init(struct xhci_hcd *xhci, gfp_t flags);
 
 /* xHCI memory management */
 void xhci_mem_cleanup(struct xhci_hcd *xhci);

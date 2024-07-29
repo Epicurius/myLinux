@@ -1866,22 +1866,30 @@ void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrup
 }
 EXPORT_SYMBOL_GPL(xhci_remove_secondary_interrupter);
 
+void xhci_interrupters_cleanup(struct xhci_hcd *xhci)
+{
+	if (!xhci->interrupters)
+		return;
+
+	for (unsigned int i = 0; i < xhci->max_interrupters; i++) {
+		if (xhci->interrupters[i] == NULL)
+			continue;
+
+		xhci_remove_interrupter(xhci, xhci->interrupters[i]);
+		xhci_free_interrupter(xhci, xhci->interrupters[i]);
+		xhci->interrupters[i] = NULL;
+	}
+
+	kfree(xhci->interrupters);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed interrupters");
+}
+
 void xhci_mem_cleanup(struct xhci_hcd *xhci)
 {
 	struct device	*dev = xhci_to_hcd(xhci)->self.sysdev;
 	int i, j, num_ports;
 
 	cancel_delayed_work_sync(&xhci->cmd_timer);
-
-	/* IRQ vectors are freed before xhci_mem_cleanup() is called, and 'nvecs' is set to '0'. */
-	for (i = 0; i < xhci->max_interrupters; i++) {
-		if (xhci->interrupters[i]) {
-			xhci_remove_interrupter(xhci, xhci->interrupters[i]);
-			xhci_free_interrupter(xhci, xhci->interrupters[i]);
-			xhci->interrupters[i] = NULL;
-		}
-	}
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed interrupters");
 
 	if (xhci->cmd_ring)
 		xhci_ring_free(xhci, xhci->cmd_ring);
@@ -1950,7 +1958,6 @@ no_bw:
 	for (i = 0; i < xhci->num_port_caps; i++)
 		kfree(xhci->port_caps[i].psi);
 	kfree(xhci->port_caps);
-	kfree(xhci->interrupters);
 	xhci->num_port_caps = 0;
 
 	xhci->usb2_rhub.ports = NULL;
@@ -2399,9 +2406,28 @@ minimum_value:
 		       xhci->page_size / 1024);
 }
 
+int xhci_interrupters_init(struct xhci_hcd *xhci, gfp_t flags)
+{
+	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
+	struct xhci_interrupter *ir;
+
+	xhci->interrupters = kcalloc_node(xhci->max_interrupters, sizeof(*xhci->interrupters),
+					  flags, dev_to_node(dev));
+
+	/* Allocate and set up primary interrupter 0 with an event ring. */
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Allocating primary event ring");
+
+	ir = xhci_alloc_interrupter(xhci, 0, flags);
+	if (!ir)
+		return -ENOMEM;
+
+	xhci_init_interrupter(xhci, ir, 0);
+
+	return 0;
+}
+
 int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 {
-	struct xhci_interrupter *ir;
 	struct device	*dev = xhci_to_hcd(xhci)->self.sysdev;
 	dma_addr_t	dma;
 	unsigned int	val, val2;
@@ -2510,18 +2536,6 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 		       "// Doorbell array is located at offset 0x%x from cap regs base addr",
 		       val);
 	xhci->dba = (void __iomem *) xhci->cap_regs + val;
-
-	/* Allocate and set up primary interrupter 0 with an event ring. */
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-		       "Allocating primary event ring");
-	xhci->interrupters = kcalloc_node(xhci->max_interrupters, sizeof(*xhci->interrupters),
-					  flags, dev_to_node(dev));
-
-	ir = xhci_alloc_interrupter(xhci, 0, flags);
-	if (!ir)
-		goto fail;
-
-	xhci_init_interrupter(xhci, ir, 0);
 
 	/*
 	 * XXX: Might need to set the Interrupter Moderation Register to
