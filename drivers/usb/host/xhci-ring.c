@@ -62,6 +62,18 @@ static int queue_command(struct xhci_hcd *xhci, struct xhci_command *cmd,
 			 u32 field1, u32 field2,
 			 u32 field3, u32 field4, bool command_must_succeed);
 
+
+bool interrupter_enabled(struct xhci_hcd *xhci, unsigned int intr_num)
+{
+	if (xhci->nvecs < intr_num)
+		return false;
+
+	if (xhci->interrupters[intr_num] == NULL)
+		return false;
+
+	return true;
+}
+
 /*
  * TRB Interrupt Target field
  *  - Transfer event
@@ -74,16 +86,20 @@ static int queue_command(struct xhci_hcd *xhci, struct xhci_command *cmd,
 unsigned int xhci_interrupt_target(struct xhci_hcd *xhci, unsigned int event_type)
 {
 	if (xhci->nvecs <= 1)
-		return 0;
+		goto use_primary_interrupter;
 
 	switch (event_type) {
 	case TRB_TRANSFER:
 	case TRB_HC_EVENT:
 	case TRB_DEV_NOTE:
 	case TRB_BANDWIDTH_EVENT:
-		return 1;
+		if (interrupter_enabled(xhci, 1))
+			return 1;
+		break;
 	}
 
+use_primary_interrupter:
+	/* Primary interrupter is always enabled */
 	return 0;
 }
 

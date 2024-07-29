@@ -1766,6 +1766,7 @@ void xhci_dbg_trace(struct xhci_hcd *xhci, void (*trace)(struct va_format *),
 			const char *fmt, ...);
 
 /* xHCI interrupt management */
+bool interrupter_enabled(struct xhci_hcd *xhci, unsigned int intr_num);
 int xhci_toggle_interrupter(struct xhci_interrupter *ir, bool status);
 struct xhci_interrupter *xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
 		void *dev_id, char *name, irqreturn_t (*func)(int, void *));
