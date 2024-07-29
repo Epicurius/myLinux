@@ -1166,6 +1166,9 @@ int xhci_setup_addressable_virt_dev(struct xhci_hcd *xhci, struct usb_device *ud
 	xhci_dbg(xhci, "udev->tt = %p\n", udev->tt);
 	xhci_dbg(xhci, "udev->ttport = 0x%x\n", udev->ttport);
 
+	if (xhci->tx_intr_tgt)
+		slot_ctx->tt_info |= TRB_INTR_TARGET(xhci->tx_intr_tgt);
+
 	/* Step 4 - ring already allocated */
 	/* Step 5 */
 	ep0_ctx->ep_info2 = cpu_to_le32(EP_TYPE(CTRL_EP));
