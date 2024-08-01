@@ -5147,16 +5147,9 @@ static void xhci_hcd_init_usb3_data(struct xhci_hcd *xhci, struct usb_hcd *hcd)
 	xhci->usb3_rhub.hcd = hcd;
 }
 
-int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
+/* TODO: Check with DWC3 clients for sysdev according to quirks */
+void xhci_gen_init(struct usb_hcd *hcd, struct xhci_hcd *xhci, xhci_get_quirks_t get_quirks)
 {
-	struct xhci_hcd		*xhci;
-	/*
-	 * TODO: Check with DWC3 clients for sysdev according to
-	 * quirks
-	 */
-	struct device		*dev = hcd->self.sysdev;
-	int			retval;
-
 	/* Accept arbitrarily long scatter-gather lists */
 	hcd->self.sg_tablesize = ~0;
 
@@ -5166,20 +5159,14 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 	/* XHCI controllers don't stop the ep queue on short packets :| */
 	hcd->self.no_stop_on_short = 1;
 
-	xhci = hcd_to_xhci(hcd);
-
-	if (!usb_hcd_is_primary_hcd(hcd)) {
-		xhci_hcd_init_usb3_data(xhci, hcd);
-		return 0;
-	}
+	if (!usb_hcd_is_primary_hcd(hcd))
+		return;
 
 	mutex_init(&xhci->mutex);
 	xhci->main_hcd = hcd;
 	xhci->cap_regs = hcd->regs;
-	xhci->op_regs = hcd->regs +
-		HC_LENGTH(readl(&xhci->cap_regs->hc_capbase));
-	xhci->run_regs = hcd->regs +
-		(readl(&xhci->cap_regs->run_regs_off) & RTSOFF_MASK);
+	xhci->op_regs = hcd->regs + HC_LENGTH(readl(&xhci->cap_regs->hc_capbase));
+	xhci->run_regs = hcd->regs + (readl(&xhci->cap_regs->run_regs_off) & RTSOFF_MASK);
 	/* Cache read-only capability registers */
 	xhci->hcs_params1 = readl(&xhci->cap_regs->hcs_params1);
 	xhci->hcs_params2 = readl(&xhci->cap_regs->hcs_params2);
@@ -5197,7 +5184,7 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 	xhci->quirks |= quirks;
 
 	if (get_quirks)
-		get_quirks(dev, xhci);
+		get_quirks(hcd->self.sysdev, xhci);
 
 	/* In xhci controllers which follow xhci 1.0 spec gives a spurious
 	 * success event after a short transfer. This quirk will ignore such
@@ -5215,34 +5202,37 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 	if (xhci_compliance_mode_recovery_timer_quirk_check())
 		xhci->quirks |= XHCI_COMP_MODE_QUIRK;
 
+	/*
+	 * On some xHCI controllers (e.g. R-Car SoCs), the AC64 bit (bit 0)
+	 * of HCCPARAMS1 is set to 1. However, the xHCs don't support 64-bit
+	 * address memory pointers actually. So, this driver clears the AC64
+	 * bit of xhci->hcc_params to call dma_set_coherent_mask(dev, DMA_BIT_MASK(32))
+	 * in this xhci_gen_setup().
+	 */
+	if (xhci->quirks & XHCI_NO_64BIT_SUPPORT)
+		xhci->hcc_params &= ~BIT(0);
+}
+
+int xhci_gen_primary_setup(struct usb_hcd *hcd, struct xhci_hcd *xhci, struct device *dev)
+{
+	int ret;
+
 	/* Make sure the HC is halted. */
-	retval = xhci_halt(xhci);
-	if (retval)
-		return retval;
+	ret = xhci_halt(xhci);
+	if (ret)
+		return ret;
 
 	xhci_zero_64b_regs(xhci);
 
 	xhci_dbg(xhci, "Resetting HCD\n");
 	/* Reset the internal HC memory state and registers. */
-	retval = xhci_reset(xhci, XHCI_RESET_LONG_USEC);
-	if (retval)
-		return retval;
+	ret = xhci_reset(xhci, XHCI_RESET_LONG_USEC);
+	if (ret)
+		return ret;
 	xhci_dbg(xhci, "Reset complete\n");
 
-	/*
-	 * On some xHCI controllers (e.g. R-Car SoCs), the AC64 bit (bit 0)
-	 * of HCCPARAMS1 is set to 1. However, the xHCs don't support 64-bit
-	 * address memory pointers actually. So, this driver clears the AC64
-	 * bit of xhci->hcc_params to call dma_set_coherent_mask(dev,
-	 * DMA_BIT_MASK(32)) in this xhci_gen_setup().
-	 */
-	if (xhci->quirks & XHCI_NO_64BIT_SUPPORT)
-		xhci->hcc_params &= ~BIT(0);
-
-	/* Set dma_mask and coherent_dma_mask to 64-bits,
-	 * if xHC supports 64-bit addressing */
-	if (HCC_64BIT_ADDR(xhci->hcc_params) &&
-			!dma_set_mask(dev, DMA_BIT_MASK(64))) {
+	/* Set dma_mask and coherent_dma_mask to 64-bits, if xHC supports 64-bit addressing */
+	if (HCC_64BIT_ADDR(xhci->hcc_params) && !dma_set_mask(dev, DMA_BIT_MASK(64))) {
 		xhci_dbg(xhci, "Enabling 64-bit DMA addresses.\n");
 		dma_set_coherent_mask(dev, DMA_BIT_MASK(64));
 	} else {
@@ -5250,18 +5240,18 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 		 * This is to avoid error in cases where a 32-bit USB
 		 * controller is used on a 64-bit capable system.
 		 */
-		retval = dma_set_mask(dev, DMA_BIT_MASK(32));
-		if (retval)
-			return retval;
+		ret = dma_set_mask(dev, DMA_BIT_MASK(32));
+		if (ret)
+			return ret;
 		xhci_dbg(xhci, "Enabling 32-bit DMA addresses.\n");
 		dma_set_coherent_mask(dev, DMA_BIT_MASK(32));
 	}
 
 	xhci_dbg(xhci, "Calling HCD init\n");
 	/* Initialize HCD and host controller data structures. */
-	retval = xhci_init(xhci);
-	if (retval)
-		return retval;
+	ret = xhci_init(xhci);
+	if (ret)
+		return ret;
 	xhci_dbg(xhci, "Called HCD init\n");
 
 	if (xhci_hcd_is_usb3(hcd))
@@ -5272,6 +5262,19 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 	xhci_info(xhci, "hcc params 0x%08x hci version 0x%x quirks 0x%016llx\n",
 		  xhci->hcc_params, xhci->hci_version, xhci->quirks);
 
+	return 0;
+}
+
+int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
+{
+	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+
+	xhci_gen_init(hcd, xhci, get_quirks);
+
+	if (usb_hcd_is_primary_hcd(hcd))
+		return xhci_gen_primary_setup(hcd, xhci, hcd->self.sysdev);
+
+	xhci_hcd_init_usb3_data(xhci, hcd);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(xhci_gen_setup);
