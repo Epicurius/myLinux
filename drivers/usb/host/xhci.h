@@ -1872,6 +1872,10 @@ int xhci_halt(struct xhci_hcd *xhci);
 int xhci_run(struct xhci_hcd *xhci);
 int xhci_reset(struct xhci_hcd *xhci, u64 timeout_us);
 int xhci_start(struct usb_hcd *hcd);
+void xhci_gen_init(struct usb_hcd *hcd, struct xhci_hcd *xhci,
+		   xhci_get_quirks_t get_quirks);
+int xhci_gen_primary_setup(struct usb_hcd *hcd, struct xhci_hcd *xhci,
+			   struct device *dev);
 int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks);
 void xhci_shutdown(struct usb_hcd *hcd);
 void xhci_stop(struct usb_hcd *hcd);

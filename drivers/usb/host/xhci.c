@@ -5318,16 +5318,9 @@ static void xhci_hcd_init_usb3_data(struct xhci_hcd *xhci, struct usb_hcd *hcd)
 	xhci->usb3_rhub.hcd = hcd;
 }
 
-int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
+/* TODO: Check with DWC3 clients for sysdev according to quirks */
+void xhci_gen_init(struct usb_hcd *hcd, struct xhci_hcd *xhci, xhci_get_quirks_t get_quirks)
 {
-	struct xhci_hcd		*xhci;
-	/*
-	 * TODO: Check with DWC3 clients for sysdev according to
-	 * quirks
-	 */
-	struct device		*dev = hcd->self.sysdev;
-	int			retval;
-
 	/* Accept arbitrarily long scatter-gather lists */
 	hcd->self.sg_tablesize = ~0;
 
@@ -5337,12 +5330,8 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 	/* XHCI controllers don't stop the ep queue on short packets :| */
 	hcd->self.no_stop_on_short = 1;
 
-	xhci = hcd_to_xhci(hcd);
-
-	if (!usb_hcd_is_primary_hcd(hcd)) {
-		xhci_hcd_init_usb3_data(xhci, hcd);
-		return 0;
-	}
+	if (!usb_hcd_is_primary_hcd(hcd))
+		return;
 
 	mutex_init(&xhci->mutex);
 	INIT_LIST_HEAD(&xhci->ir_list);
@@ -5370,7 +5359,7 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 	xhci->quirks |= quirks;
 
 	if (get_quirks)
-		get_quirks(dev, xhci);
+		get_quirks(hcd->self.sysdev, xhci);
 
 	/* In xhci controllers which follow xhci 1.0 spec gives a spurious
 	 * success event after a short transfer. This quirk will ignore such
@@ -5383,6 +5372,21 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 		xhci_dbg(xhci, "QUIRK: Not clearing Link TRB chain bits");
 		xhci->quirks |= XHCI_LINK_TRB_QUIRK;
 	}
+
+	/*
+	 * On some xHCI controllers (e.g. R-Car SoCs), the AC64 bit (bit 0)
+	 * of HCCPARAMS1 is set to 1. However, the xHCs don't support 64-bit
+	 * address memory pointers actually. So, this driver clears the AC64
+	 * bit of xhci->hcc_params to call dma_set_coherent_mask(dev, DMA_BIT_MASK(32))
+	 * in this xhci_gen_setup().
+	 */
+	if (xhci->quirks & XHCI_NO_64BIT_SUPPORT)
+		xhci->hcc_params &= ~BIT(0);
+}
+
+int xhci_gen_primary_setup(struct usb_hcd *hcd, struct xhci_hcd *xhci, struct device *dev)
+{
+	int retval;
 
 	/* Make sure the HC is halted. */
 	retval = xhci_halt(xhci);
@@ -5397,16 +5401,6 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 	if (retval)
 		return retval;
 	xhci_dbg(xhci, "Reset complete\n");
-
-	/*
-	 * On some xHCI controllers (e.g. R-Car SoCs), the AC64 bit (bit 0)
-	 * of HCCPARAMS1 is set to 1. However, the xHCs don't support 64-bit
-	 * address memory pointers actually. So, this driver clears the AC64
-	 * bit of xhci->hcc_params to call dma_set_coherent_mask(dev,
-	 * DMA_BIT_MASK(32)) in this xhci_gen_setup().
-	 */
-	if (xhci->quirks & XHCI_NO_64BIT_SUPPORT)
-		xhci->hcc_params &= ~BIT(0);
 
 	/* Set dma_mask and coherent_dma_mask to 64-bits,
 	 * if xHC supports 64-bit addressing */
@@ -5441,6 +5435,19 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 	xhci_info(xhci, "hcc params 0x%08x hci version 0x%x quirks 0x%016llx\n",
 		  xhci->hcc_params, xhci->hci_version, xhci->quirks);
 
+	return 0;
+}
+
+int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
+{
+	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+
+	xhci_gen_init(hcd, xhci, get_quirks);
+
+	if (usb_hcd_is_primary_hcd(hcd))
+		return xhci_gen_primary_setup(hcd, xhci, hcd->self.sysdev);
+
+	xhci_hcd_init_usb3_data(xhci, hcd);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(xhci_gen_setup);
