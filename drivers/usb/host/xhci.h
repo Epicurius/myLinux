@@ -1794,6 +1794,7 @@ irqreturn_t xhci_secondary_irq(int irq, void *ir);
 irqreturn_t xhci_legacy_irq(struct usb_hcd *hcd);
 struct xhci_interrupter *xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs);
 void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrupter *ir);
+int xhci_request_secondary_irq(struct usb_hcd *hcd, struct xhci_interrupter *ir, unsigned int num);
 
 /* xHCI memory management */
 void xhci_mem_cleanup(struct xhci_hcd *xhci);
