@@ -163,10 +163,9 @@ static int xhci_request_irqs(struct usb_hcd *hcd)
 }
 
 /* Try enabling MSI-X with MSI and legacy IRQ as fallback */
-static int xhci_try_enable_msi(struct usb_hcd *hcd)
+static int xhci_try_enable_msi(struct usb_hcd *hcd, struct pci_dev *pdev)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
 
 	/*
 	 * Some Fresco Logic host controllers advertise MSI, but fail to
@@ -180,13 +179,6 @@ static int xhci_try_enable_msi(struct usb_hcd *hcd)
 		free_irq(hcd->irq, hcd);
 		hcd->irq = 0;
 	}
-
-	/*
-	 * Calculate number of MSI/MSI-X vectors supported.
-	 * - max_interrupters: the max number of interrupts requested, capped to xhci HCSPARAMS1.
-	 * - num_online_cpus: one vector per CPUs core, with atleast one overall.
-	 */
-	xhci->nvecs = min(num_online_cpus() + 1, xhci->max_interrupters);
 
 	/* TODO: Check with MSI Soc for sysdev */
 	xhci->nvecs = pci_alloc_irq_vectors(pdev, 1, xhci->max_interrupters,
@@ -232,10 +224,6 @@ static int xhci_pci_start(struct usb_hcd *hcd)
 	int ret;
 
 	if (usb_hcd_is_primary_hcd(hcd)) {
-		ret = xhci_try_enable_msi(hcd);
-		if (ret)
-			return ret;
-		
 		ret = xhci_request_irqs(hcd);
 		if (ret)
 			return ret;
@@ -568,22 +556,28 @@ static void xhci_find_lpm_incapable_ports(struct usb_hcd *hcd, struct usb_device
 /* called during probe() after chip reset completes */
 static int xhci_pci_setup(struct usb_hcd *hcd)
 {
-	struct xhci_hcd		*xhci;
+	struct xhci_hcd		*xhci = hcd_to_xhci(hcd);
 	struct pci_dev		*pdev = to_pci_dev(hcd->self.controller);
-	int			retval;
+	int			ret;
 	u8			sbrn;
 
-	xhci = hcd_to_xhci(hcd);
+	if (!usb_hcd_is_primary_hcd(hcd))
+		return xhci_gen_setup(hcd, NULL);
 
+	/* One MSI/MSI-X vector per CPUs core, with atleast one overall */
+	xhci->max_interrupters = num_online_cpus() + 1;
 	/* imod_interval is the interrupt moderation value in nanoseconds. */
 	xhci->imod_interval = 40000;
 
-	retval = xhci_gen_setup(hcd, xhci_pci_quirks);
-	if (retval)
-		return retval;
+	xhci_gen_init(hcd, xhci, xhci_pci_quirks);
 
-	if (!usb_hcd_is_primary_hcd(hcd))
-		return 0;
+	ret = xhci_try_enable_msi(hcd, pdev);
+	if (ret)
+		return ret;
+
+	ret = xhci_gen_primary_setup(hcd, xhci, hcd->self.sysdev);
+	if (ret)
+		return ret;
 
 	if (xhci->quirks & XHCI_PME_STUCK_QUIRK)
 		xhci_pme_acpi_rtd3_enable(pdev);
