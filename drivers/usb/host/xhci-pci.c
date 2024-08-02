@@ -162,9 +162,8 @@ static int xhci_request_primary_irq(struct usb_hcd *hcd)
 }
 
 /* Try enabling MSI-X with MSI and legacy IRQ as fallback */
-static int xhci_alloc_irq(struct usb_hcd *hcd)
+static int xhci_alloc_irq(struct usb_hcd *hcd, struct pci_dev *pdev)
 {
-	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 
 	/*
@@ -174,15 +173,8 @@ static int xhci_alloc_irq(struct usb_hcd *hcd)
 	if (xhci->quirks & XHCI_BROKEN_MSI)
 		goto legacy_irq;
 
-	/*
-	 * Calculate number of MSI/MSI-X vectors supported.
-	 * - max_interrupters: the max number of interrupts requested, capped to xhci HCSPARAMS1.
-	 * - num_online_cpus: one vector per CPUs core, with at least one overall.
-	 */
-	xhci->nvecs = min(num_online_cpus() + 1, xhci->max_interrupters);
-
 	/* TODO: Check with MSI Soc for sysdev */
-	xhci->nvecs = pci_alloc_irq_vectors(pdev, 1, xhci->nvecs,
+	xhci->nvecs = pci_alloc_irq_vectors(pdev, 1, xhci->max_interrupters,
 					    PCI_IRQ_MSIX | PCI_IRQ_MSI);
 	if (xhci->nvecs < 0) {
 		xhci_dbg_trace(xhci, trace_xhci_dbg_init, "failed to allocate IRQ vectors");
@@ -224,10 +216,6 @@ static int xhci_pci_start(struct usb_hcd *hcd)
 	int ret;
 
 	if (usb_hcd_is_primary_hcd(hcd)) {
-		ret = xhci_alloc_irq(hcd);
-		if (ret)
-			return ret;
-
 		ret = xhci_request_primary_irq(hcd);
 		if (ret)
 			return ret;
@@ -561,12 +549,13 @@ static void xhci_find_lpm_incapable_ports(struct usb_hcd *hcd, struct usb_device
 /* called during probe() after chip reset completes */
 static int xhci_pci_setup(struct usb_hcd *hcd)
 {
-	struct xhci_hcd		*xhci;
+	struct xhci_hcd		*xhci = hcd_to_xhci(hcd);
 	struct pci_dev		*pdev = to_pci_dev(hcd->self.controller);
-	int			retval;
+	int			ret;
 	u8			sbrn;
 
-	xhci = hcd_to_xhci(hcd);
+	if (!usb_hcd_is_primary_hcd(hcd))
+		return xhci_gen_setup(hcd, NULL);
 
 	if (hcd->irq) {
 		xhci_err(xhci, "BUG: IRQ is already requested");
@@ -574,15 +563,20 @@ static int xhci_pci_setup(struct usb_hcd *hcd)
 		hcd->irq = 0;
 	}
 
+	/* One MSI/MSI-X vector per CPUs core, with atleast one overall */
+	xhci->max_interrupters = num_online_cpus() + 1;
 	/* imod_interval is the interrupt moderation value in nanoseconds. */
 	xhci->imod_interval = 40000;
 
-	retval = xhci_gen_setup(hcd, xhci_pci_quirks);
-	if (retval)
-		return retval;
+	xhci_gen_init(hcd, xhci, xhci_pci_quirks);
 
-	if (!usb_hcd_is_primary_hcd(hcd))
-		return 0;
+	ret = xhci_alloc_irq(hcd, pdev);
+	if (ret)
+		return ret;
+
+	ret = xhci_gen_primary_setup(hcd, xhci, hcd->self.sysdev);
+	if (ret)
+		return ret;
 
 	if (xhci->quirks & XHCI_PME_STUCK_QUIRK)
 		xhci_pme_acpi_rtd3_enable(pdev);
