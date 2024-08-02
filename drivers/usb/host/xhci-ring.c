@@ -3126,12 +3126,12 @@ irqreturn_t xhci_legacy_irq(struct usb_hcd *hcd)
 	return xhci_handle_irq(hcd_to_xhci(hcd)->interrupters[0]);
 }
 
-irqreturn_t xhci_msi_irq(int irq, void *hcd)
+irqreturn_t xhci_msi_irq(int irq, void *ir)
 {
-	if (!hcd)
+	if (!ir)
 		return IRQ_NONE;
 
-	return xhci_handle_irq(hcd_to_xhci(hcd)->interrupters[0]);
+	return xhci_handle_irq(ir);
 }
 EXPORT_SYMBOL_GPL(xhci_msi_irq);
 

@@ -131,9 +131,10 @@ static void xhci_release_irqs(struct usb_hcd *hcd)
 	xhci->nvecs = 0;
 }
 
-int xhci_request_msi_irq(struct usb_hcd *hcd, struct pci_dev *pdev, unsigned int intr_num)
+int xhci_request_msi_irq(struct xhci_hcd *xhci, struct pci_dev *pdev, struct xhci_interrupter *ir,
+			 unsigned int intr_num)
 {
-	return request_irq(pci_irq_vector(pdev, intr_num), xhci_msi_irq, 0, "xhci_hcd", hcd);
+	return request_irq(pci_irq_vector(pdev, intr_num), xhci_msi_irq, 0, "xhci_hcd", ir);
 }
 
 static int xhci_request_irqs(struct usb_hcd *hcd)
@@ -144,7 +145,7 @@ static int xhci_request_irqs(struct usb_hcd *hcd)
 
 	/* Request Primary interrutper, i.e. '0' */
 	if (hcd->msi_enabled)
-		ret = xhci_request_msi_irq(hcd, pdev, 0);
+		ret = xhci_request_msi_irq(xhci, pdev, xhci->interrupters[0], 0);
 	else if (!hcd->irq)
 		ret = request_irq(pdev->irq, &usb_hcd_irq, IRQF_SHARED, hcd->irq_descr, hcd);
 	else

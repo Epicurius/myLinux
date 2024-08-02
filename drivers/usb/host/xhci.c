@@ -1084,7 +1084,6 @@ int xhci_resume(struct xhci_hcd *xhci, pm_message_t msg)
 		xhci_toggle_interrupters(xhci, false);
 
 		xhci_dbg(xhci, "cleaning up memory\n");
-		xhci_interrupters_cleanup(xhci);
 		xhci_mem_cleanup(xhci);
 		xhci_debugfs_exit(xhci);
 		xhci_dbg(xhci, "xhci_stop completed - status = %x\n",

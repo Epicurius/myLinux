@@ -2361,7 +2361,7 @@ struct xhci_interrupter *xhci_create_secondary_interrupter(struct usb_hcd *hcd, 
 		if (xhci->interrupters[i])
 			continue;
 
-		if (xhci_request_msi_irq(hcd, pdev, i))
+		if (xhci_request_msi_irq(xhci, pdev, ir, i))
 			break;
 
 		xhci_init_interrupter(xhci, ir, i);
