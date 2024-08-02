@@ -3126,9 +3126,9 @@ static int xhci_handle_events(struct xhci_hcd *xhci, struct xhci_interrupter *ir
  * we might get bad data out of the event ring.  Section 4.10.2.7 has a list of
  * indicators of an event TRB error, but we check the status *first* to be safe.
  */
-irqreturn_t xhci_irq(struct usb_hcd *hcd)
+static irqreturn_t xhci_handle_irq(struct xhci_interrupter *ir)
 {
-	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+	struct xhci_hcd *xhci = ir->xhci;
 	irqreturn_t ret = IRQ_HANDLED;
 	u32 status;
 
@@ -3157,18 +3157,30 @@ irqreturn_t xhci_irq(struct usb_hcd *hcd)
 	}
 
 	/* This is the handler of the primary interrupter */
-	xhci_handle_events(xhci, xhci->primary_ir);
+	xhci_handle_events(xhci, ir);
 out:
 	spin_unlock(&xhci->lock);
 
 	return ret;
 }
 
-irqreturn_t xhci_msi_irq(int irq, void *hcd)
+irqreturn_t xhci_primary_irq(int irq, void *hcd)
 {
-	return xhci_irq(hcd);
+	return xhci_handle_irq(hcd_to_xhci(hcd)->primary_ir);
 }
-EXPORT_SYMBOL_GPL(xhci_msi_irq);
+
+irqreturn_t xhci_secondary_irq(int irq, void *ir)
+{
+	if (!ir)
+		return IRQ_NONE;
+
+	return xhci_handle_irq(ir);
+}
+
+irqreturn_t xhci_legacy_irq(struct usb_hcd *hcd)
+{
+	return xhci_primary_irq(0, hcd);
+}
 
 /****		Endpoint Ring Operations	****/
 

@@ -155,7 +155,7 @@ static int xhci_setup_irq(struct usb_hcd *hcd)
 		goto legacy_irq;
 	}
 
-	ret = request_irq(pci_irq_vector(pdev, 0), xhci_msi_irq, 0, "xhci_hcd",
+	ret = request_irq(pci_irq_vector(pdev, 0), xhci_primary_irq, 0, "xhci_hcd",
 			  xhci_to_hcd(xhci));
 	if (ret)
 		goto free_irq_vectors;
