@@ -1795,6 +1795,7 @@ struct xhci_interrupter *xhci_create_secondary_interrupter(struct usb_hcd *hcd, 
 							   u32 imod_interval);
 void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrupter *ir);
 void xhci_remove_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir);
+int xhci_request_secondary_irq(struct usb_hcd *hcd, struct xhci_interrupter *ir, unsigned int num);
 
 /* xHCI memory management */
 void xhci_mem_cleanup(struct xhci_hcd *xhci);
