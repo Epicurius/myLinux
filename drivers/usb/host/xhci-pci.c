@@ -130,6 +130,11 @@ static void xhci_release_msi_irq(struct usb_hcd *hcd)
 	xhci->nvecs = 0;
 }
 
+int xhci_request_msi_irq(struct usb_hcd *hcd, struct pci_dev *pdev, unsigned int intr_num)
+{
+	return request_irq(pci_irq_vector(pdev, intr_num), xhci_msi_irq, 0, "xhci_hcd", hcd);
+}
+
 /* Try enabling MSI-X with MSI and legacy IRQ as fallback */
 static int xhci_try_enable_msi(struct usb_hcd *hcd)
 {
@@ -165,8 +170,7 @@ static int xhci_try_enable_msi(struct usb_hcd *hcd)
 		goto legacy_irq;
 	}
 
-	ret = request_irq(pci_irq_vector(pdev, 0), xhci_msi_irq, 0, "xhci_hcd",
-			  xhci_to_hcd(xhci));
+	ret = xhci_request_msi_irq(hcd, pdev, 0);
 	if (ret)
 		goto free_irq_vectors;
 
