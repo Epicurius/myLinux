@@ -1779,7 +1779,8 @@ void xhci_dbg_trace(struct xhci_hcd *xhci, void (*trace)(struct va_format *),
 /* xHCI interrupter management */
 struct xhci_interrupter *xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs);
 void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrupter *ir);
-int xhci_request_msi_irq(struct usb_hcd *hcd, struct pci_dev *pdev, unsigned int intr_num);
+int xhci_request_msi_irq(struct xhci_hcd *xhci, struct pci_dev *pdev, struct xhci_interrupter *ir,
+			 unsigned int intr_num);
 int xhci_toggle_interrupter(struct xhci_interrupter *ir, bool status);
 void xhci_interrupters_cleanup(struct xhci_hcd *xhci);
 int xhci_interrupters_init(struct xhci_hcd *xhci, gfp_t flags);
@@ -1886,7 +1887,7 @@ int xhci_suspend(struct xhci_hcd *xhci, bool do_wakeup);
 int xhci_resume(struct xhci_hcd *xhci, pm_message_t msg);
 
 irqreturn_t xhci_legacy_irq(struct usb_hcd *hcd);
-irqreturn_t xhci_msi_irq(int irq, void *hcd);
+irqreturn_t xhci_msi_irq(int irq, void *ir);
 int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev);
 int xhci_alloc_tt_info(struct xhci_hcd *xhci,
 		struct xhci_virt_device *virt_dev,
