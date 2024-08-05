@@ -179,6 +179,7 @@ request_sucess:
 static int xhci_try_enable_msi(struct usb_hcd *hcd, struct pci_dev *pdev)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+	int nvecs;
 
 	/*
 	 * Some Fresco Logic host controllers advertise MSI, but fail to
@@ -194,9 +195,8 @@ static int xhci_try_enable_msi(struct usb_hcd *hcd, struct pci_dev *pdev)
 	}
 
 	/* TODO: Check with MSI Soc for sysdev */
-	xhci->nvecs = pci_alloc_irq_vectors(pdev, 1, xhci->max_interrupters,
-					    PCI_IRQ_MSIX | PCI_IRQ_MSI);
-	if (xhci->nvecs < 0) {
+	nvecs = pci_alloc_irq_vectors(pdev, 1, xhci->nvecs, PCI_IRQ_MSIX | PCI_IRQ_MSI);
+	if (nvecs < 0) {
 		xhci_dbg_trace(xhci, trace_xhci_dbg_init, "failed to allocate IRQ vectors");
 		goto legacy_irq;
 	}
@@ -206,6 +206,7 @@ static int xhci_try_enable_msi(struct usb_hcd *hcd, struct pci_dev *pdev)
 	 * Otherwise fall back to legacy interrupts.
 	 */
 	if (can_request_irq(pci_irq_vector(pdev, 0), 0)) {
+		xhci->nvecs = nvecs;
 		hcd->msi_enabled = 1;
 		hcd->msix_enabled = pdev->msix_enabled;
 		xhci_dbg(xhci, "Allocated %d %s interrupts\n", xhci->nvecs,
@@ -578,7 +579,7 @@ static int xhci_pci_setup(struct usb_hcd *hcd)
 		return xhci_gen_setup(hcd, NULL);
 
 	/* One MSI/MSI-X vector per CPUs core, with atleast one overall */
-	xhci->max_interrupters = num_online_cpus() + 1;
+	xhci->nvecs = num_online_cpus() + 1;
 	/* imod_interval is the interrupt moderation value in nanoseconds. */
 	xhci->imod_interval = 40000;
 

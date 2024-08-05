@@ -1519,13 +1519,12 @@ struct xhci_hcd {
 
 	/* packed release number */
 	u16		hci_version;
-	u16		max_interrupters;
+	/* Number of interrupts */
+	u16		nvecs;
 	/* imod_interval in ns (I * 250ns) */
 	u32		imod_interval;
 	/* 4KB min, 128MB max. Currently always set to 4KB. */
 	int		page_size;
-	/* MSI-X/MSI vectors */
-	int		nvecs;
 	/* optional clocks */
 	struct clk		*clk;
 	struct clk		*reg_clk;
