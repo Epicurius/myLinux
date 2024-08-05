@@ -1874,7 +1874,7 @@ void xhci_interrupters_cleanup(struct xhci_hcd *xhci)
 	if (!xhci->interrupters)
 		return;
 
-	for (unsigned int i = 0; i < xhci->max_interrupters; i++) {
+	for (unsigned int i = 0; i < xhci->nvecs; i++) {
 		if (xhci->interrupters[i] == NULL)
 			continue;
 
@@ -2415,7 +2415,7 @@ int xhci_interrupters_init(struct xhci_hcd *xhci, gfp_t flags)
 	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
 	struct xhci_interrupter *ir;
 
-	xhci->interrupters = kcalloc_node(xhci->max_interrupters, sizeof(*xhci->interrupters),
+	xhci->interrupters = kcalloc_node(xhci->nvecs, sizeof(*xhci->interrupters),
 					  flags, dev_to_node(dev));
 
 	/* Allocate and set up primary interrupter 0 with an event ring. */
