@@ -1503,13 +1503,9 @@ struct xhci_hcd {
 	/* packed release number */
 	u8		sbrn;
 	u16		hci_version;
-	u8		max_slots;
 	u16		max_interrupters;
-	u8		max_ports;
-	u8		isoc_threshold;
 	/* imod_interval in ns (I * 250ns) */
 	u32		imod_interval;
-	int		event_ring_max;
 	/* Always set to HCD_PAGE_MIN (4KB) */
 	int		page_size;
 	/* MSI-X/MSI vectors */
