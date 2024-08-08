@@ -37,6 +37,10 @@
 /* Section 5.3.3 - MaxPorts */
 #define MAX_HC_PORTS		127
 
+/* HCD page size 4KB-128MB, Rev 1.2 Section 5.4.3. */
+#define HCD_PAGE_MIN		(1 << 12)
+#define HCD_PAGE_MAX		(1 << 27)
+
 /*
  * xHCI register interface.
  * This corresponds to the eXtensible Host Controller Interface (xHCI)
@@ -1502,10 +1506,8 @@ struct xhci_hcd {
 	u16		max_interrupters;
 	/* imod_interval in ns (I * 250ns) */
 	u32		imod_interval;
-	/* 4KB min, 128MB max */
+	/* 4KB min, 128MB max. Currently always set to 4KB. */
 	int		page_size;
-	/* Valid values are 12 to 20, inclusive */
-	int		page_shift;
 	/* MSI-X/MSI vectors */
 	int		nvecs;
 	/* optional clocks */
