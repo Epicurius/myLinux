@@ -211,6 +211,9 @@ struct xhci_op_regs {
 #define CONFIG_CIE		(1 << 9)
 /* bits 10:31 - reserved and should be preserved */
 
+/* HCD page size 4KB up to 128MB, Rev 1.2 Section 5.4.3. */
+#define HCD_PAGE_MIN           (1 << 12)
+
 /**
  * struct xhci_intr_reg - Interrupt Register Set
  * @irq_pending:	IMAN - Interrupt Management Register.  Used to enable
@@ -1509,10 +1512,8 @@ struct xhci_hcd {
 	u16		max_interrupters;
 	/* imod_interval in ns (I * 250ns) */
 	u32		imod_interval;
-	/* 4KB min, 128MB max */
+	/* Always set to HCD_PAGE_MIN (4KB) */
 	int		page_size;
-	/* Valid values are 12 to 20, inclusive */
-	int		page_shift;
 	/* MSI-X/MSI vectors */
 	int		nvecs;
 	/* optional clocks */
