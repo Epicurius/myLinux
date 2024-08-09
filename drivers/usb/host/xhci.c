@@ -466,9 +466,8 @@ static int xhci_all_ports_seen_u0(struct xhci_hcd *xhci)
  * device contexts (?), set up a command ring segment (or two?), create event
  * ring (one for now).
  */
-static int xhci_init(struct usb_hcd *hcd)
+static int xhci_init(struct xhci_hcd *xhci)
 {
-	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	int retval;
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_init");
@@ -1115,7 +1114,7 @@ int xhci_resume(struct xhci_hcd *xhci, pm_message_t msg)
 		 * If we don't do the same, the host will never be started.
 		 */
 		xhci_dbg(xhci, "Initialize the xhci_hcd\n");
-		retval = xhci_init(hcd);
+		retval = xhci_init(xhci);
 		if (retval)
 			return retval;
 		comp_timer_running = true;
@@ -5280,7 +5279,7 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 
 	xhci_dbg(xhci, "Calling HCD init\n");
 	/* Initialize HCD and host controller data structures. */
-	retval = xhci_init(hcd);
+	retval = xhci_init(xhci);
 	if (retval)
 		return retval;
 	xhci_dbg(xhci, "Called HCD init\n");
