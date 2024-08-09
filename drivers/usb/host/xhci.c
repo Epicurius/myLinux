@@ -556,13 +556,10 @@ static int xhci_run_finished(struct xhci_hcd *xhci)
  * Start the HC after it was halted.
  *
  * This function is called by the USB core when the HC driver is added.
- * Its opposite is xhci_stop().
  *
  * xhci_init() must be called once before this function can be called.
  * Reset the HC, enable device slot contexts, program DCBAAP, and
  * set command ring pointer and event ring pointer.
- *
- * Setup MSI-X vectors and enable interrupts.
  */
 int xhci_run(struct usb_hcd *hcd)
 {
@@ -623,7 +620,6 @@ EXPORT_SYMBOL_GPL(xhci_run);
  * Stop xHCI driver.
  *
  * This function is called by the USB core when the HC driver is removed.
- * Its opposite is xhci_run().
  *
  * Disable device contexts, disable IRQs, and quiesce the HC.
  * Reset the HC, finish any completed transactions, and cleanup memory.
