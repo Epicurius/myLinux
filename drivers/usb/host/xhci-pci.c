@@ -93,6 +93,10 @@ static const struct xhci_driver_overrides xhci_pci_overrides __initconst = {
 	.update_hub_device = xhci_pci_update_hub_device,
 };
 
+/*
+ * Note: Primary Legacy and MSI IRQ will be synced in suspend_common().
+ * MSI-X IRQs and secondart MSI IRQ should be synced here.
+ */
 static void xhci_msix_sync_irqs(struct xhci_hcd *xhci)
 {
 	struct usb_hcd *hcd = xhci_to_hcd(xhci);
@@ -105,13 +109,15 @@ static void xhci_msix_sync_irqs(struct xhci_hcd *xhci)
 	}
 }
 
-/* Free any IRQs and disable MSI-X */
+/*
+ * Note: Legacy IRQ will be freed by usb_hcd_pci_shutdown() for Priamry HCD and
+ * usb_remove_hcd() for Secondary HCD.
+ */
 static void xhci_cleanup_msix(struct xhci_hcd *xhci)
 {
 	struct usb_hcd *hcd = xhci_to_hcd(xhci);
 	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
 
-	/* return if using legacy interrupt */
 	if (hcd->irq > 0)
 		return;
 
