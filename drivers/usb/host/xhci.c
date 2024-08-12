@@ -105,7 +105,7 @@ int xhci_handshake_check_state(struct xhci_hcd *xhci, void __iomem *ptr,
 }
 
 /*
- * Disable interrupts and begin the xHCI halting process.
+ * Disable host interrupts and begin the xHCI halting process.
  */
 void xhci_quiesce(struct xhci_hcd *xhci)
 {
@@ -502,12 +502,12 @@ static int xhci_run_finished(struct xhci_hcd *xhci)
 	u32		temp;
 
 	/*
-	 * Enable interrupts before starting the host (xhci 4.2 and 5.5.2).
+	 * Enable host interrupts before starting the host (xhci 4.2 and 5.5.2).
 	 * Protect the short window before host is running with a lock
 	 */
 	spin_lock_irqsave(&xhci->lock, flags);
 
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Enable interrupts");
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Enable host interrupts");
 	temp = readl(&xhci->op_regs->command);
 	temp |= (CMD_EIE);
 	writel(temp, &xhci->op_regs->command);
