@@ -1787,6 +1787,14 @@ char *xhci_get_slot_state(struct xhci_hcd *xhci,
 void xhci_dbg_trace(struct xhci_hcd *xhci, void (*trace)(struct va_format *),
 			const char *fmt, ...);
 
+/* xHCI interrupter management */
+irqreturn_t xhci_irq(struct usb_hcd *hcd);
+irqreturn_t xhci_msi_irq(int irq, void *hcd);
+struct xhci_interrupter *xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
+							   u32 imod_interval);
+void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrupter *ir);
+void xhci_remove_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir);
+
 /* xHCI memory management */
 void xhci_mem_cleanup(struct xhci_hcd *xhci);
 int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags);
@@ -1852,12 +1860,6 @@ struct xhci_container_ctx *xhci_alloc_container_ctx(struct xhci_hcd *xhci,
 		int type, gfp_t flags);
 void xhci_free_container_ctx(struct xhci_hcd *xhci,
 		struct xhci_container_ctx *ctx);
-struct xhci_interrupter *
-xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
-				  u32 imod_interval);
-void xhci_remove_secondary_interrupter(struct usb_hcd
-				       *hcd, struct xhci_interrupter *ir);
-void xhci_remove_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir);
 void xhci_free_virt_devices_depth_first(struct xhci_hcd *xhci, int slot_id);
 
 /* xHCI host controller glue */
@@ -1889,8 +1891,6 @@ int xhci_ext_cap_init(struct xhci_hcd *xhci);
 int xhci_suspend(struct xhci_hcd *xhci, bool do_wakeup);
 int xhci_resume(struct xhci_hcd *xhci, pm_message_t msg);
 
-irqreturn_t xhci_irq(struct usb_hcd *hcd);
-irqreturn_t xhci_msi_irq(int irq, void *hcd);
 int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev);
 int xhci_alloc_tt_info(struct xhci_hcd *xhci,
 		struct xhci_virt_device *virt_dev,
