@@ -509,7 +509,7 @@ static int xhci_init(struct usb_hcd *hcd)
 	xhci_set_dev_notifications(xhci);
 
 	/* Initialize the Primary interrupter */
-	xhci_add_interrupter(xhci, 0);
+	xhci_add_interrupter(xhci, xhci->primary_ir, 0);
 
 	/* Initializing Compliance Mode Recovery Data If Needed */
 	if (xhci_compliance_mode_recovery_timer_quirk_check()) {
@@ -542,7 +542,7 @@ int xhci_start(struct usb_hcd *hcd)
 	u32 temp_32;
 	unsigned long flags;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	struct xhci_interrupter *ir = xhci->interrupters[0];
+	struct xhci_interrupter *ir = xhci->primary_ir;
 	/* Start the xHCI host controller running only after the USB 2.0 roothub
 	 * is setup.
 	 */
@@ -635,7 +635,7 @@ void xhci_stop(struct usb_hcd *hcd)
 {
 	u32 temp;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	struct xhci_interrupter *ir = xhci->interrupters[0];
+	struct xhci_interrupter *ir = xhci->primary_ir;
 
 	mutex_lock(&xhci->mutex);
 
@@ -732,7 +732,6 @@ EXPORT_SYMBOL_GPL(xhci_shutdown);
 static void xhci_save_registers(struct xhci_hcd *xhci)
 {
 	struct xhci_interrupter *ir;
-	unsigned int i;
 
 	xhci->s3.command = readl(&xhci->op_regs->command);
 	xhci->s3.dev_nt = readl(&xhci->op_regs->dev_notification);
@@ -740,12 +739,8 @@ static void xhci_save_registers(struct xhci_hcd *xhci)
 	xhci->s3.config_reg = readl(&xhci->op_regs->config_reg);
 
 	/* save both primary and all secondary interrupters */
-	/* fixme, shold we lock  to prevent race with remove secondary interrupter? */
-	for (i = 0; i < xhci->max_interrupters; i++) {
-		ir = xhci->interrupters[i];
-		if (!ir)
-			continue;
-
+	/* fixme, shold we lock to prevent race with remove secondary interrupter? */
+	list_for_each_entry(ir, &xhci->ir_list, list) {
 		ir->s3_erst_size = readl(&ir->ir_set->erst_size);
 		ir->s3_erst_base = xhci_read_64(xhci, &ir->ir_set->erst_base);
 		ir->s3_erst_dequeue = xhci_read_64(xhci, &ir->ir_set->erst_dequeue);
@@ -757,7 +752,6 @@ static void xhci_save_registers(struct xhci_hcd *xhci)
 static void xhci_restore_registers(struct xhci_hcd *xhci)
 {
 	struct xhci_interrupter *ir;
-	unsigned int i;
 
 	writel(xhci->s3.command, &xhci->op_regs->command);
 	writel(xhci->s3.dev_nt, &xhci->op_regs->dev_notification);
@@ -765,11 +759,7 @@ static void xhci_restore_registers(struct xhci_hcd *xhci)
 	writel(xhci->s3.config_reg, &xhci->op_regs->config_reg);
 
 	/* FIXME should we lock to protect against freeing of interrupters */
-	for (i = 0; i < xhci->max_interrupters; i++) {
-		ir = xhci->interrupters[i];
-		if (!ir)
-			continue;
-
+	list_for_each_entry(ir, &xhci->ir_list, list) {
 		writel(ir->s3_erst_size, &ir->ir_set->erst_size);
 		xhci_write_64(xhci, ir->s3_erst_base, &ir->ir_set->erst_base);
 		xhci_write_64(xhci, ir->s3_erst_dequeue, &ir->ir_set->erst_dequeue);
@@ -1014,6 +1004,7 @@ EXPORT_SYMBOL_GPL(xhci_suspend);
 static int xhci_reinit(struct xhci_hcd *xhci)
 {
 	struct usb_hcd *hcd = xhci_to_hcd(xhci);
+	struct xhci_interrupter *ir;
 	u32 val_32;
 	int ret;
 
@@ -1038,9 +1029,10 @@ static int xhci_reinit(struct xhci_hcd *xhci)
 
 	val_32 = readl(&xhci->op_regs->status);
 	writel((val_32 & ~0x1fff) | STS_EINT, &xhci->op_regs->status);
-	for (int i = 0; i < xhci->max_interrupters; i++) {
-		xhci_disable_interrupter(xhci->interrupters[i]);
-		xhci_remove_interrupter(xhci, xhci->interrupters[i]);
+
+	list_for_each_entry(ir, &xhci->ir_list, list) {
+		xhci_disable_interrupter(ir);
+		xhci_remove_interrupter(xhci, ir);
 	}
 
 	cancel_delayed_work_sync(&xhci->cmd_timer);
@@ -1061,11 +1053,9 @@ static int xhci_reinit(struct xhci_hcd *xhci)
 	xhci_reset_ring(xhci, xhci->cmd_ring);
 	xhci->cmd_ring_reserved_trbs++;
 
-	for (int i = 0; i < xhci->max_interrupters; i++) {
-		if (xhci->interrupters[i]) {
-			xhci_reset_ring(xhci, xhci->interrupters[i]->event_ring);
-			xhci_add_interrupter(xhci, i);
-		}
+	list_for_each_entry(ir, &xhci->ir_list, list) {
+		xhci_reset_ring(xhci, ir->event_ring);
+		xhci_add_interrupter(xhci, ir, ir->intr_num);
 	}
 
 	/* Set the Number of Device Slots Enabled */
@@ -5356,6 +5346,8 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 	}
 
 	mutex_init(&xhci->mutex);
+	INIT_LIST_HEAD(&xhci->ir_list);
+
 	xhci->main_hcd = hcd;
 	xhci->cap_regs = hcd->regs;
 	xhci->op_regs = hcd->regs +

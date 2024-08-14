@@ -3157,7 +3157,7 @@ irqreturn_t xhci_irq(struct usb_hcd *hcd)
 	}
 
 	/* This is the handler of the primary interrupter */
-	xhci_handle_events(xhci, xhci->interrupters[0]);
+	xhci_handle_events(xhci, xhci->primary_ir);
 out:
 	spin_unlock(&xhci->lock);
 
@@ -4063,7 +4063,7 @@ static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 
 	xep = &xhci->devs[slot_id]->eps[ep_index];
 	ep_ring = xhci->devs[slot_id]->eps[ep_index].ring;
-	ir = xhci->interrupters[0];
+	ir = xhci->primary_ir;
 
 	num_tds = urb->number_of_packets;
 	if (num_tds < 1) {
