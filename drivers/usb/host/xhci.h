@@ -1435,6 +1435,7 @@ struct xhci_bus_state {
 };
 
 struct xhci_interrupter {
+	struct list_head	list;
 	struct xhci_ring	*event_ring;
 	struct xhci_erst	erst;
 	struct xhci_intr_reg __iomem *ir_set;
@@ -1523,7 +1524,10 @@ struct xhci_hcd {
 	struct reset_control *reset;
 	/* data structures */
 	struct xhci_device_context_array *dcbaa;
-	struct xhci_interrupter **interrupters;
+
+	struct xhci_interrupter *primary_ir;
+	struct list_head        ir_list;
+
 	struct xhci_ring	*cmd_ring;
 	unsigned int            cmd_ring_state;
 #define CMD_RING_STATE_RUNNING         (1 << 0)
@@ -1845,7 +1849,8 @@ void xhci_hcd_page_size(struct xhci_hcd *xhci);
 void xhci_set_num_dev_slot_reg(struct xhci_hcd *xhci);
 void xhci_set_db_offset(struct xhci_hcd *xhci);
 void xhci_set_dev_notifications(struct xhci_hcd *xhci);
-void xhci_init_interrupter(struct xhci_hcd *xhci, unsigned int intr_num);
+void xhci_init_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
+			   unsigned int intr_num);
 
 /* xHCI host controller glue */
 typedef void (*xhci_get_quirks_t)(struct device *, struct xhci_hcd *);
