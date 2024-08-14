@@ -1813,6 +1813,8 @@ xhci_remove_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
 
 		xhci_write_64(xhci, ERST_EHB, &ir->ir_set->erst_dequeue);
 	}
+
+	list_del(&ir->list);
 }
 
 static void xhci_free_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
@@ -1839,7 +1841,6 @@ static void xhci_free_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter
 void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrupter *ir)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	unsigned int intr_num;
 
 	spin_lock_irq(&xhci->lock);
 
@@ -1850,10 +1851,7 @@ void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrup
 		return;
 	}
 
-	intr_num = ir->intr_num;
-
 	xhci_remove_interrupter(xhci, ir);
-	xhci->interrupters[intr_num] = NULL;
 
 	spin_unlock_irq(&xhci->lock);
 
@@ -1868,14 +1866,12 @@ void xhci_mem_cleanup(struct xhci_hcd *xhci)
 
 	cancel_delayed_work_sync(&xhci->cmd_timer);
 
-	for (i = 0; xhci->interrupters && i < xhci->max_interrupters; i++) {
-		if (xhci->interrupters[i]) {
-			xhci_remove_interrupter(xhci, xhci->interrupters[i]);
-			xhci_free_interrupter(xhci, xhci->interrupters[i]);
-			xhci->interrupters[i] = NULL;
-		}
+	if (xhci->primary_ir) {
+		xhci_remove_interrupter(xhci, xhci->primary_ir);
+		xhci_free_interrupter(xhci, xhci->primary_ir);
+		xhci->primary_ir = NULL;
+		xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed primary interrupters");
 	}
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed interrupters");
 
 	if (xhci->cmd_ring)
 		xhci_ring_free(xhci, xhci->cmd_ring);
@@ -1944,7 +1940,6 @@ no_bw:
 	for (i = 0; i < xhci->num_port_caps; i++)
 		kfree(xhci->port_caps[i].psi);
 	kfree(xhci->port_caps);
-	kfree(xhci->interrupters);
 	xhci->num_port_caps = 0;
 
 	xhci->usb2_rhub.ports = NULL;
@@ -1952,7 +1947,6 @@ no_bw:
 	xhci->hw_ports = NULL;
 	xhci->rh_bw = NULL;
 	xhci->port_caps = NULL;
-	xhci->interrupters = NULL;
 
 	xhci->page_size = 0;
 	xhci->usb2_rhub.bus_state.bus_suspended = 0;
@@ -2284,16 +2278,15 @@ xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
 	return ir;
 }
 
-static void
-xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
-		     unsigned int intr_num)
+static void xhci_add_interrupter(struct xhci_hcd *xhci, struct list_head *pos,
+				 struct xhci_interrupter *ir, unsigned int intr_num)
 {
 	u64 erst_base;
 	u32 erst_size;
 
-	xhci->interrupters[intr_num] = ir;
 	ir->intr_num = intr_num;
 	ir->ir_set = &xhci->run_regs->ir_set[intr_num];
+	list_add_tail(&ir->list, pos);
 
 	/* set ERST count with the number of entries in the segment table */
 	erst_size = readl(&ir->ir_set->erst_size);
@@ -2317,10 +2310,10 @@ struct xhci_interrupter *
 xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	struct xhci_interrupter *ir;
-	unsigned int i;
+	struct xhci_interrupter *ir, *_ir;
+	unsigned int i = 0;
 
-	if (!xhci->interrupters || xhci->nvecs <= 1)
+	if (xhci->nvecs <= 1)
 		return NULL;
 
 	ir = xhci_alloc_interrupter(xhci, segs, GFP_KERNEL);
@@ -2330,12 +2323,14 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs)
 	spin_lock_irq(&xhci->lock);
 
 	/* Find available secondary interrupter, interrupter 0 is reserved for primary */
-	for (i = 1; i < xhci->nvecs; i++) {
-		if (xhci->interrupters[i] == NULL) {
-			xhci_add_interrupter(xhci, ir, i);
-			break;
-		}
+	list_for_each_entry(_ir, &xhci->ir_list, list) {
+		if (i++ == _ir->intr_num)
+			continue;
+		break;
 	}
+
+	if (i && i < xhci->nvecs)
+		xhci_add_interrupter(xhci, &_ir->list, ir, i);
 
 	spin_unlock_irq(&xhci->lock);
 
@@ -2373,7 +2368,6 @@ static void xhci_hcd_page_size(struct xhci_hcd *xhci, u8 page_shift)
 
 int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 {
-	struct xhci_interrupter *ir;
 	struct device	*dev = xhci_to_hcd(xhci)->self.sysdev;
 	dma_addr_t	dma;
 	unsigned int	val, val2;
@@ -2485,18 +2479,15 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	xhci->dba = (void __iomem *) xhci->cap_regs + val;
 
 	/* Allocate and set up primary interrupter 0 with an event ring. */
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-		       "Allocating primary event ring");
-	xhci->interrupters = kcalloc_node(xhci->max_interrupters, sizeof(*xhci->interrupters),
-					  flags, dev_to_node(dev));
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Allocating primary event ring");
 
-	ir = xhci_alloc_interrupter(xhci, 0, flags);
-	if (!ir)
+	xhci->primary_ir = xhci_alloc_interrupter(xhci, 0, flags);
+	if (!xhci->primary_ir)
 		goto fail;
 
-	xhci_add_interrupter(xhci, ir, 0);
+	xhci_add_interrupter(xhci, &xhci->ir_list, xhci->primary_ir, 0);
 
-	ir->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
+	xhci->primary_ir->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
 
 	/*
 	 * XXX: Might need to set the Interrupter Moderation Register to

@@ -1428,6 +1428,7 @@ struct xhci_bus_state {
 };
 
 struct xhci_interrupter {
+	struct list_head	list;
 	struct xhci_ring	*event_ring;
 	struct xhci_erst	erst;
 	struct xhci_intr_reg __iomem *ir_set;
@@ -1516,7 +1517,10 @@ struct xhci_hcd {
 	struct reset_control *reset;
 	/* data structures */
 	struct xhci_device_context_array *dcbaa;
-	struct xhci_interrupter **interrupters;
+
+	struct xhci_interrupter *primary_ir;
+	struct list_head        ir_list;
+
 	struct xhci_ring	*cmd_ring;
 	unsigned int            cmd_ring_state;
 #define CMD_RING_STATE_RUNNING         (1 << 0)

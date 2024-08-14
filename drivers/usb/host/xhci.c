@@ -510,7 +510,7 @@ int xhci_start(struct usb_hcd *hcd)
 	u32 temp_32;
 	unsigned long flags;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	struct xhci_interrupter *ir = xhci->interrupters[0];
+	struct xhci_interrupter *ir = xhci->primary_ir;
 	/* Start the xHCI host controller running only after the USB 2.0 roothub
 	 * is setup.
 	 */
@@ -599,7 +599,7 @@ void xhci_stop(struct usb_hcd *hcd)
 {
 	u32 temp;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	struct xhci_interrupter *ir = xhci->interrupters[0];
+	struct xhci_interrupter *ir = xhci->primary_ir;
 
 	mutex_lock(&xhci->mutex);
 
@@ -696,7 +696,6 @@ EXPORT_SYMBOL_GPL(xhci_shutdown);
 static void xhci_save_registers(struct xhci_hcd *xhci)
 {
 	struct xhci_interrupter *ir;
-	unsigned int i;
 
 	xhci->s3.command = readl(&xhci->op_regs->command);
 	xhci->s3.dev_nt = readl(&xhci->op_regs->dev_notification);
@@ -705,11 +704,7 @@ static void xhci_save_registers(struct xhci_hcd *xhci)
 
 	/* save both primary and all secondary interrupters */
 	/* fixme, shold we lock to prevent race with remove secondary interrupter? */
-	for (i = 0; i < xhci->nvecs; i++) {
-		ir = xhci->interrupters[i];
-		if (!ir)
-			continue;
-
+	list_for_each_entry(ir, &xhci->ir_list, list) {
 		ir->s3_erst_size = readl(&ir->ir_set->erst_size);
 		ir->s3_erst_base = xhci_read_64(xhci, &ir->ir_set->erst_base);
 		ir->s3_erst_dequeue = xhci_read_64(xhci, &ir->ir_set->erst_dequeue);
@@ -721,7 +716,6 @@ static void xhci_save_registers(struct xhci_hcd *xhci)
 static void xhci_restore_registers(struct xhci_hcd *xhci)
 {
 	struct xhci_interrupter *ir;
-	unsigned int i;
 
 	writel(xhci->s3.command, &xhci->op_regs->command);
 	writel(xhci->s3.dev_nt, &xhci->op_regs->dev_notification);
@@ -729,11 +723,7 @@ static void xhci_restore_registers(struct xhci_hcd *xhci)
 	writel(xhci->s3.config_reg, &xhci->op_regs->config_reg);
 
 	/* FIXME should we lock to protect against freeing of interrupters */
-	for (i = 0; i < xhci->nvecs; i++) {
-		ir = xhci->interrupters[i];
-		if (!ir)
-			continue;
-
+	list_for_each_entry(ir, &xhci->ir_list, list) {
 		writel(ir->s3_erst_size, &ir->ir_set->erst_size);
 		xhci_write_64(xhci, ir->s3_erst_base, &ir->ir_set->erst_base);
 		xhci_write_64(xhci, ir->s3_erst_dequeue, &ir->ir_set->erst_dequeue);
@@ -1090,7 +1080,7 @@ int xhci_resume(struct xhci_hcd *xhci, pm_message_t msg)
 		xhci_dbg(xhci, "// Disabling event ring interrupts\n");
 		temp = readl(&xhci->op_regs->status);
 		writel((temp & ~0x1fff) | STS_EINT, &xhci->op_regs->status);
-		xhci_disable_interrupter(xhci->interrupters[0]);
+		xhci_disable_interrupter(xhci->primary_ir);
 
 		xhci_dbg(xhci, "cleaning up memory\n");
 		xhci_mem_cleanup(xhci);
@@ -5194,6 +5184,8 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 	}
 
 	mutex_init(&xhci->mutex);
+	INIT_LIST_HEAD(&xhci->ir_list);
+
 	xhci->main_hcd = hcd;
 	xhci->cap_regs = hcd->regs;
 	xhci->op_regs = hcd->regs +
