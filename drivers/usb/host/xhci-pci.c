@@ -128,7 +128,7 @@ static void xhci_cleanup_msix(struct xhci_hcd *xhci)
 }
 
 /* Try enabling MSI-X with MSI and legacy IRQ as fallback */
-static int xhci_try_enable_msi(struct usb_hcd *hcd)
+static int xhci_setup_irq(struct usb_hcd *hcd)
 {
 	struct pci_dev *pdev = to_pci_dev(hcd->self.controller);
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
@@ -140,11 +140,6 @@ static int xhci_try_enable_msi(struct usb_hcd *hcd)
 	 */
 	if (xhci->quirks & XHCI_BROKEN_MSI)
 		goto legacy_irq;
-
-	/* unregister the legacy interrupt */
-	if (hcd->irq)
-		free_irq(hcd->irq, hcd);
-	hcd->irq = 0;
 
 	/*
 	 * Calculate number of MSI/MSI-X vectors supported.
@@ -182,9 +177,8 @@ legacy_irq:
 		return -EINVAL;
 	}
 
-	if (!strlen(hcd->irq_descr))
-		snprintf(hcd->irq_descr, sizeof(hcd->irq_descr), "%s:usb%d",
-			 hcd->driver->description, hcd->self.busnum);
+	snprintf(hcd->irq_descr, sizeof(hcd->irq_descr), "%s:usb%d",
+		 hcd->driver->description, hcd->self.busnum);
 
 	/* fall back to legacy interrupt */
 	ret = request_irq(pdev->irq, &usb_hcd_irq, IRQF_SHARED, hcd->irq_descr, hcd);
@@ -201,7 +195,7 @@ static int xhci_pci_run(struct usb_hcd *hcd)
 	int ret;
 
 	if (usb_hcd_is_primary_hcd(hcd)) {
-		ret = xhci_try_enable_msi(hcd);
+		ret = xhci_setup_irq(hcd);
 		if (ret)
 			return ret;
 	}
@@ -542,6 +536,12 @@ static int xhci_pci_setup(struct usb_hcd *hcd)
 	u8			sbrn;
 
 	xhci = hcd_to_xhci(hcd);
+
+	if (hcd->irq) {
+		xhci_err(xhci, "BUG: IRQ is already requested");
+		free_irq(hcd->irq, hcd);
+		hcd->irq = 0;
+	}
 
 	/* imod_interval is the interrupt moderation value in nanoseconds. */
 	xhci->imod_interval = 40000;
