@@ -725,11 +725,11 @@ DECLARE_EVENT_CLASS(cdnsp_log_ring,
 		__entry->deq = cdnsp_trb_virt_to_dma(ring->deq_seg,
 						     ring->dequeue);
 	),
-	TP_printk("%s %p: enq %pad(%pad) deq %pad(%pad) segs %d stream %d"
+	TP_printk("%s %p: deq %pad(%pad) enq %pad(%pad) segs %d stream %d"
 		  " free_trbs %d bounce %d cycle %d",
 		  cdnsp_ring_type_string(__entry->type), __entry->ring,
-		  &__entry->enq, &__entry->enq_seg,
 		  &__entry->deq, &__entry->deq_seg,
+		  &__entry->enq, &__entry->enq_seg,
 		  __entry->num_segs,
 		  __entry->stream_id,
 		  __entry->num_trbs_free,
