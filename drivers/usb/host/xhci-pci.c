@@ -578,7 +578,8 @@ static int xhci_pci_setup(struct usb_hcd *hcd)
 	if (ret)
 		return ret;
 
-	xhci_create_secondary_interrupter(hcd, 0);
+	if (xhci_create_secondary_interrupter(hcd, 0))
+		xhci->tx_intr_tgt = 1;
 
 	if (xhci->quirks & XHCI_PME_STUCK_QUIRK)
 		xhci_pme_acpi_rtd3_enable(pdev);

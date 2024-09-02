@@ -1541,6 +1541,18 @@ struct xhci_hcd {
 	struct reset_control *reset;
 	/* data structures */
 	struct xhci_device_context_array *dcbaa;
+
+	/*
+	 * Transfer events which can be offloaded to secondary interrupts:
+	 *   TRB Interrupt Target field
+	 *    - Transfer event
+	 *    - Host controller event
+	 *    - Vendor defined event (optional, currently uses primary)
+	 *   Device Slot's Slot Context Interrupt Target field
+	 *    - Bandwidth request event
+	 *    - Device notification event
+	 */
+	unsigned int tx_intr_tgt;
 	struct xhci_interrupter *primary_ir;
 	struct list_head        ir_list;
 	struct xhci_ring	*cmd_ring;
