@@ -2353,17 +2353,16 @@ static void xhci_hcd_page_size(struct xhci_hcd *xhci, u8 page_shift)
 
 int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 {
+	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
 	struct xhci_interrupter *ir;
-	struct device	*dev = xhci_to_hcd(xhci)->self.sysdev;
-	dma_addr_t	dma;
-	unsigned int	val, val2;
-	u64		val_64;
-	u32		temp;
-	int		i;
+	unsigned int val, val2;
+	dma_addr_t dma;
+	u64 val_64;
+	u32 val_32;
 
 	INIT_LIST_HEAD(&xhci->cmd_list);
 
-	/* init command timeout work */
+	/* Init command timeout work */
 	INIT_DELAYED_WORK(&xhci->cmd_timer, xhci_handle_command_timeout);
 	init_completion(&xhci->cmd_ring_stop_completion);
 
@@ -2375,26 +2374,23 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	 * register with the max value of slots the HC can handle.
 	 */
 	val = HCS_MAX_SLOTS(readl(&xhci->cap_regs->hcs_params1));
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			"// xHC can handle at most %d device slots.", val);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xHC can handle at most %d device slots.", val);
 	val2 = readl(&xhci->op_regs->config_reg);
 	val |= (val2 & ~HCS_SLOTS_MASK);
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			"// Setting Max device slots reg = 0x%x.", val);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Setting Max device slots reg = 0x%x.", val);
 	writel(val, &xhci->op_regs->config_reg);
 
 	/*
 	 * xHCI section 5.4.6 - Device Context array must be
 	 * "physically contiguous and 64-byte (cache line) aligned".
 	 */
-	xhci->dcbaa = dma_alloc_coherent(dev, sizeof(*xhci->dcbaa), &dma,
-			flags);
+	xhci->dcbaa = dma_alloc_coherent(dev, sizeof(*xhci->dcbaa), &dma, flags);
 	if (!xhci->dcbaa)
 		goto fail;
+
 	xhci->dcbaa->dma = dma;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			"// Device context base array address = 0x%pad (DMA), %p (virt)",
-			&xhci->dcbaa->dma, xhci->dcbaa);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Device context base array address = 0x%pad (DMA), %p (virt)",
+		       &xhci->dcbaa->dma, xhci->dcbaa);
 	xhci_write_64(xhci, dma, &xhci->op_regs->dcbaa_ptr);
 
 	/*
@@ -2405,31 +2401,30 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	 * TRB_SEGMENT_SIZE alignment, so we pick the greater alignment need.
 	 */
 	if (xhci->quirks & XHCI_ZHAOXIN_TRB_FETCH)
-		xhci->segment_pool = dma_pool_create("xHCI ring segments", dev,
-				TRB_SEGMENT_SIZE * 2, TRB_SEGMENT_SIZE * 2, xhci->page_size * 2);
+		xhci->segment_pool = dma_pool_create("xHCI ring segments", dev, TRB_SEGMENT_SIZE * 2,
+						     TRB_SEGMENT_SIZE * 2, xhci->page_size * 2);
 	else
-		xhci->segment_pool = dma_pool_create("xHCI ring segments", dev,
-				TRB_SEGMENT_SIZE, TRB_SEGMENT_SIZE, xhci->page_size);
+		xhci->segment_pool = dma_pool_create("xHCI ring segments", dev, TRB_SEGMENT_SIZE,
+						     TRB_SEGMENT_SIZE, xhci->page_size);
 
 	/* See Table 46 and Note on Figure 55 */
-	xhci->device_pool = dma_pool_create("xHCI input/output contexts", dev,
-			2112, 64, xhci->page_size);
+	xhci->device_pool = dma_pool_create("xHCI input/output contexts", dev, 2112, 64,
+					    xhci->page_size);
 	if (!xhci->segment_pool || !xhci->device_pool)
 		goto fail;
 
-	/* Linear stream context arrays don't have any boundary restrictions,
+	/*
+	 * Linear stream context arrays don't have any boundary restrictions,
 	 * and only need to be 16-byte aligned.
 	 */
-	xhci->small_streams_pool =
-		dma_pool_create("xHCI 256 byte stream ctx arrays",
-			dev, SMALL_STREAM_ARRAY_SIZE, 16, 0);
-	xhci->medium_streams_pool =
-		dma_pool_create("xHCI 1KB stream ctx arrays",
-			dev, MEDIUM_STREAM_ARRAY_SIZE, 16, 0);
-	/* Any stream context array bigger than MEDIUM_STREAM_ARRAY_SIZE
+	xhci->small_streams_pool = dma_pool_create("xHCI 256 byte stream ctx arrays",
+						   dev, SMALL_STREAM_ARRAY_SIZE, 16, 0);
+	xhci->medium_streams_pool = dma_pool_create("xHCI 1KB stream ctx arrays",
+						    dev, MEDIUM_STREAM_ARRAY_SIZE, 16, 0);
+	/*
+	 * Any stream context array bigger than MEDIUM_STREAM_ARRAY_SIZE
 	 * will be allocated with dma_alloc_coherent()
 	 */
-
 	if (!xhci->small_streams_pool || !xhci->medium_streams_pool)
 		goto fail;
 
@@ -2437,21 +2432,21 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	xhci->cmd_ring = xhci_ring_alloc(xhci, 1, 1, TYPE_COMMAND, 0, flags);
 	if (!xhci->cmd_ring)
 		goto fail;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			"Allocated command ring at %p", xhci->cmd_ring);
+
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Allocated command ring at %p", xhci->cmd_ring);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "First segment DMA is 0x%pad",
-			&xhci->cmd_ring->first_seg->dma);
+		       &xhci->cmd_ring->first_seg->dma);
 
 	/* Set the address in the Command Ring Control register */
 	val_64 = xhci_read_64(xhci, &xhci->op_regs->cmd_ring);
-	val_64 = (val_64 & (u64) CMD_RING_RSVD_BITS) |
-		(xhci->cmd_ring->first_seg->dma & (u64) ~CMD_RING_RSVD_BITS) |
-		xhci->cmd_ring->cycle_state;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			"// Setting command ring address to 0x%016llx", val_64);
+	val_64 = (val_64 & (u64) CMD_RING_RSVD_BITS) | xhci->cmd_ring->cycle_state |
+		 (xhci->cmd_ring->first_seg->dma & (u64) ~CMD_RING_RSVD_BITS);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Setting command ring address to 0x%016llx",
+		       val_64);
 	xhci_write_64(xhci, val_64, &xhci->op_regs->cmd_ring);
 
-	/* Reserve one command ring TRB for disabling LPM.
+	/*
+	 * Reserve one command ring TRB for disabling LPM.
 	 * Since the USB core grabs the shared usb_bus bandwidth mutex before
 	 * disabling LPM, we only need to reserve one TRB for all devices.
 	 */
@@ -2459,14 +2454,12 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 
 	val = readl(&xhci->cap_regs->db_off);
 	val &= DBOFF_MASK;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-		       "// Doorbell array is located at offset 0x%x from cap regs base addr",
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Doorbell array is located at offset 0x%x from cap regs base addr",
 		       val);
 	xhci->dba = (void __iomem *) xhci->cap_regs + val;
 
 	/* Allocate and set up primary interrupter 0 with an event ring. */
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-		       "Allocating primary event ring");
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Allocating primary event ring");
 	xhci->interrupters = kcalloc_node(xhci->max_interrupters, sizeof(*xhci->interrupters),
 					  flags, dev_to_node(dev));
 
@@ -2483,7 +2476,7 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	 * something other than the default (~1ms minimum between interrupts).
 	 * See section 5.5.1.2.
 	 */
-	for (i = 0; i < MAX_HC_SLOTS; i++)
+	for (int i = 0; i < MAX_HC_SLOTS; i++)
 		xhci->devs[i] = NULL;
 
 	if (scratchpad_alloc(xhci, flags))
@@ -2495,10 +2488,10 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	 * is necessary for allowing USB 3.0 devices to do remote wakeup from
 	 * U3 (device suspend).
 	 */
-	temp = readl(&xhci->op_regs->dev_notification);
-	temp &= ~DEV_NOTE_MASK;
-	temp |= DEV_NOTE_FWAKE;
-	writel(temp, &xhci->op_regs->dev_notification);
+	val_32 = readl(&xhci->op_regs->dev_notification);
+	val_32 &= ~DEV_NOTE_MASK;
+	val_32 |= DEV_NOTE_FWAKE;
+	writel(val_32, &xhci->op_regs->dev_notification);
 
 	return 0;
 
