@@ -1620,59 +1620,47 @@ static int scratchpad_alloc(struct xhci_hcd *xhci, gfp_t flags)
 	int i;
 	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
 	int num_sp = HCS_MAX_SCRATCHPAD(xhci->hcs_params2);
+	struct xhci_scratchpad *sp;
 
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			"Allocating %d scratchpad buffers", num_sp);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Allocating %d scratchpad buffers", num_sp);
 
 	if (!num_sp)
 		return 0;
 
-	xhci->scratchpad = kzalloc_node(sizeof(*xhci->scratchpad), flags,
-				dev_to_node(dev));
-	if (!xhci->scratchpad)
+	sp = kzalloc_node(sizeof(*xhci->scratchpad), flags, dev_to_node(dev));
+	if (!sp)
 		goto fail_sp;
 
-	xhci->scratchpad->sp_array = dma_alloc_coherent(dev,
-				     array_size(sizeof(u64), num_sp),
-				     &xhci->scratchpad->sp_dma, flags);
-	if (!xhci->scratchpad->sp_array)
+	sp->sp_array = dma_alloc_coherent(dev, array_size(sizeof(u64), num_sp), &sp->sp_dma, flags);
+	if (!sp->sp_array)
 		goto fail_sp2;
 
-	xhci->scratchpad->sp_buffers = kcalloc_node(num_sp, sizeof(void *),
-					flags, dev_to_node(dev));
-	if (!xhci->scratchpad->sp_buffers)
+	sp->sp_buffers = kcalloc_node(num_sp, sizeof(void *), flags, dev_to_node(dev));
+	if (!sp->sp_buffers)
 		goto fail_sp3;
 
-	xhci->dcbaa->dev_context_ptrs[0] = cpu_to_le64(xhci->scratchpad->sp_dma);
 	for (i = 0; i < num_sp; i++) {
-		dma_addr_t dma;
-		void *buf = dma_alloc_coherent(dev, xhci->page_size, &dma,
-					       flags);
-		if (!buf)
+		sp->sp_buffers[i] = dma_alloc_coherent(dev, xhci->page_size, &sp->sp_array[i],
+						       flags);
+		if (!sp->sp_buffers[i])
 			goto fail_sp4;
-
-		xhci->scratchpad->sp_array[i] = dma;
-		xhci->scratchpad->sp_buffers[i] = buf;
 	}
 
+	xhci->dcbaa->dev_context_ptrs[0] = cpu_to_le64(sp->sp_dma);
+	xhci->scratchpad = sp;
 	return 0;
 
  fail_sp4:
 	while (i--)
-		dma_free_coherent(dev, xhci->page_size,
-				    xhci->scratchpad->sp_buffers[i],
-				    xhci->scratchpad->sp_array[i]);
+		dma_free_coherent(dev, xhci->page_size, sp->sp_buffers[i], sp->sp_array[i]);
 
-	kfree(xhci->scratchpad->sp_buffers);
+	kfree(sp->sp_buffers);
 
  fail_sp3:
-	dma_free_coherent(dev, array_size(sizeof(u64), num_sp),
-			    xhci->scratchpad->sp_array,
-			    xhci->scratchpad->sp_dma);
+	dma_free_coherent(dev, array_size(sizeof(u64), num_sp), sp->sp_array, sp->sp_dma);
 
  fail_sp2:
-	kfree(xhci->scratchpad);
-	xhci->scratchpad = NULL;
+	kfree(sp);
 
  fail_sp:
 	return -ENOMEM;
