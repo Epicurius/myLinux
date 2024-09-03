@@ -912,7 +912,6 @@ static void xhci_free_virt_devices_depth_first(struct xhci_hcd *xhci, int slot_i
 	struct xhci_virt_device *vdev;
 	struct list_head *tt_list_head;
 	struct xhci_tt_bw_info *tt_info, *next;
-	int i;
 
 	vdev = xhci->devs[slot_id];
 	if (!vdev)
@@ -925,15 +924,15 @@ static void xhci_free_virt_devices_depth_first(struct xhci_hcd *xhci, int slot_i
 
 	tt_list_head = &(xhci->rh_bw[vdev->rhub_port->hw_portnum].tts);
 	list_for_each_entry_safe(tt_info, next, tt_list_head, tt_list) {
-		/* is this a hub device that added a tt_info to the tts list */
-		if (tt_info->slot_id == slot_id) {
-			/* are any devices using this tt_info? */
-			for (i = 1; i < HCS_MAX_SLOTS(xhci->hcs_params1); i++) {
-				vdev = xhci->devs[i];
-				if (vdev && (vdev->tt_info == tt_info))
-					xhci_free_virt_devices_depth_first(
-						xhci, i);
-			}
+		/* Is this a hub device that added a tt_info to the tts list */
+		if (tt_info->slot_id != slot_id)
+			continue;
+
+		/* Are any devices using this tt_info? */
+		for (int i = 1; i < HCS_MAX_SLOTS(xhci->hcs_params1); i++) {
+			vdev = xhci->devs[i];
+			if (vdev && (vdev->tt_info == tt_info))
+				xhci_free_virt_devices_depth_first(xhci, i);
 		}
 	}
 out:
