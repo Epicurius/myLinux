@@ -2115,24 +2115,36 @@ static void xhci_add_in_port(struct xhci_hcd *xhci, unsigned int num_ports,
 	/* FIXME: Should we disable ports not in the Extended Capabilities? */
 }
 
-static void xhci_create_rhub_port_array(struct xhci_hcd *xhci,
-					struct xhci_hub *rhub, gfp_t flags)
+static void xhci_create_rhub_port_array(struct xhci_hcd *xhci, struct xhci_hub *rhub,
+					unsigned int max_ports, int type, gfp_t flags)
 {
-	int port_index = 0;
-	int i;
 	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
+	int port_index = 0;
 
-	if (!rhub->num_ports)
+	if (!rhub->num_ports) {
+		xhci_info(xhci, "USB%d root hub has no ports\n", type);
 		return;
-	rhub->ports = kcalloc_node(rhub->num_ports, sizeof(*rhub->ports),
-			flags, dev_to_node(dev));
+	}
+
+	/*
+	 * Place limits on the number of roothub ports so that the hub
+	 * descriptors aren't longer than the USB core will allocate.
+	 */
+	if (rhub->num_ports > max_ports) {
+		xhci->usb3_rhub.num_ports = max_ports;
+		xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Limiting USB%d root hub ports to %u.",
+			       type, max_ports);
+	}
+
+	rhub->ports = kcalloc_node(rhub->num_ports, sizeof(*rhub->ports), flags, dev_to_node(dev));
 	if (!rhub->ports)
 		return;
 
-	for (i = 0; i < HCS_MAX_PORTS(xhci->hcs_params1); i++) {
+	for (int i = 0; i < HCS_MAX_PORTS(xhci->hcs_params1); i++) {
 		if (xhci->hw_ports[i].rhub != rhub ||
 		    xhci->hw_ports[i].hcd_portnum == DUPLICATE_ENTRY)
 			continue;
+
 		xhci->hw_ports[i].hcd_portnum = port_index;
 		rhub->ports[port_index] = &xhci->hw_ports[i];
 		port_index++;
@@ -2224,30 +2236,8 @@ static int xhci_setup_port_arrays(struct xhci_hcd *xhci, gfp_t flags)
 		       "Found %u USB 2.0 ports and %u USB 3.0 ports.",
 		       xhci->usb2_rhub.num_ports, xhci->usb3_rhub.num_ports);
 
-	/* Place limits on the number of roothub ports so that the hub
-	 * descriptors aren't longer than the USB core will allocate.
-	 */
-	if (xhci->usb3_rhub.num_ports > USB_SS_MAXPORTS) {
-		xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-				"Limiting USB 3.0 roothub ports to %u.",
-				USB_SS_MAXPORTS);
-		xhci->usb3_rhub.num_ports = USB_SS_MAXPORTS;
-	}
-	if (xhci->usb2_rhub.num_ports > USB_MAXCHILDREN) {
-		xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-				"Limiting USB 2.0 roothub ports to %u.",
-				USB_MAXCHILDREN);
-		xhci->usb2_rhub.num_ports = USB_MAXCHILDREN;
-	}
-
-	if (!xhci->usb2_rhub.num_ports)
-		xhci_info(xhci, "USB2 root hub has no ports\n");
-
-	if (!xhci->usb3_rhub.num_ports)
-		xhci_info(xhci, "USB3 root hub has no ports\n");
-
-	xhci_create_rhub_port_array(xhci, &xhci->usb2_rhub, flags);
-	xhci_create_rhub_port_array(xhci, &xhci->usb3_rhub, flags);
+	xhci_create_rhub_port_array(xhci, &xhci->usb2_rhub, USB_MAXCHILDREN, 2, flags);
+	xhci_create_rhub_port_array(xhci, &xhci->usb3_rhub, USB_SS_MAXPORTS, 3, flags);
 
 	return 0;
 }
