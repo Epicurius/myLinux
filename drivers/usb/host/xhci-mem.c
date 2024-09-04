@@ -1855,15 +1855,41 @@ EXPORT_SYMBOL_GPL(xhci_remove_secondary_interrupter);
 void xhci_mem_cleanup(struct xhci_hcd *xhci)
 {
 	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
-	struct xhci_interval_bw_table *bwt;
-	struct xhci_tt_bw_info *tt, *n;
+	struct xhci_root_port_bw_info *bw;
+	struct xhci_tt_bw_info *tt_info, *next;
 	struct list_head *ep;
 	int num_ports;
 
 	cancel_delayed_work_sync(&xhci->cmd_timer);
 
-	for (int i = 0; xhci->interrupters && i < xhci->max_interrupters; i++) {
-		if (xhci->interrupters[i]) {
+	num_ports = HCS_MAX_PORTS(xhci->hcs_params1);
+	for (int i = num_ports; i > 0; i--)
+		xhci_free_virt_devices_depth_first(xhci, i);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed virtual devices");
+
+
+	if (xhci->rh_bw) {
+		for (int i = 0; i < num_ports; i++) {
+			bw = &xhci->rh_bw[i];
+
+			for (int j = 0; j < XHCI_MAX_INTERVAL; j++) {
+				ep = &bw->bw_table.interval_bw[j].endpoints;
+				while (!list_empty(ep))
+					list_del_init(ep->next);
+			}
+
+			list_for_each_entry_safe(tt_info, next, &bw->tts, tt_list) {
+				list_del(&tt_info->tt_list);
+				kfree(tt_info);
+			}
+		}
+	}
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed root hubs");
+
+
+
+	if (xhci->interrupters) {
+		for (int i = 0; i < xhci->max_interrupters; i++) {
 			xhci_remove_interrupter(xhci, xhci->interrupters[i]);
 			xhci_free_interrupter(xhci, xhci->interrupters[i]);
 			xhci->interrupters[i] = NULL;
@@ -1874,23 +1900,11 @@ void xhci_mem_cleanup(struct xhci_hcd *xhci)
 	if (xhci->cmd_ring) {
 		xhci_ring_free(xhci, xhci->cmd_ring);
 		xhci->cmd_ring = NULL;
-		xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed command ring");
 	}
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed command ring");
+
 	xhci_cleanup_command_queue(xhci);
-
-	num_ports = HCS_MAX_PORTS(xhci->hcs_params1);
-	for (int i = 0; i < num_ports && xhci->rh_bw; i++) {
-		bwt = &xhci->rh_bw[i].bw_table;
-
-		for (int j = 0; j < XHCI_MAX_INTERVAL; j++) {
-			ep = &bwt->interval_bw[j].endpoints;
-			while (!list_empty(ep))
-				list_del_init(ep->next);
-		}
-	}
-
-	for (int i = num_ports; i > 0; i--)
-		xhci_free_virt_devices_depth_first(xhci, i);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed command queue");
 
 	dma_pool_destroy(xhci->segment_pool);
 	xhci->segment_pool = NULL;
@@ -1912,17 +1926,10 @@ void xhci_mem_cleanup(struct xhci_hcd *xhci)
 		dma_free_coherent(dev, sizeof(*xhci->dcbaa), xhci->dcbaa, xhci->dcbaa->dma);
 		xhci->dcbaa = NULL;
 	}
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed device context array (dcbaa)");
 
 	scratchpad_free(xhci);
-
-	if (xhci->rh_bw) {
-		for (int i = 0; i < num_ports; i++) {
-			list_for_each_entry_safe(tt, n, &xhci->rh_bw[i].tts, tt_list) {
-				list_del(&tt->tt_list);
-				kfree(tt);
-			}
-		}
-	}
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed scratchpad");
 
 	xhci->cmd_ring_reserved_trbs = 0;
 	xhci->usb2_rhub.num_ports = 0;
@@ -2291,8 +2298,6 @@ static void xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter 
 
 	/* Set the event ring dequeue address of this interrupter */
 	xhci_set_hc_event_deq(xhci, ir);
-
-	return 0;
 }
 
 struct xhci_interrupter *
