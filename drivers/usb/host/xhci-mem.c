@@ -907,39 +907,39 @@ void xhci_free_virt_device(struct xhci_hcd *xhci, int slot_id)
  * that tt_info, then free the child first. Recursive.
  * We can't rely on udev at this point to find child-parent relationships.
  */
-static void xhci_free_virt_devices_depth_first(struct xhci_hcd *xhci, int slot_id)
-{
-	struct xhci_virt_device *vdev;
-	struct list_head *tt_list_head;
-	struct xhci_tt_bw_info *tt_info, *next;
+// static void xhci_free_virt_devices_depth_first(struct xhci_hcd *xhci, int slot_id)
+// {
+// 	struct xhci_virt_device *vdev;
+// 	struct list_head *tt_list_head;
+// 	struct xhci_tt_bw_info *tt_info, *next;
 
-	vdev = xhci->devs[slot_id];
-	if (!vdev)
-		return;
+// 	vdev = xhci->devs[slot_id];
+// 	if (!vdev)
+// 		return;
 
-	if (!vdev->rhub_port) {
-		xhci_dbg(xhci, "Bad rhub port.\n");
-		goto out;
-	}
+// 	if (!vdev->rhub_port) {
+// 		xhci_dbg(xhci, "Bad rhub port.\n");
+// 		goto out;
+// 	}
 
-	tt_list_head = &(xhci->rh_bw[vdev->rhub_port->hw_portnum].tts);
-	list_for_each_entry_safe(tt_info, next, tt_list_head, tt_list) {
-		/* Is this a hub device that added a tt_info to the tts list */
-		if (tt_info->slot_id != slot_id)
-			continue;
+// 	tt_list_head = &(xhci->rh_bw[vdev->rhub_port->hw_portnum].tts);
+// 	list_for_each_entry_safe(tt_info, next, tt_list_head, tt_list) {
+// 		/* Is this a hub device that added a tt_info to the tts list */
+// 		if (tt_info->slot_id != slot_id)
+// 			continue;
 
-		/* Are any devices using this tt_info? */
-		for (int i = 1; i < HCS_MAX_SLOTS(xhci->hcs_params1); i++) {
-			vdev = xhci->devs[i];
-			if (vdev && (vdev->tt_info == tt_info))
-				xhci_free_virt_devices_depth_first(xhci, i);
-		}
-	}
-out:
-	/* we are now at a leaf device */
-	xhci_debugfs_remove_slot(xhci, slot_id);
-	xhci_free_virt_device(xhci, slot_id);
-}
+// 		/* Are any devices using this tt_info? */
+// 		for (int i = 1; i < HCS_MAX_SLOTS(xhci->hcs_params1); i++) {
+// 			vdev = xhci->devs[i];
+// 			if (vdev && (vdev->tt_info == tt_info))
+// 				xhci_free_virt_devices_depth_first(xhci, i);
+// 		}
+// 	}
+// out:
+// 	/* we are now at a leaf device */
+// 	xhci_debugfs_remove_slot(xhci, slot_id);
+// 	xhci_free_virt_device(xhci, slot_id);
+// }
 
 int xhci_alloc_virt_device(struct xhci_hcd *xhci, int slot_id,
 		struct usb_device *udev, gfp_t flags)
@@ -1860,8 +1860,10 @@ static void xhci_cleanup_port_arrays(struct xhci_hcd *xhci)
 	unsigned int num_ports;
 
 	num_ports = HCS_MAX_PORTS(xhci->hcs_params1);
-	for (int i = num_ports; i > 0; i--)
-		xhci_free_virt_devices_depth_first(xhci, i);
+	for (int i = num_ports; i > 0; i--) {
+		xhci_debugfs_remove_slot(xhci, i);
+		xhci_free_virt_device(xhci, i);
+	}
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed virtual devices");
 
 	if (xhci->rh_bw) {
