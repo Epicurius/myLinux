@@ -1852,21 +1852,17 @@ void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrup
 }
 EXPORT_SYMBOL_GPL(xhci_remove_secondary_interrupter);
 
-void xhci_mem_cleanup(struct xhci_hcd *xhci)
+static void xhci_cleanup_port_arrays(struct xhci_hcd *xhci)
 {
-	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
-	struct xhci_root_port_bw_info *bw;
 	struct xhci_tt_bw_info *tt_info, *next;
+	struct xhci_root_port_bw_info *bw;
 	struct list_head *ep;
-	int num_ports;
-
-	cancel_delayed_work_sync(&xhci->cmd_timer);
+	unsigned int num_ports;
 
 	num_ports = HCS_MAX_PORTS(xhci->hcs_params1);
 	for (int i = num_ports; i > 0; i--)
 		xhci_free_virt_devices_depth_first(xhci, i);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed virtual devices");
-
 
 	if (xhci->rh_bw) {
 		for (int i = 0; i < num_ports; i++) {
@@ -1886,7 +1882,33 @@ void xhci_mem_cleanup(struct xhci_hcd *xhci)
 	}
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed root hubs");
 
+	for (int i = 0; i < xhci->num_port_caps; i++)
+		kfree(xhci->port_caps[i].psi);
 
+	kfree(xhci->usb2_rhub.ports);
+	kfree(xhci->usb3_rhub.ports);
+	kfree(xhci->hw_ports);
+	kfree(xhci->rh_bw);
+	kfree(xhci->port_caps);
+
+	xhci->usb2_rhub.bus_state.bus_suspended = 0;
+	xhci->usb3_rhub.bus_state.bus_suspended = 0;
+	xhci->usb2_rhub.num_ports = 0;
+	xhci->usb3_rhub.num_ports = 0;
+	xhci->usb2_rhub.ports = NULL;
+	xhci->usb3_rhub.ports = NULL;
+	xhci->port_caps = NULL;
+	xhci->hw_ports = NULL;
+	xhci->rh_bw = NULL;
+}
+
+void xhci_mem_cleanup(struct xhci_hcd *xhci)
+{
+	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
+
+	cancel_delayed_work_sync(&xhci->cmd_timer);
+
+	xhci_cleanup_port_arrays(xhci);
 
 	if (xhci->interrupters) {
 		for (int i = 0; i < xhci->max_interrupters; i++) {
@@ -1932,29 +1954,13 @@ void xhci_mem_cleanup(struct xhci_hcd *xhci)
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed scratchpad");
 
 	xhci->cmd_ring_reserved_trbs = 0;
-	xhci->usb2_rhub.num_ports = 0;
-	xhci->usb3_rhub.num_ports = 0;
 	xhci->num_active_eps = 0;
-	kfree(xhci->usb2_rhub.ports);
-	kfree(xhci->usb3_rhub.ports);
-	kfree(xhci->hw_ports);
-	kfree(xhci->rh_bw);
-	for (int i = 0; i < xhci->num_port_caps; i++)
-		kfree(xhci->port_caps[i].psi);
-	kfree(xhci->port_caps);
+
 	kfree(xhci->interrupters);
 	xhci->num_port_caps = 0;
-
-	xhci->usb2_rhub.ports = NULL;
-	xhci->usb3_rhub.ports = NULL;
-	xhci->hw_ports = NULL;
-	xhci->rh_bw = NULL;
-	xhci->port_caps = NULL;
 	xhci->interrupters = NULL;
-
 	xhci->page_size = 0;
-	xhci->usb2_rhub.bus_state.bus_suspended = 0;
-	xhci->usb3_rhub.bus_state.bus_suspended = 0;
+
 }
 
 static void xhci_set_hc_event_deq(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
