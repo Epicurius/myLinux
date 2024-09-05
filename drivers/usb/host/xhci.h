@@ -1921,7 +1921,11 @@ void xhci_ring_doorbell_for_active_rings(struct xhci_hcd *xhci,
 void xhci_cleanup_command_queue(struct xhci_hcd *xhci);
 void inc_deq(struct xhci_hcd *xhci, struct xhci_ring *ring);
 unsigned int count_trbs(u64 addr, u64 len);
+void xhci_hcd_page_size(struct xhci_hcd *xhci);
 void xhci_set_cmd_ring_deq(struct xhci_hcd *xhci);
+void xhci_set_dev_slots_enabled(struct xhci_hcd *xhci);
+void xhci_set_dev_notifications(struct xhci_hcd *xhci);
+void xhci_init_interrupter(struct xhci_hcd *xhci, unsigned int intr_num);
 
 /* xHCI roothub code */
 void xhci_set_link_state(struct xhci_hcd *xhci, struct xhci_port *port,
