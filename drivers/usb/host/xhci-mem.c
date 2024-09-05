@@ -2268,7 +2268,7 @@ xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
 	return ir;
 }
 
-static void xhci_init_interrupter(struct xhci_hcd *xhci, unsigned int intr_num)
+void xhci_init_interrupter(struct xhci_hcd *xhci, unsigned int intr_num)
 {
 	struct xhci_interrupter *ir = xhci->interrupters[intr_num];
 	u64 erst_base;
@@ -2423,9 +2423,6 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	xhci->interrupters[0] = xhci_alloc_interrupter(xhci, 0, flags);
 	if (!xhci->interrupters[0])
 		goto fail;
-
-	xhci->interrupters[0]->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
-	xhci_init_interrupter(xhci, 0);
 
 	if (scratchpad_alloc(xhci, flags))
 		goto fail;
