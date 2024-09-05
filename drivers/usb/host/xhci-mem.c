@@ -1917,60 +1917,62 @@ static void xhci_cleanup_port_arrays(struct xhci_hcd *xhci)
 
 void xhci_mem_cleanup(struct xhci_hcd *xhci)
 {
-	struct device	*dev = xhci_to_hcd(xhci)->self.sysdev;
-	int i;
+	struct device *dev;
 
 	cancel_delayed_work_sync(&xhci->cmd_timer);
 
-	for (i = 0; xhci->interrupters && i < xhci->max_interrupters; i++) {
-		if (xhci->interrupters[i]) {
-			xhci_remove_interrupter(xhci, xhci->interrupters[i]);
-			xhci_free_interrupter(xhci, xhci->interrupters[i]);
-			xhci->interrupters[i] = NULL;
-		}
-	}
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed interrupters");
-
-	if (xhci->cmd_ring)
-		xhci_ring_free(xhci, xhci->cmd_ring);
-	xhci->cmd_ring = NULL;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed command ring");
-	xhci_cleanup_command_queue(xhci);
-
-	for (i = HCS_MAX_SLOTS(xhci->hcs_params1); i > 0; i--)
+	for (int i = HCS_MAX_SLOTS(xhci->hcs_params1); i > 0; i--)
 		xhci_free_virt_devices_depth_first(xhci, i);
 
 	xhci_cleanup_port_arrays(xhci);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed port arrays");
 
-	dma_pool_destroy(xhci->segment_pool);
-	xhci->segment_pool = NULL;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed segment pool");
+	scratchpad_free(xhci);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed scratchpad");
+
+	if (xhci->interrupters) {
+		for (int i = 0; i < xhci->max_interrupters; i++) {
+			xhci_remove_interrupter(xhci, xhci->interrupters[i]);
+			xhci_free_interrupter(xhci, xhci->interrupters[i]);
+			xhci->interrupters[i] = NULL;
+		}
+		kfree(xhci->interrupters);
+		xhci->interrupters = NULL;
+	}
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed interrupters");
+
+	if (xhci->cmd_ring) {
+		xhci_ring_free(xhci, xhci->cmd_ring);
+		xhci->cmd_ring = NULL;
+	}
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed command ring");
+	xhci_cleanup_command_queue(xhci);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed command queue");
+
+	dma_pool_destroy(xhci->medium_streams_pool);
+	xhci->medium_streams_pool = NULL;
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed medium stream array pool");
+
+	dma_pool_destroy(xhci->small_streams_pool);
+	xhci->small_streams_pool = NULL;
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed small stream array pool");
 
 	dma_pool_destroy(xhci->device_pool);
 	xhci->device_pool = NULL;
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed device context pool");
 
-	dma_pool_destroy(xhci->small_streams_pool);
-	xhci->small_streams_pool = NULL;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			"Freed small stream array pool");
+	dma_pool_destroy(xhci->segment_pool);
+	xhci->segment_pool = NULL;
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed segment pool");
 
-	dma_pool_destroy(xhci->medium_streams_pool);
-	xhci->medium_streams_pool = NULL;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			"Freed medium stream array pool");
-
-	if (xhci->dcbaa)
-		dma_free_coherent(dev, sizeof(*xhci->dcbaa),
-				xhci->dcbaa, xhci->dcbaa->dma);
-	xhci->dcbaa = NULL;
-
-	scratchpad_free(xhci);
+	if (xhci->dcbaa) {
+		dev = xhci_to_hcd(xhci)->self.sysdev;
+		dma_free_coherent(dev, sizeof(*xhci->dcbaa), xhci->dcbaa, xhci->dcbaa->dma);
+		xhci->dcbaa = NULL;
+	}
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Freed device context base array");
 
 	xhci->cmd_ring_reserved_trbs = 0;
-	kfree(xhci->interrupters);
-	xhci->interrupters = NULL;
 	xhci->page_size = 0;
 }
 
