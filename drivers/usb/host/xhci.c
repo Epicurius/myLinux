@@ -463,6 +463,67 @@ static int xhci_all_ports_seen_u0(struct xhci_hcd *xhci)
 	return (xhci->port_status_u0 == ((1 << xhci->usb3_rhub.num_ports) - 1));
 }
 
+static void xhci_hcd_page_size(struct xhci_hcd *xhci)
+{
+	u32 page_size;
+
+	page_size = readl(&xhci->op_regs->page_size) & XHCI_PAGE_SIZE_MASK;
+	if (!is_power_of_2(page_size)) {
+		xhci_warn(xhci, "Invalid page size register = 0x%x\n", page_size);
+		/* Fallback to 4K page size, since that's common */
+		page_size = 1;
+	}
+
+	xhci->page_size = page_size << 12;
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "HCD page size set to %iK",
+		       xhci->page_size >> 10);
+}
+
+static void xhci_enable_max_dev_slots(struct xhci_hcd *xhci)
+{
+	u32 config_reg;
+        u32 max_slots;
+
+	max_slots = HCS_MAX_SLOTS(xhci->hcs_params1);
+        xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xHC can handle at most %d device slots",
+                       max_slots);
+
+	config_reg = readl(&xhci->op_regs->config_reg);
+        config_reg = (config_reg & ~HCS_SLOTS_MASK) | max_slots;
+
+        xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Setting Max device slots reg = 0x%x",
+                       config_reg);
+	writel(config_reg, &xhci->op_regs->config_reg);
+}
+
+/*
+ * Enable USB 3.0 device notifications for function remote wake, which is necessary
+ * for allowing USB 3.0 devices to do remote wakeup from U3 (device suspend).
+ */
+static void xhci_set_dev_notifications(struct xhci_hcd *xhci)
+{
+	u32 dev_notf;
+
+	dev_notf = readl(&xhci->op_regs->dev_notification);
+	dev_notf = (dev_notf & ~DEV_NOTE_MASK) | DEV_NOTE_FWAKE;
+	writel(dev_notf, &xhci->op_regs->dev_notification);
+}
+
+static void xhci_set_cmd_ring_deq(struct xhci_hcd *xhci)
+{
+	dma_addr_t deq_dma;
+	u64 val_64;
+
+	val_64 = xhci_read_64(xhci, &xhci->op_regs->cmd_ring);
+	val_64 &= ~CMD_RING_PTR_MASK;
+
+	deq_dma = xhci_trb_virt_to_dma(xhci->cmd_ring->deq_seg, xhci->cmd_ring->dequeue);
+	deq_dma &= CMD_RING_PTR_MASK;
+
+	val_64 &= (u64)deq_dma | xhci->cmd_ring->cycle_state;
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Setting command ring address to 0x%llx", val_64);
+	xhci_write_64(xhci, val_64, &xhci->op_regs->cmd_ring);
+}
 
 /*
  * Initialize memory for HCD and xHC (one-time init).
@@ -475,12 +536,44 @@ static int xhci_init(struct usb_hcd *hcd)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	int retval;
+	u32 val;
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_init");
 	spin_lock_init(&xhci->lock);
 
+	INIT_DELAYED_WORK(&xhci->cmd_timer, xhci_handle_command_timeout);
+	INIT_LIST_HEAD(&xhci->cmd_list);
+	init_completion(&xhci->cmd_ring_stop_completion);
+	memset(xhci->devs, 0, MAX_HC_SLOTS * sizeof(*xhci->devs));
+
+	/* If 'page_size' is not set, use 4K pages, since that's common and always supported */
+	xhci_hcd_page_size(xhci);
+
 	retval = xhci_mem_init(xhci, GFP_KERNEL);
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Finished xhci_init");
+	if (retval)
+		return retval;
+
+	/* Set the Number of Device Slots Enabled */
+	xhci_enable_max_dev_slots(xhci);
+
+	/* Set private xHCD pointer */
+	xhci_write_64(xhci, xhci->dcbaa->dma, &xhci->op_regs->dcbaa_ptr);
+
+	/* Set the address in the Command Ring Control register */
+	xhci_set_cmd_ring_deq(xhci);
+
+	/* Set Doorbell array pointer */
+	val = readl(&xhci->cap_regs->db_off) & DBOFF_MASK;
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
+		       "Doorbell array is located at offset 0x%x from cap regs base addr", val);
+	xhci->dba = (void __iomem *)xhci->cap_regs + val;
+
+	/* Set USB 3.0 device notifications for function remote wake */
+	xhci_set_dev_notifications(xhci);
+
+	/* Initialize the Primary interrupter */
+        xhci->interrupters[0]->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
+	xhci_init_interrupter(xhci, 0);
 
 	/* Initializing Compliance Mode Recovery Data If Needed */
 	if (xhci_compliance_mode_recovery_timer_quirk_check()) {
@@ -488,6 +581,7 @@ static int xhci_init(struct usb_hcd *hcd)
 		compliance_mode_recovery_timer_init(xhci);
 	}
 
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Finished xhci_init");
 	return retval;
 }
 
@@ -751,21 +845,7 @@ static void xhci_restore_registers(struct xhci_hcd *xhci)
 	}
 }
 
-void xhci_set_cmd_ring_deq(struct xhci_hcd *xhci)
-{
-	dma_addr_t deq_dma;
-	u64 val_64;
 
-	val_64 = xhci_read_64(xhci, &xhci->op_regs->cmd_ring);
-	val_64 &= ~CMD_RING_PTR_MASK;
-
-	deq_dma = xhci_trb_virt_to_dma(xhci->cmd_ring->deq_seg, xhci->cmd_ring->dequeue);
-	deq_dma &= CMD_RING_PTR_MASK;
-
-	val_64 &= (u64)deq_dma | xhci->cmd_ring->cycle_state;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Setting command ring address to 0x%llx", val_64);
-	xhci_write_64(xhci, val_64, &xhci->op_regs->cmd_ring);
-}
 
 /*
  * The whole command ring must be cleared to zero when we suspend the host.

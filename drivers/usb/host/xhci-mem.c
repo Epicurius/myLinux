@@ -2288,7 +2288,7 @@ xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
 	return ir;
 }
 
-static void xhci_init_interrupter(struct xhci_hcd *xhci, unsigned int intr_num)
+void xhci_init_interrupter(struct xhci_hcd *xhci, unsigned int intr_num)
 {
 	struct xhci_interrupter *ir = xhci->interrupters[intr_num];
 	u64 erst_base;
@@ -2364,68 +2364,10 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
 }
 EXPORT_SYMBOL_GPL(xhci_create_secondary_interrupter);
 
-static void xhci_hcd_page_size(struct xhci_hcd *xhci)
-{
-	u32 page_size;
-
-	page_size = readl(&xhci->op_regs->page_size) & XHCI_PAGE_SIZE_MASK;
-	if (!is_power_of_2(page_size)) {
-		xhci_warn(xhci, "Invalid page size register = 0x%x\n", page_size);
-		/* Fallback to 4K page size, since that's common */
-		page_size = 1;
-	}
-
-	xhci->page_size = page_size << 12;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "HCD page size set to %iK",
-		       xhci->page_size >> 10);
-}
-
-static void xhci_enable_max_dev_slots(struct xhci_hcd *xhci)
-{
-	u32 config_reg;
-        u32 max_slots;
-
-	max_slots = HCS_MAX_SLOTS(xhci->hcs_params1);
-        xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xHC can handle at most %d device slots",
-                       max_slots);
-
-	config_reg = readl(&xhci->op_regs->config_reg);
-        config_reg = (config_reg & ~HCS_SLOTS_MASK) | max_slots;
-
-        xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Setting Max device slots reg = 0x%x",
-                       config_reg);
-	writel(config_reg, &xhci->op_regs->config_reg);
-}
-
-/*
- * Enable USB 3.0 device notifications for function remote wake, which is necessary
- * for allowing USB 3.0 devices to do remote wakeup from U3 (device suspend).
- */
-static void xhci_set_dev_notifications(struct xhci_hcd *xhci)
-{
-	u32 dev_notf;
-
-	dev_notf = readl(&xhci->op_regs->dev_notification);
-	dev_notf = (dev_notf & ~DEV_NOTE_MASK) | DEV_NOTE_FWAKE;
-	writel(dev_notf, &xhci->op_regs->dev_notification);
-}
-
 int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 {
 	struct device	*dev = xhci_to_hcd(xhci)->self.sysdev;
 	dma_addr_t	dma;
-	unsigned int	val;
-	int		i;
-
-	INIT_LIST_HEAD(&xhci->cmd_list);
-
-	/* init command timeout work */
-	INIT_DELAYED_WORK(&xhci->cmd_timer, xhci_handle_command_timeout);
-	init_completion(&xhci->cmd_ring_stop_completion);
-
-	xhci_hcd_page_size(xhci);
-
-	xhci_enable_max_dev_slots(xhci);
 
 	/*
 	 * xHCI section 5.4.6 - Device Context array must be
@@ -2439,7 +2381,6 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 			"// Device context base array address = 0x%pad (DMA), %p (virt)",
 			&xhci->dcbaa->dma, xhci->dcbaa);
-	xhci_write_64(xhci, dma, &xhci->op_regs->dcbaa_ptr);
 
 	/*
 	 * Initialize the ring segment pool.  The ring must be a contiguous
@@ -2487,21 +2428,11 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "First segment DMA is 0x%pad",
 			&xhci->cmd_ring->first_seg->dma);
 
-	/* Set the address in the Command Ring Control register */
-	xhci_set_cmd_ring_deq(xhci);
-
 	/* Reserve one command ring TRB for disabling LPM.
 	 * Since the USB core grabs the shared usb_bus bandwidth mutex before
 	 * disabling LPM, we only need to reserve one TRB for all devices.
 	 */
 	xhci->cmd_ring_reserved_trbs++;
-
-	val = readl(&xhci->cap_regs->db_off);
-	val &= DBOFF_MASK;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-		       "// Doorbell array is located at offset 0x%x from cap regs base addr",
-		       val);
-	xhci->dba = (void __iomem *) xhci->cap_regs + val;
 
 	/* Allocate and set up primary interrupter 0 with an event ring. */
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
@@ -2513,18 +2444,10 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	if (!xhci->interrupters[0])
 		goto fail;
 
-        xhci->interrupters[0]->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
-	xhci_init_interrupter(xhci, 0);
-
-	for (i = 0; i < MAX_HC_SLOTS; i++)
-		xhci->devs[i] = NULL;
-
 	if (scratchpad_alloc(xhci, flags))
 		goto fail;
 	if (xhci_setup_port_arrays(xhci, flags))
 		goto fail;
-
-	xhci_set_dev_notifications(xhci);
 
 	return 0;
 
