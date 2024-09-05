@@ -1838,6 +1838,12 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
 void xhci_remove_secondary_interrupter(struct usb_hcd
 				       *hcd, struct xhci_interrupter *ir);
 
+void xhci_hcd_page_size(struct xhci_hcd *xhci);
+void xhci_set_num_dev_slot_reg(struct xhci_hcd *xhci);
+void xhci_set_db_offset(struct xhci_hcd *xhci);
+void xhci_set_dev_notifications(struct xhci_hcd *xhci);
+void xhci_init_interrupter(struct xhci_hcd *xhci, unsigned int intr_num);
+
 /* xHCI host controller glue */
 typedef void (*xhci_get_quirks_t)(struct device *, struct xhci_hcd *);
 int xhci_handshake(void __iomem *ptr, u32 mask, u32 done, u64 timeout_us);

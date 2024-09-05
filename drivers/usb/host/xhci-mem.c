@@ -2280,7 +2280,7 @@ xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
 	return ir;
 }
 
-static void xhci_init_interrupter(struct xhci_hcd *xhci, unsigned int intr_num)
+void xhci_init_interrupter(struct xhci_hcd *xhci, unsigned int intr_num)
 {
 	struct xhci_interrupter *ir = xhci->interrupters[intr_num];
 	u64 erst_base;
@@ -2357,7 +2357,7 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
 }
 EXPORT_SYMBOL_GPL(xhci_create_secondary_interrupter);
 
-static void xhci_hcd_page_size(struct xhci_hcd *xhci)
+void xhci_hcd_page_size(struct xhci_hcd *xhci)
 {
 	u32 page_size;
 
@@ -2379,7 +2379,7 @@ static void xhci_hcd_page_size(struct xhci_hcd *xhci)
  * Set the Number of Device Slots Enabled field in the CONFIG register with the
  * max value of slots the HC can handle.
  */
-static void xhci_set_num_dev_slot_reg(struct xhci_hcd *xhci)
+void xhci_set_num_dev_slot_reg(struct xhci_hcd *xhci)
 {
 	u32 val;
 
@@ -2391,7 +2391,7 @@ static void xhci_set_num_dev_slot_reg(struct xhci_hcd *xhci)
 	xhci_dbg(xhci, "Set Max device slots reg = 0x%x.", val);
 }
 
-static void xhci_set_db_offset(struct xhci_hcd *xhci)
+void xhci_set_db_offset(struct xhci_hcd *xhci)
 {
 	u32 val;
 
@@ -2405,7 +2405,7 @@ static void xhci_set_db_offset(struct xhci_hcd *xhci)
  * Enable USB 3.0 device notifications for function remote wake, which is necessary
  * for allowing USB 3.0 devices to do remote wakeup from U3 (device suspend).
  */
-static void xhci_set_dev_notifications(struct xhci_hcd *xhci)
+void xhci_set_dev_notifications(struct xhci_hcd *xhci)
 {
 	u32 val;
 
@@ -2419,18 +2419,6 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 {
 	struct device	*dev = xhci_to_hcd(xhci)->self.sysdev;
 	dma_addr_t	dma;
-	int		i;
-
-	INIT_LIST_HEAD(&xhci->cmd_list);
-
-	/* init command timeout work */
-	INIT_DELAYED_WORK(&xhci->cmd_timer, xhci_handle_command_timeout);
-	init_completion(&xhci->cmd_ring_stop_completion);
-
-	/* If 'page_size' is not set, use 4K pages, since that's common and always supported */
-	xhci_hcd_page_size(xhci);
-
-	xhci_set_num_dev_slot_reg(xhci);
 
 	/*
 	 * xHCI section 5.4.6 - Device Context array must be
@@ -2444,7 +2432,6 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 			"// Device context base array address = 0x%pad (DMA), %p (virt)",
 			&xhci->dcbaa->dma, xhci->dcbaa);
-	xhci_write_64(xhci, dma, &xhci->op_regs->dcbaa_ptr);
 
 	/*
 	 * Initialize the ring segment pool.  The ring must be a contiguous
@@ -2491,16 +2478,11 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "First segment DMA is 0x%pad",
 			&xhci->cmd_ring->first_seg->dma);
 
-	/* Set the address in the Command Ring Control register */
-	xhci_set_cmd_ring_deq(xhci);
-
 	/* Reserve one command ring TRB for disabling LPM.
 	 * Since the USB core grabs the shared usb_bus bandwidth mutex before
 	 * disabling LPM, we only need to reserve one TRB for all devices.
 	 */
 	xhci->cmd_ring_reserved_trbs++;
-
-	xhci_set_db_offset(xhci);
 
 	/* Allocate and set up primary interrupter 0 with an event ring. */
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
@@ -2512,17 +2494,10 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	if (!xhci->interrupters[0])
 		goto fail;
 
-	xhci_init_interrupter(xhci, 0);
-
-	for (i = 0; i < MAX_HC_SLOTS; i++)
-		xhci->devs[i] = NULL;
-
 	if (scratchpad_alloc(xhci, flags))
 		goto fail;
 	if (xhci_setup_port_arrays(xhci, flags))
 		goto fail;
-
-	xhci_set_dev_notifications(xhci);
 
 	return 0;
 
