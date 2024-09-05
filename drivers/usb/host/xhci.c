@@ -472,12 +472,43 @@ static int xhci_init(struct usb_hcd *hcd)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	int retval;
+	u32 val;
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_init");
 	spin_lock_init(&xhci->lock);
 
+	INIT_DELAYED_WORK(&xhci->cmd_timer, xhci_handle_command_timeout);
+	INIT_LIST_HEAD(&xhci->cmd_list);
+	init_completion(&xhci->cmd_ring_stop_completion);
+	memset(xhci->devs, 0, MAX_HC_SLOTS * sizeof(*xhci->devs));
+
+	/* If 'page_size' is not set, use 4K pages, since that's common and always supported */
+	xhci_hcd_page_size(xhci);
+
 	retval = xhci_mem_init(xhci, GFP_KERNEL);
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Finished xhci_init");
+	if (retval)
+		return retval;
+
+	/* Set the Number of Device Slots Enabled */
+	xhci_set_dev_slots_enabled(xhci);
+
+	/* Set private xHCD pointer */
+	xhci_write_64(xhci, xhci->dcbaa->dma, &xhci->op_regs->dcbaa_ptr);
+
+	/* Set the address in the Command Ring Control register */
+	xhci_set_cmd_ring_deq(xhci);
+
+	/* Set Doorbell array pointer */
+	val = readl(&xhci->cap_regs->db_off) & DBOFF_MASK;
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
+		       "Doorbell array is located at offset 0x%x from cap regs base addr", val);
+	xhci->dba = (void __iomem *)xhci->cap_regs + val;
+
+	/* Set USB 3.0 device notifications for function remote wake */
+	xhci_set_dev_notifications(xhci);
+
+	/* Initialize the Primary interrupter */
+	xhci_add_interrupter(xhci, 0);
 
 	/* Initializing Compliance Mode Recovery Data If Needed */
 	if (xhci_compliance_mode_recovery_timer_quirk_check()) {
@@ -485,6 +516,7 @@ static int xhci_init(struct usb_hcd *hcd)
 		compliance_mode_recovery_timer_init(xhci);
 	}
 
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Finished xhci_init");
 	return retval;
 }
 
