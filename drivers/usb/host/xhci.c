@@ -1041,22 +1041,56 @@ static int xhci_reinit(struct xhci_hcd *xhci)
 
 	val_32 = readl(&xhci->op_regs->status);
 	writel((val_32 & ~0x1fff) | STS_EINT, &xhci->op_regs->status);
-	xhci_disable_interrupter(xhci->interrupters[0]);
+	for (int i = 0; i < xhci->max_interrupters; i++) {
+		xhci_disable_interrupter(xhci->interrupters[i]);
+		xhci_remove_interrupter(xhci, xhci->interrupters[i]);
+	}
 
-	xhci_dbg(xhci, "Cleaning up xhci memory\n");
-	xhci_mem_cleanup(xhci);
+	cancel_delayed_work_sync(&xhci->cmd_timer);
+
+	for (int i = HCS_MAX_PORTS(xhci->hcs_params1); i > 0; i--)
+		xhci_free_virt_devices_depth_first(xhci, i);
+
+	xhci_cleanup_command_queue(xhci);
+	xhci->cmd_ring_reserved_trbs = 0;
+
 	xhci_debugfs_exit(xhci);
 
 	xhci_dbg(xhci, "Stop HCD completed - status = %x\n", readl(&xhci->op_regs->status));
 
-	/*
-	 * USB core calls the PCI reinit and start functions twice, first with the primary HCD,
-	 * and then with the secondary HCD. If we don't do the same, the host will never be started.
-	 */
-	xhci_dbg(xhci, "Initializing xhci memory\n");
-	ret = xhci_init(hcd);
-	if (ret)
-		return ret;
+	/* Init command timeout work */
+	INIT_LIST_HEAD(&xhci->cmd_list);
+	INIT_DELAYED_WORK(&xhci->cmd_timer, xhci_handle_command_timeout);
+	xhci_reset_ring(xhci, xhci->cmd_ring);
+	xhci->cmd_ring_reserved_trbs++;
+
+	for (int i = 0; i < xhci->max_interrupters; i++) {
+		if (xhci->interrupters[i]) {
+			xhci_reset_ring(xhci, xhci->interrupters[i]->event_ring);
+			xhci_add_interrupter(xhci, i);
+		}
+	}
+
+	/* Set the Number of Device Slots Enabled */
+	xhci_set_dev_slots_enabled(xhci);
+
+	/* xhci_set_cmd_ring_deq() is set on suspend */
+
+	/* Set private xHCD pointer */
+	xhci_write_64(xhci, xhci->dcbaa->dma, &xhci->op_regs->dcbaa_ptr);
+
+	/* Set Doorbell array pointer */
+	val_32 = readl(&xhci->cap_regs->db_off) & DBOFF_MASK;
+	xhci->dba = (void __iomem *)xhci->cap_regs + val_32;
+
+	/* Set USB 3.0 device notifications for function remote wake */
+	xhci_set_dev_notifications(xhci);
+
+	/* Initializing Compliance Mode Recovery Data If Needed */
+	if (xhci_compliance_mode_recovery_timer_quirk_check()) {
+		xhci->quirks |= XHCI_COMP_MODE_QUIRK;
+		compliance_mode_recovery_timer_init(xhci);
+	}
 
 	xhci_dbg(xhci, "Start primary HCD\n");
 	ret = xhci_run(hcd);
