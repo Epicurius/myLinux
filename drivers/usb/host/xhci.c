@@ -1014,6 +1014,76 @@ int xhci_suspend(struct xhci_hcd *xhci, bool do_wakeup)
 }
 EXPORT_SYMBOL_GPL(xhci_suspend);
 
+static int xhci_reinit(struct xhci_hcd *xhci)
+{
+	struct usb_hcd *hcd = xhci_to_hcd(xhci);
+	u32 val_32;
+	int ret;
+
+	if ((xhci->quirks & XHCI_COMP_MODE_QUIRK) && !xhci_all_ports_seen_u0(xhci)) {
+		del_timer_sync(&xhci->comp_mode_recovery_timer);
+		xhci_dbg_trace(xhci, trace_xhci_dbg_quirks,
+			       "Compliance Mode Recovery Timer deleted!");
+	}
+
+	/* Let the USB core know _both_ roothubs lost power. */
+	usb_root_hub_lost_power(xhci->main_hcd->self.root_hub);
+	if (xhci->shared_hcd)
+		usb_root_hub_lost_power(xhci->shared_hcd->self.root_hub);
+
+	xhci_dbg(xhci, "Stop HCD\n");
+	xhci_halt(xhci);
+	xhci_zero_64b_regs(xhci);
+	ret = xhci_reset(xhci, XHCI_RESET_LONG_USEC);
+	spin_unlock_irq(&xhci->lock);
+	if (ret)
+		return ret;
+
+	val_32 = readl(&xhci->op_regs->status);
+	writel((val_32 & ~0x1fff) | STS_EINT, &xhci->op_regs->status);
+	xhci_disable_interrupter(xhci->interrupters[0]);
+
+	xhci_dbg(xhci, "Cleaning up xhci memory\n");
+	xhci_mem_cleanup(xhci);
+	xhci_debugfs_exit(xhci);
+
+	xhci_dbg(xhci, "Stop HCD completed - status = %x\n", readl(&xhci->op_regs->status));
+
+	/*
+	 * USB core calls the PCI reinit and start functions twice, first with the primary HCD,
+	 * and then with the secondary HCD. If we don't do the same, the host will never be started.
+	 */
+	xhci_dbg(xhci, "Initializing xhci memory\n");
+	ret = xhci_init(hcd);
+	if (ret)
+		return ret;
+
+	xhci_dbg(xhci, "Start primary HCD\n");
+	ret = xhci_run(hcd);
+	if (ret)
+		return ret;
+
+	if (xhci->shared_hcd) {
+		xhci_dbg(xhci, "Start secondary HCD\n");
+		ret = xhci_run(xhci->shared_hcd);
+		if (ret)
+			return ret;
+
+		xhci->shared_hcd->state = HC_STATE_SUSPENDED;
+		usb_hcd_resume_root_hub(xhci->shared_hcd);
+	}
+
+	/*
+	 * Resume roothubs unconditionally as PORTSC change bits are not immediately
+	 * visible after xHC reset
+	 */
+	hcd->state = HC_STATE_SUSPENDED;
+	usb_hcd_resume_root_hub(hcd);
+
+	xhci_dbg(xhci, "Start HCD completed - status = %x\n", readl(&xhci->op_regs->status));
+	return 0;
+}
+
 /*
  * start xHC (not bus-specific)
  *
@@ -1096,66 +1166,9 @@ int xhci_resume(struct xhci_hcd *xhci, pm_message_t msg)
 	}
 
 	if (reinit_xhc) {
-		if ((xhci->quirks & XHCI_COMP_MODE_QUIRK) &&
-				!(xhci_all_ports_seen_u0(xhci))) {
-			del_timer_sync(&xhci->comp_mode_recovery_timer);
-			xhci_dbg_trace(xhci, trace_xhci_dbg_quirks,
-				"Compliance Mode Recovery Timer deleted!");
-		}
-
-		/* Let the USB core know _both_ roothubs lost power. */
-		usb_root_hub_lost_power(xhci->main_hcd->self.root_hub);
-		if (xhci->shared_hcd)
-			usb_root_hub_lost_power(xhci->shared_hcd->self.root_hub);
-
-		xhci_dbg(xhci, "Stop HCD\n");
-		xhci_halt(xhci);
-		xhci_zero_64b_regs(xhci);
-		retval = xhci_reset(xhci, XHCI_RESET_LONG_USEC);
-		spin_unlock_irq(&xhci->lock);
+		retval = xhci_reinit(xhci);
 		if (retval)
 			return retval;
-
-		xhci_dbg(xhci, "// Disabling event ring interrupts\n");
-		temp = readl(&xhci->op_regs->status);
-		writel((temp & ~0x1fff) | STS_EINT, &xhci->op_regs->status);
-		xhci_disable_interrupter(xhci->interrupters[0]);
-
-		xhci_dbg(xhci, "cleaning up memory\n");
-		xhci_mem_cleanup(xhci);
-		xhci_debugfs_exit(xhci);
-		xhci_dbg(xhci, "xhci_stop completed - status = %x\n",
-			    readl(&xhci->op_regs->status));
-
-		/* USB core calls the PCI reinit and start functions twice:
-		 * first with the primary HCD, and then with the secondary HCD.
-		 * If we don't do the same, the host will never be started.
-		 */
-		xhci_dbg(xhci, "Initialize the xhci_hcd\n");
-		retval = xhci_init(hcd);
-		if (retval)
-			return retval;
-
-		xhci_dbg(xhci, "Start the primary HCD\n");
-		retval = xhci_run(hcd);
-		if (!retval && xhci->shared_hcd) {
-			xhci_dbg(xhci, "Start the secondary HCD\n");
-			retval = xhci_run(xhci->shared_hcd);
-		}
-		if (retval)
-			return retval;
-		/*
-		 * Resume roothubs unconditionally as PORTSC change bits are not
-		 * immediately visible after xHC reset
-		 */
-		hcd->state = HC_STATE_SUSPENDED;
-
-		if (xhci->shared_hcd) {
-			xhci->shared_hcd->state = HC_STATE_SUSPENDED;
-			usb_hcd_resume_root_hub(xhci->shared_hcd);
-		}
-		usb_hcd_resume_root_hub(hcd);
-
 		goto done;
 	}
 
