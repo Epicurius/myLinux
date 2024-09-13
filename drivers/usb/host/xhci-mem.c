@@ -2378,12 +2378,28 @@ static void xhci_hcd_page_size(struct xhci_hcd *xhci)
 		       xhci->page_size >> 10);
 }
 
+/*
+ * Set the Number of Device Slots Enabled field in the CONFIG register with the
+ * max value of slots the HC can handle.
+ */
+static void xhci_set_dev_slots_enabled(struct xhci_hcd *xhci)
+{
+	u32 val;
+
+	val = HCS_MAX_SLOTS(readl(&xhci->cap_regs->hcs_params1));
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xHC can handle at most %d device slots.", val);
+
+	val |= readl(&xhci->op_regs->config_reg) & ~HCS_SLOTS_MASK;
+	writel(val, &xhci->op_regs->config_reg);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Set Max device slots reg = 0x%x.", val);
+}
+
 int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 {
 	struct xhci_interrupter *ir;
 	struct device	*dev = xhci_to_hcd(xhci)->self.sysdev;
 	dma_addr_t	dma;
-	unsigned int	val, val2;
+	unsigned int	val;
 	u32		temp;
 	int		i;
 
@@ -2395,18 +2411,7 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 
 	xhci_hcd_page_size(xhci);
 
-	/*
-	 * Program the Number of Device Slots Enabled field in the CONFIG
-	 * register with the max value of slots the HC can handle.
-	 */
-	val = HCS_MAX_SLOTS(readl(&xhci->cap_regs->hcs_params1));
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			"// xHC can handle at most %d device slots.", val);
-	val2 = readl(&xhci->op_regs->config_reg);
-	val |= (val2 & ~HCS_SLOTS_MASK);
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			"// Setting Max device slots reg = 0x%x.", val);
-	writel(val, &xhci->op_regs->config_reg);
+	xhci_set_dev_slots_enabled(xhci);
 
 	/*
 	 * xHCI section 5.4.6 - Device Context array must be
