@@ -2432,7 +2432,6 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	struct xhci_interrupter *ir;
 	struct device	*dev = xhci_to_hcd(xhci)->self.sysdev;
 	dma_addr_t	dma;
-	unsigned int	val;
 	int		i;
 
 	INIT_LIST_HEAD(&xhci->cmd_list);
