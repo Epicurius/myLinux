@@ -2414,6 +2414,16 @@ static void xhci_set_num_dev_slot_reg(struct xhci_hcd *xhci)
 	xhci_dbg(xhci, "Set Max device slots reg = 0x%x.", val);
 }
 
+static void xhci_set_db_offset(struct xhci_hcd *xhci)
+{
+	u32 val;
+
+	val = readl(&xhci->cap_regs->db_off);
+	val &= DBOFF_MASK;
+	xhci->dba = (void __iomem *)xhci->cap_regs + val;
+	xhci_dbg(xhci, "Doorbell array is located at offset 0x%x from cap regs base addr\n", val);
+}
+
 /*
  * Enable USB 3.0 device notifications for function remote wake, which is necessary
  * for allowing USB 3.0 devices to do remote wakeup from U3 (device suspend).
@@ -2433,7 +2443,6 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	struct xhci_interrupter *ir;
 	struct device	*dev = xhci_to_hcd(xhci)->self.sysdev;
 	dma_addr_t	dma;
-	unsigned int	val;
 	int		i;
 
 	INIT_LIST_HEAD(&xhci->cmd_list);
@@ -2515,12 +2524,7 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	 */
 	xhci->cmd_ring_reserved_trbs++;
 
-	val = readl(&xhci->cap_regs->db_off);
-	val &= DBOFF_MASK;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-		       "// Doorbell array is located at offset 0x%x from cap regs base addr",
-		       val);
-	xhci->dba = (void __iomem *) xhci->cap_regs + val;
+	xhci_set_db_offset(xhci);
 
 	/* Allocate and set up primary interrupter 0 with an event ring. */
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
