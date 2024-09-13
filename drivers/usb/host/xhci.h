@@ -1837,6 +1837,9 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
 				  u32 imod_interval);
 void xhci_remove_secondary_interrupter(struct usb_hcd
 				       *hcd, struct xhci_interrupter *ir);
+void xhci_init_registers(struct xhci_hcd *xhci);
+void xhci_remove_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir);
+void xhci_free_virt_devices_depth_first(struct xhci_hcd *xhci, int slot_id);
 
 void xhci_hcd_page_size(struct xhci_hcd *xhci);
 void xhci_set_num_dev_slot_reg(struct xhci_hcd *xhci);
@@ -1924,6 +1927,7 @@ void xhci_cleanup_command_queue(struct xhci_hcd *xhci);
 void inc_deq(struct xhci_hcd *xhci, struct xhci_ring *ring);
 unsigned int count_trbs(u64 addr, u64 len);
 void xhci_set_cmd_ring_deq(struct xhci_hcd *xhci);
+void xhci_reset_ring(struct xhci_hcd *xhci, struct xhci_ring *ring);
 
 /* xHCI roothub code */
 void xhci_set_link_state(struct xhci_hcd *xhci, struct xhci_port *port,
