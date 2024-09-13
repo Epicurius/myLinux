@@ -751,20 +751,19 @@ static void xhci_restore_registers(struct xhci_hcd *xhci)
 	}
 }
 
-static void xhci_set_cmd_ring_deq(struct xhci_hcd *xhci)
+void xhci_set_cmd_ring_deq(struct xhci_hcd *xhci)
 {
-	u64	val_64;
+	dma_addr_t deq_dma;
+	u64 val_64;
 
-	/* step 2: initialize command ring buffer */
 	val_64 = xhci_read_64(xhci, &xhci->op_regs->cmd_ring);
-	val_64 = (val_64 & (u64) CMD_RING_RSVD_BITS) |
-		(xhci_trb_virt_to_dma(xhci->cmd_ring->deq_seg,
-				      xhci->cmd_ring->dequeue) &
-		 (u64) ~CMD_RING_RSVD_BITS) |
-		xhci->cmd_ring->cycle_state;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			"// Setting command ring address to 0x%llx",
-			(long unsigned long) val_64);
+	val_64 &= ~CMD_RING_PTR_MASK;
+
+	deq_dma = xhci_trb_virt_to_dma(xhci->cmd_ring->deq_seg, xhci->cmd_ring->dequeue);
+	deq_dma &= CMD_RING_PTR_MASK;
+
+	val_64 &= (u64)deq_dma | xhci->cmd_ring->cycle_state;
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Setting command ring address to 0x%llx", val_64);
 	xhci_write_64(xhci, val_64, &xhci->op_regs->cmd_ring);
 }
 
