@@ -2404,13 +2404,25 @@ static void xhci_enable_max_dev_slots(struct xhci_hcd *xhci)
 	writel(config_reg, &xhci->op_regs->config_reg);
 }
 
+/*
+ * Enable USB 3.0 device notifications for function remote wake, which is necessary
+ * for allowing USB 3.0 devices to do remote wakeup from U3 (device suspend).
+ */
+static void xhci_set_dev_notifications(struct xhci_hcd *xhci)
+{
+	u32 dev_notf;
+
+	dev_notf = readl(&xhci->op_regs->dev_notification);
+	dev_notf = (dev_notf & ~DEV_NOTE_MASK) | DEV_NOTE_FWAKE;
+	writel(dev_notf, &xhci->op_regs->dev_notification);
+}
+
 int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 {
 	struct xhci_interrupter *ir;
 	struct device	*dev = xhci_to_hcd(xhci)->self.sysdev;
 	dma_addr_t	dma;
 	unsigned int	val;
-	u32		temp;
 	int		i;
 
 	INIT_LIST_HEAD(&xhci->cmd_list);
@@ -2522,14 +2534,7 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	if (xhci_setup_port_arrays(xhci, flags))
 		goto fail;
 
-	/* Enable USB 3.0 device notifications for function remote wake, which
-	 * is necessary for allowing USB 3.0 devices to do remote wakeup from
-	 * U3 (device suspend).
-	 */
-	temp = readl(&xhci->op_regs->dev_notification);
-	temp &= ~DEV_NOTE_MASK;
-	temp |= DEV_NOTE_FWAKE;
-	writel(temp, &xhci->op_regs->dev_notification);
+	xhci_set_dev_notifications(xhci);
 
 	return 0;
 
