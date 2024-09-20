@@ -2288,26 +2288,14 @@ xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
 	return ir;
 }
 
-static int
-xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
-		     unsigned int intr_num)
+static void xhci_add_interrupter(struct xhci_hcd *xhci, unsigned int intr_num)
 {
+	struct xhci_interrupter *ir = xhci->interrupters[intr_num];
 	u64 erst_base;
 	u32 erst_size;
 
-	if (intr_num >= xhci->max_interrupters) {
-		xhci_warn(xhci, "Can't add interrupter %d, max interrupters %d\n",
-			  intr_num, xhci->max_interrupters);
-		return -EINVAL;
-	}
-
-	if (xhci->interrupters[intr_num]) {
-		xhci_warn(xhci, "Interrupter %d\n already set up", intr_num);
-		return -EINVAL;
-	}
-
-	xhci->interrupters[intr_num] = ir;
 	ir->intr_num = intr_num;
+	ir->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
 	ir->ir_set = &xhci->run_regs->ir_set[intr_num];
 
 	/* set ERST count with the number of entries in the segment table */
@@ -2326,8 +2314,6 @@ xhci_add_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
 
 	/* Set the event ring dequeue address of this interrupter */
 	xhci_set_hc_event_deq(xhci, ir);
-
-	return 0;
 }
 
 struct xhci_interrupter *
@@ -2351,7 +2337,9 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
 	/* Find available secondary interrupter, interrupter 0 is reserved for primary */
 	for (i = 1; i < xhci->max_interrupters; i++) {
 		if (xhci->interrupters[i] == NULL) {
-			err = xhci_add_interrupter(xhci, ir, i);
+			xhci->interrupters[i] = ir;
+			xhci_add_interrupter(xhci, i);
+			err = 0;
 			break;
 		}
 	}
@@ -2415,7 +2403,6 @@ static void xhci_set_dev_notifications(struct xhci_hcd *xhci)
 
 int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 {
-	struct xhci_interrupter *ir;
 	struct device	*dev = xhci_to_hcd(xhci)->self.sysdev;
 	dma_addr_t	dma;
 	unsigned int	val;
@@ -2512,14 +2499,11 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	xhci->interrupters = kcalloc_node(xhci->max_interrupters, sizeof(*xhci->interrupters),
 					  flags, dev_to_node(dev));
 
-	ir = xhci_alloc_interrupter(xhci, 0, flags);
-	if (!ir)
+	xhci->interrupters[0] = xhci_alloc_interrupter(xhci, 0, flags);
+	if (!xhci->interrupters[0])
 		goto fail;
 
-	if (xhci_add_interrupter(xhci, ir, 0))
-		goto fail;
-
-	ir->isoc_bei_interval = AVOID_BEI_INTERVAL_MAX;
+	xhci_add_interrupter(xhci, 0);
 
 	for (i = 0; i < MAX_HC_SLOTS; i++)
 		xhci->devs[i] = NULL;
