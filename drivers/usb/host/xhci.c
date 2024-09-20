@@ -1086,7 +1086,6 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 	u32			command, temp = 0;
 	struct usb_hcd		*hcd = xhci_to_hcd(xhci);
 	int			retval = 0;
-	bool			comp_timer_running = false;
 	bool			pending_portevent = false;
 	bool			suspended_usb3_devs = false;
 
@@ -1195,7 +1194,6 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 		retval = xhci_init(hcd);
 		if (retval)
 			return retval;
-		comp_timer_running = true;
 
 		xhci_dbg(xhci, "Start the primary HCD\n");
 		retval = xhci_run(hcd);
@@ -1240,40 +1238,38 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 
 	xhci_dbc_resume(xhci);
 
-	if (retval == 0) {
-		/*
-		 * Resume roothubs only if there are pending events.
-		 * USB 3 devices resend U3 LFPS wake after a 100ms delay if
-		 * the first wake signalling failed, give it that chance if
-		 * there are suspended USB 3 devices.
-		 */
-		if (xhci->usb3_rhub.bus_state.suspended_ports ||
-		    xhci->usb3_rhub.bus_state.bus_suspended)
-			suspended_usb3_devs = true;
+	/*
+	 * Resume roothubs only if there are pending events.
+	 * USB 3 devices resend U3 LFPS wake after a 100ms delay if
+	 * the first wake signalling failed, give it that chance if
+	 * there are suspended USB 3 devices.
+	 */
+	if (xhci->usb3_rhub.bus_state.suspended_ports ||
+		xhci->usb3_rhub.bus_state.bus_suspended)
+		suspended_usb3_devs = true;
 
+	pending_portevent = xhci_pending_portevent(xhci);
+
+	if (suspended_usb3_devs && !pending_portevent && is_auto_resume) {
+		msleep(120);
 		pending_portevent = xhci_pending_portevent(xhci);
-
-		if (suspended_usb3_devs && !pending_portevent && is_auto_resume) {
-			msleep(120);
-			pending_portevent = xhci_pending_portevent(xhci);
-		}
-
-		if (pending_portevent) {
-			if (xhci->shared_hcd)
-				usb_hcd_resume_root_hub(xhci->shared_hcd);
-			usb_hcd_resume_root_hub(hcd);
-		}
 	}
-done:
+
+	if (pending_portevent) {
+		if (xhci->shared_hcd)
+			usb_hcd_resume_root_hub(xhci->shared_hcd);
+		usb_hcd_resume_root_hub(hcd);
+	}
+
 	/*
 	 * If system is subject to the Quirk, Compliance Mode Timer needs to
 	 * be re-initialized Always after a system resume. Ports are subject
 	 * to suffer the Compliance Mode issue again. It doesn't matter if
 	 * ports have entered previously to U0 before system's suspension.
 	 */
-	if ((xhci->quirks & XHCI_COMP_MODE_QUIRK) && !comp_timer_running)
+	if (xhci->quirks & XHCI_COMP_MODE_QUIRK)
 		compliance_mode_recovery_timer_init(xhci);
-
+done:
 	if (xhci->quirks & XHCI_ASMEDIA_MODIFY_FLOWCONTROL)
 		usb_asmedia_modifyflowcontrol(to_pci_dev(hcd->self.controller));
 
