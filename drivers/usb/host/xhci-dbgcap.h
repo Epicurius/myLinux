@@ -110,6 +110,7 @@ struct dbc_port {
 	struct tasklet_struct		push;
 
 	struct list_head		write_pool;
+	size_t				tx_boundary;
 
 	bool				registered;
 };
