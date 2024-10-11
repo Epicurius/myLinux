@@ -469,11 +469,11 @@ static int xhci_all_ports_seen_u0(struct xhci_hcd *xhci)
 static int xhci_init(struct usb_hcd *hcd)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	int retval;
+	int ret;
 
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_init");
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Starting xhci_init");
+
 	spin_lock_init(&xhci->lock);
-
 	INIT_DELAYED_WORK(&xhci->cmd_timer, xhci_handle_command_timeout);
 	INIT_LIST_HEAD(&xhci->cmd_list);
 	init_completion(&xhci->cmd_ring_stop_completion);
@@ -482,9 +482,9 @@ static int xhci_init(struct usb_hcd *hcd)
 
 	memset(xhci->devs, 0, MAX_HC_SLOTS * sizeof(*xhci->devs));
 
-	retval = xhci_mem_init(xhci, GFP_KERNEL);
-	if (retval)
-		return retval;
+	ret = xhci_mem_init(xhci, GFP_KERNEL);
+	if (ret)
+		return ret;
 
 	/* Set the Number of Device Slots Enabled */
 	xhci_set_num_dev_slot_reg(xhci);
@@ -511,7 +511,7 @@ static int xhci_init(struct usb_hcd *hcd)
 	}
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Finished xhci_init");
-	return retval;
+	return 0;
 }
 
 /*-------------------------------------------------------------------------*/
