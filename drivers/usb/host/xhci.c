@@ -535,10 +535,11 @@ static void xhci_set_cmd_ring_deq(struct xhci_hcd *xhci)
 static int xhci_init(struct usb_hcd *hcd)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-	int retval;
+	int ret;
 	u32 val;
 
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_init");
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Starting %s", __func__);
+
 	spin_lock_init(&xhci->lock);
 
 	INIT_DELAYED_WORK(&xhci->cmd_timer, xhci_handle_command_timeout);
@@ -549,9 +550,9 @@ static int xhci_init(struct usb_hcd *hcd)
 	/* If 'page_size' is not set, use 4K pages, since that's common and always supported */
 	xhci_hcd_page_size(xhci);
 
-	retval = xhci_mem_init(xhci, GFP_KERNEL);
-	if (retval)
-		return retval;
+	ret = xhci_mem_init(xhci, GFP_KERNEL);
+	if (ret)
+		return ret;
 
 	/* Set the Number of Device Slots Enabled */
 	xhci_enable_max_dev_slots(xhci);
@@ -581,8 +582,8 @@ static int xhci_init(struct usb_hcd *hcd)
 		compliance_mode_recovery_timer_init(xhci);
 	}
 
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Finished xhci_init");
-	return retval;
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Finished %s", __func__);
+	return 0;
 }
 
 /*-------------------------------------------------------------------------*/
