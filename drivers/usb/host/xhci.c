@@ -548,8 +548,6 @@ int xhci_run(struct usb_hcd *hcd)
 	 */
 
 	hcd->uses_new_polling = 1;
-	if (hcd->msi_enabled)
-		ir->ip_autoclear = true;
 
 	if (!usb_hcd_is_primary_hcd(hcd))
 		return xhci_run_finished(xhci);
@@ -560,8 +558,6 @@ int xhci_run(struct usb_hcd *hcd)
 	temp_64 &= ERST_PTR_MASK;
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 			"ERST deq = 64'h%0lx", (long unsigned int) temp_64);
-
-	xhci_set_interrupter_moderation(xhci, ir, xhci->imod_interval);
 
 	if (xhci->quirks & XHCI_NEC_HOST) {
 		struct xhci_command *command;
