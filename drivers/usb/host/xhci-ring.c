@@ -1446,7 +1446,14 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 		}
 
 		xhci_cleanup_set_deq(xhci, ep, cmd_comp_code);
-		break;
+
+		/* Are there more cancelled TD's to return? */
+		if (!list_empty(&ep->cancelled_td_list))
+			break;
+
+		xhci_dbg(xhci, "%s: All TDs cleared, ring doorbell\n", __func__);
+		ring_doorbell_for_active_rings(xhci, slot_id, ep_index);
+		return;
 	case COMP_TRB_ERROR:
 		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd invalid because of stream ID configuration\n");
 		xhci_cleanup_set_deq(xhci, ep, cmd_comp_code);
@@ -1472,20 +1479,13 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 		break;
 	}
 
+	xhci_dbg(xhci, "%s: Pending TDs to clear, continuing with invalidation\n", __func__);
 	/* Check for deferred or newly cancelled TDs */
-	if (!list_empty(&ep->cancelled_td_list)) {
-		xhci_dbg(ep->xhci, "%s: Pending TDs to clear, continuing with invalidation\n",
-			 __func__);
-		xhci_invalidate_cancelled_tds(ep);
-		/* Try to restart the endpoint if all is done */
-		ring_doorbell_for_active_rings(xhci, slot_id, ep_index);
-		/* Start giving back any TDs invalidated above */
-		xhci_giveback_invalidated_tds(ep);
-	} else {
-		/* Restart any rings with pending URBs */
-		xhci_dbg(ep->xhci, "%s: All TDs cleared, ring doorbell\n", __func__);
-		ring_doorbell_for_active_rings(xhci, slot_id, ep_index);
-	}
+	xhci_invalidate_cancelled_tds(ep);
+	/* Try to restart the endpoint if all is done */
+	ring_doorbell_for_active_rings(xhci, slot_id, ep_index);
+	/* Start giving back any TDs invalidated above */
+	xhci_giveback_invalidated_tds(ep);
 }
 
 static void xhci_handle_cmd_reset_ep(struct xhci_hcd *xhci, int slot_id,
