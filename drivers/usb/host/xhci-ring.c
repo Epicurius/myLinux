@@ -1446,19 +1446,16 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 			xhci_warn(xhci, "ep deq seg = %p, deq ptr = %p\n",
 				  ep->queued_deq_seg, ep->queued_deq_ptr);
 		}
-	}
-	/* HW cached TDs cleared from cache, give them back */
-	list_for_each_entry_safe(td, tmp_td, &ep->cancelled_td_list,
-				 cancelled_td_list) {
-		ep_ring = xhci_urb_to_transfer_ring(ep->xhci, td->urb);
-		if (td->cancel_status == TD_CLEARING_CACHE) {
-			td->cancel_status = TD_CLEARED;
-			xhci_dbg(ep->xhci, "%s: Giveback cancelled URB %p TD\n",
-				 __func__, td->urb);
-			xhci_td_cleanup(ep->xhci, td, ep_ring, td->status);
-		} else {
-			xhci_dbg(ep->xhci, "%s: Keep cancelled URB %p TD as cancel_status is %d\n",
-				 __func__, td->urb, td->cancel_status);
+
+		/* HW cached TDs cleared from cache, give them back */
+		list_for_each_entry_safe(td, tmp_td, &ep->cancelled_td_list, cancelled_td_list) {
+			if (td->cancel_status == TD_CLEARING_CACHE) {
+				td->cancel_status = TD_CLEARED;
+				xhci_dbg(xhci, "%s: Giveback cancelled URB %p TD\n",
+					 __func__, td->urb);
+				ep_ring = xhci_urb_to_transfer_ring(xhci, td->urb);
+				xhci_td_cleanup(xhci, td, ep_ring, td->status);
+			}
 		}
 	}
 
