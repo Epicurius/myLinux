@@ -1352,28 +1352,21 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 	struct xhci_td *td, *tmp_td;
 
 	ep_index = TRB_TO_EP_INDEX(le32_to_cpu(trb->generic.field[3]));
-	stream_id = TRB_TO_STREAM_ID(le32_to_cpu(trb->generic.field[2]));
 	ep = xhci_get_virt_ep(xhci, slot_id, ep_index);
 	if (!ep)
 		return;
 
-	ep_ring = xhci_virt_ep_to_ring(xhci, ep, stream_id);
-	if (!ep_ring) {
-		xhci_warn(xhci, "WARN Set TR deq ptr command for freed stream ID %u\n",
-				stream_id);
-		/* XXX: Harmless??? */
-		goto cleanup;
+	stream_id = TRB_TO_STREAM_ID(le32_to_cpu(trb->generic.field[2]));
+	if (ep->ep_state & EP_HAS_STREAMS && !ep->stream_info) {
+		xhci_warn(xhci, "Set TR Deq command for freed stream ID %u\n", stream_id);
+		ep->ep_state &= ~SET_DEQ_PENDING;
+		return;
 	}
 
 	ep_ctx = xhci_get_ep_ctx(xhci, ep->vdev->out_ctx, ep_index);
 	slot_ctx = xhci_get_slot_ctx(xhci, ep->vdev->out_ctx);
 	trace_xhci_handle_cmd_set_deq(slot_ctx);
 	trace_xhci_handle_cmd_set_deq_ep(ep_ctx);
-
-	if (ep->ep_state & EP_HAS_STREAMS) {
-		stream_ctx = &ep->stream_info->stream_ctx_array[stream_id];
-		trace_xhci_handle_cmd_set_deq_stream(ep->stream_info, stream_id);
-	}
 
 	if (cmd_comp_code != COMP_SUCCESS) {
 		unsigned int ep_state;
@@ -1411,7 +1404,14 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 		u64 deq;
 		/* 4.6.10 deq ptr is written to the stream ctx for streams */
 		if (ep->ep_state & EP_HAS_STREAMS) {
-			deq = le64_to_cpu(stream_ctx->stream_ring) & SCTX_DEQ_MASK;
+			/* Very unlikely, means that the host and driver are out of sync. */
+			if (stream_id == 0 || stream_id >= ep->stream_info->num_streams) {
+				xhci_warn(xhci, "Invalid stream ID %u\n", stream_id);
+				return;
+			}
+
+			trace_xhci_handle_cmd_set_deq_stream(ep->stream_info, stream_id);
+			stream_ctx = &ep->stream_info->stream_ctx_array[stream_id];
 
 			/*
 			 * Cadence xHCI controllers store some endpoint state
@@ -1426,7 +1426,10 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 				stream_ctx->reserved[0] = 0;
 				stream_ctx->reserved[1] = 0;
 			}
+			ep_ring = ep->stream_info->stream_rings[stream_id];
+			deq = le64_to_cpu(stream_ctx->stream_ring) & SCTX_DEQ_MASK;
 		} else {
+			ep_ring = ep->ring;
 			deq = le64_to_cpu(ep_ctx->deq) & ~EP_CTX_CYCLE_MASK;
 		}
 		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
@@ -1458,7 +1461,7 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 				 __func__, td->urb, td->cancel_status);
 		}
 	}
-cleanup:
+
 	ep->ep_state &= ~SET_DEQ_PENDING;
 	ep->queued_deq_seg = NULL;
 	ep->queued_deq_ptr = NULL;
