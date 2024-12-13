@@ -1905,8 +1905,7 @@ static void handle_cmd_completion(struct xhci_hcd *xhci,
 
 	/* restart timer if this wasn't the last command */
 	if (!list_is_singular(&xhci->cmd_list)) {
-		xhci->current_cmd = list_first_entry(&cmd->cmd_list,
-						struct xhci_command, cmd_list);
+		xhci->current_cmd = list_next_entry(cmd, cmd_list);
 		xhci_mod_cmd_timer(xhci);
 	} else if (xhci->current_cmd == cmd) {
 		xhci->current_cmd = NULL;
