@@ -1081,7 +1081,6 @@ static int xhci_invalidate_cancelled_tds(struct xhci_virt_ep *ep)
 						  "Found multiple active URBs %p and %p in stream %u?\n",
 						  td->urb, cached_td->urb,
 						  td->urb->stream_id);
-					td_to_noop(cached_td, false);
 					cached_td->cancel_status = TD_CLEARED;
 				}
 				td_to_noop(td, false);
