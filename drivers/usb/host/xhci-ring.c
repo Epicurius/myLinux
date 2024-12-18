@@ -1332,6 +1332,34 @@ void xhci_hc_died(struct xhci_hcd *xhci)
 		usb_hc_died(xhci_to_hcd(xhci));
 }
 
+static void xhci_cleanup_set_deq(struct xhci_hcd *xhci, struct xhci_virt_ep *ep, u32 cmd_comp_code)
+{
+	struct xhci_ring *ring;
+	struct xhci_td *td, *_td;
+
+	ep->ep_state &= ~SET_DEQ_PENDING;
+	ep->queued_deq_seg = NULL;
+	ep->queued_deq_ptr = NULL;
+
+	if (cmd_comp_code == COMP_SUCCESS) {
+		/* HW cached TDs cleared from cache, give them back */
+		list_for_each_entry_safe(td, _td, &ep->cancelled_td_list, cancelled_td_list) {
+			if (td->cancel_status == TD_CLEARING_CACHE) {
+				td->cancel_status = TD_CLEARED;
+				xhci_dbg(xhci, "Giveback cancelled URB %p TD\n", td->urb);
+				ring = xhci_urb_to_transfer_ring(xhci, td->urb);
+				xhci_td_cleanup(xhci, td, ring, td->status);
+			}
+		}
+	} else {
+		/* Mark all failed Set TR Deq TD's as Dirty, so they can be re-issued */
+		list_for_each_entry(td, &ep->cancelled_td_list, cancelled_td_list) {
+			if (td->cancel_status == TD_CLEARING_CACHE)
+				td->cancel_status = TD_DIRTY;
+		}
+	}
+}
+
 /*
  * When we get a completion for a Set Transfer Ring Dequeue Pointer command,
  * we need to clear the set deq pending flag in the endpoint ring state, so that
@@ -1352,7 +1380,6 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 	struct xhci_ep_ctx *ep_ctx;
 	struct xhci_slot_ctx *slot_ctx;
 	struct xhci_stream_ctx *stream_ctx;
-	struct xhci_td *td, *tmp_td;
 
 	ep_index = TRB_TO_EP_INDEX(le32_to_cpu(trb->generic.field[3]));
 	ep = xhci_get_virt_ep(xhci, slot_id, ep_index);
@@ -1418,22 +1445,15 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 				  ep->queued_deq_seg, ep->queued_deq_ptr);
 		}
 
-		/* HW cached TDs cleared from cache, give them back */
-		list_for_each_entry_safe(td, tmp_td, &ep->cancelled_td_list, cancelled_td_list) {
-			if (td->cancel_status == TD_CLEARING_CACHE) {
-				td->cancel_status = TD_CLEARED;
-				xhci_dbg(xhci, "%s: Giveback cancelled URB %p TD\n",
-					 __func__, td->urb);
-				ep_ring = xhci_urb_to_transfer_ring(xhci, td->urb);
-				xhci_td_cleanup(xhci, td, ep_ring, td->status);
-			}
-		}
+		xhci_cleanup_set_deq(xhci, ep, cmd_comp_code);
 		break;
 	case COMP_TRB_ERROR:
 		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd invalid because of stream ID configuration\n");
+		xhci_cleanup_set_deq(xhci, ep, cmd_comp_code);
 		break;
 	case COMP_CONTEXT_STATE_ERROR:
 		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed due to incorrect slot or ep state.\n");
+		xhci_cleanup_set_deq(xhci, ep, cmd_comp_code);
 		ep_state = GET_EP_CTX_STATE(ep_ctx);
 		slot_state = le32_to_cpu(slot_ctx->dev_state);
 		slot_state = GET_SLOT_STATE(slot_state);
@@ -1443,16 +1463,14 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 	case COMP_SLOT_NOT_ENABLED_ERROR:
 		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed because slot %u was not enabled.\n",
 			  slot_id);
+		xhci_cleanup_set_deq(xhci, ep, cmd_comp_code);
 		break;
 	default:
 		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd with unknown completion code of %u.\n",
 			  cmd_comp_code);
+		xhci_cleanup_set_deq(xhci, ep, cmd_comp_code);
 		break;
 	}
-
-	ep->ep_state &= ~SET_DEQ_PENDING;
-	ep->queued_deq_seg = NULL;
-	ep->queued_deq_ptr = NULL;
 
 	/* Check for deferred or newly cancelled TDs */
 	if (!list_empty(&ep->cancelled_td_list)) {
