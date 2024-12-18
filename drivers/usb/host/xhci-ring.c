@@ -1375,6 +1375,7 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 	unsigned int stream_id;
 	unsigned int ep_state;
 	unsigned int slot_state;
+	struct xhci_td *td;
 	struct xhci_ring *ep_ring;
 	struct xhci_virt_ep *ep;
 	struct xhci_ep_ctx *ep_ctx;
@@ -1455,9 +1456,25 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 		ring_doorbell_for_active_rings(xhci, slot_id, ep_index);
 		return;
 	case COMP_TRB_ERROR:
-		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd invalid because of stream ID configuration\n");
 		xhci_cleanup_set_deq(xhci, ep, cmd_comp_code);
-		break;
+		if (!stream_id) {
+			xhci_warn(xhci, "Set TR Deq failed, %u Max Primary Streams\n",
+				  EP_MAXPSTREAMS(ep_ctx->ep_info));
+			return;
+		}
+		/*
+		 * If Stream ID is non-zero a Stream ID boundary check is performed.
+		 * If a boundary error is detected for Set TR Deq command, a Command
+		 * Completion Event is set with a TRB Error which shall halt the endpoint.
+		 * 4.12.2.1
+		 */
+		xhci_warn(xhci, "Set TR Deq failed, Stream %u boundary check failed\n", stream_id);
+		if (GET_EP_CTX_STATE(ep_ctx) == EP_STATE_HALTED) {
+			td = find_halted_td(ep);
+			td->status = -EPIPE;
+			xhci_handle_halted_endpoint(xhci, ep, td, EP_HARD_RESET);
+		}
+		return;
 	case COMP_CONTEXT_STATE_ERROR:
 		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed due to incorrect slot or ep state.\n");
 		xhci_cleanup_set_deq(xhci, ep, cmd_comp_code);
