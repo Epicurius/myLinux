@@ -1342,8 +1342,11 @@ void xhci_hc_died(struct xhci_hcd *xhci)
 static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 		union xhci_trb *trb, u32 cmd_comp_code)
 {
+	u64 deq;
 	unsigned int ep_index;
 	unsigned int stream_id;
+	unsigned int ep_state;
+	unsigned int slot_state;
 	struct xhci_ring *ep_ring;
 	struct xhci_virt_ep *ep;
 	struct xhci_ep_ctx *ep_ctx;
@@ -1368,41 +1371,9 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 	trace_xhci_handle_cmd_set_deq(slot_ctx);
 	trace_xhci_handle_cmd_set_deq_ep(ep_ctx);
 
-	if (cmd_comp_code != COMP_SUCCESS) {
-		unsigned int ep_state;
-		unsigned int slot_state;
-
-		switch (cmd_comp_code) {
-		case COMP_TRB_ERROR:
-			xhci_warn(xhci, "WARN Set TR Deq Ptr cmd invalid because of stream ID configuration\n");
-			break;
-		case COMP_CONTEXT_STATE_ERROR:
-			xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed due to incorrect slot or ep state.\n");
-			ep_state = GET_EP_CTX_STATE(ep_ctx);
-			slot_state = le32_to_cpu(slot_ctx->dev_state);
-			slot_state = GET_SLOT_STATE(slot_state);
-			xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
-					"Slot state = %u, EP state = %u",
-					slot_state, ep_state);
-			break;
-		case COMP_SLOT_NOT_ENABLED_ERROR:
-			xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed because slot %u was not enabled.\n",
-					slot_id);
-			break;
-		default:
-			xhci_warn(xhci, "WARN Set TR Deq Ptr cmd with unknown completion code of %u.\n",
-					cmd_comp_code);
-			break;
-		}
-		/* OK what do we do now?  The endpoint state is hosed, and we
-		 * should never get to this point if the synchronization between
-		 * queueing, and endpoint state are correct.  This might happen
-		 * if the device gets disconnected after we've finished
-		 * cancelling URBs, which might not be an error...
-		 */
-	} else {
-		u64 deq;
-		/* 4.6.10 deq ptr is written to the stream ctx for streams */
+	/* xhci spec. 1.2, section 4.6.10 */
+	switch (cmd_comp_code) {
+	case COMP_SUCCESS:
 		if (ep->ep_state & EP_HAS_STREAMS) {
 			/* Very unlikely, means that the host and driver are out of sync. */
 			if (stream_id == 0 || stream_id >= ep->stream_info->num_streams) {
@@ -1457,6 +1428,26 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 				xhci_td_cleanup(xhci, td, ep_ring, td->status);
 			}
 		}
+		break;
+	case COMP_TRB_ERROR:
+		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd invalid because of stream ID configuration\n");
+		break;
+	case COMP_CONTEXT_STATE_ERROR:
+		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed due to incorrect slot or ep state.\n");
+		ep_state = GET_EP_CTX_STATE(ep_ctx);
+		slot_state = le32_to_cpu(slot_ctx->dev_state);
+		slot_state = GET_SLOT_STATE(slot_state);
+		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb, "Slot state = %u, EP state = %u",
+			       slot_state, ep_state);
+		break;
+	case COMP_SLOT_NOT_ENABLED_ERROR:
+		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed because slot %u was not enabled.\n",
+			  slot_id);
+		break;
+	default:
+		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd with unknown completion code of %u.\n",
+			  cmd_comp_code);
+		break;
 	}
 
 	ep->ep_state &= ~SET_DEQ_PENDING;
