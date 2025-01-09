@@ -82,6 +82,19 @@ dma_addr_t xhci_trb_virt_to_dma(struct xhci_segment *seg,
 	return seg->dma + (segment_offset * sizeof(*trb));
 }
 
+static union xhci_trb *xhci_dma_to_trb(struct xhci_ring *ring, dma_addr_t dma)
+{
+	struct xhci_segment *seg = ring->deq_seg;
+
+	do {
+		if (in_range(dma, seg->dma, TRB_SEGMENT_SIZE))
+			return &seg->trbs[(dma - seg->dma) / sizeof(union xhci_trb)];
+		seg = seg->next;
+	} while (seg != ring->deq_seg);
+
+	return NULL;
+}
+
 static bool trb_is_noop(union xhci_trb *trb)
 {
 	return TRB_TYPE_NOOP_LE32(trb->generic.field[3]);
@@ -2626,10 +2639,10 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	struct xhci_ring *ep_ring;
 	unsigned int slot_id;
 	int ep_index;
+	struct xhci_td *matched_td;
 	struct xhci_td *td = NULL;
 	dma_addr_t ep_trb_dma;
-	struct xhci_segment *ep_seg;
-	union xhci_trb *ep_trb;
+	union xhci_trb *ep_trb = NULL;
 	int status = -EINPROGRESS;
 	struct xhci_ep_ctx *ep_ctx;
 	u32 trb_comp_code;
@@ -2658,6 +2671,10 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 
 	if (!ep_ring)
 		return handle_transferless_tx_event(xhci, ep, trb_comp_code);
+
+	/* find the transfer trb this events points to */
+	if (ep_trb_dma)
+		ep_trb = xhci_dma_to_trb(ep_ring, ep_trb_dma);
 
 	/* Look for common error cases */
 	switch (trb_comp_code) {
@@ -2806,7 +2823,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	}
 
 	/* If the TRB pointer is NULL, missed TDs will be skipped on the next event */
-	if (trb_comp_code == COMP_MISSED_SERVICE_ERROR && !ep_trb_dma)
+	if (trb_comp_code == COMP_MISSED_SERVICE_ERROR && !ep_trb)
 		return 0;
 
 	if (list_empty(&ep_ring->td_list)) {
@@ -2831,13 +2848,15 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	do {
 		td = list_first_entry(&ep_ring->td_list, struct xhci_td,
 				      td_list);
+		matched_td = NULL;
 
 		/* Is this a TRB in the currently executing TD? */
-		ep_seg = trb_in_td(xhci, td, ep_trb_dma, false);
+		if (trb_in_td(xhci, td, ep_trb_dma, false))
+			matched_td = td;
 
 		if (ep->skip) {
 
-			if (!ep_seg && usb_endpoint_xfer_isoc(&td->urb->ep->desc)) {
+			if (!matched_td && usb_endpoint_xfer_isoc(&td->urb->ep->desc)) {
 				skip_isoc_td(xhci, td, ep, status);
 
 				if (!list_empty(&ep_ring->td_list)) {
@@ -2879,7 +2898,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	if (ring_xrun_event)
 		return 0;	/* don't warn or complete any TDs */
 
-	if (!ep_seg) {
+	if (!matched_td) {
 		/*
 		 * Skip the Force Stopped Event. The 'ep_trb' of FSE is not in the current
 		 * TD pointed by 'ep_ring->dequeue' because that the hardware dequeue
@@ -2916,7 +2935,6 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	else
 		ep_ring->last_td_was_short = false;
 
-	ep_trb = &ep_seg->trbs[(ep_trb_dma - ep_seg->dma) / sizeof(*ep_trb)];
 	trace_xhci_handle_transfer(ep_ring, (struct xhci_generic_trb *) ep_trb, ep_trb_dma);
 
 	/*
