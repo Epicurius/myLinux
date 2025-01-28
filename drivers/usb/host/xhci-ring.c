@@ -1494,6 +1494,9 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 
 		/* Endpoint State is not Stopped or Error. Rev 1.2 section 4.8.3 */
 		switch (GET_EP_CTX_STATE(ep_ctx)) {
+		case EP_STATE_DISABLED:
+			xhci_warn(xhci, "Set TR Deq failed, due to disabled endpoint\n");
+			return;
 		case EP_STATE_STOPPED:
 		case EP_STATE_ERROR:
 			xhci_dbg(xhci, "Set TR Deq failed. State corrected, reissuing command\n");
