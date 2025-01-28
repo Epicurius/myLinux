@@ -1378,6 +1378,7 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 	struct xhci_td *td, *_td;
 	struct xhci_ring *ep_ring;
 	struct xhci_virt_ep *ep;
+	struct xhci_command *cmd;
 	struct xhci_ep_ctx *ep_ctx;
 	struct xhci_slot_ctx *slot_ctx;
 	struct xhci_stream_ctx *stream_ctx;
@@ -1496,6 +1497,15 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 		switch (GET_EP_CTX_STATE(ep_ctx)) {
 		case EP_STATE_DISABLED:
 			xhci_warn(xhci, "Set TR Deq failed, due to disabled endpoint\n");
+			return;
+		case EP_STATE_RUNNING:
+			xhci_warn(xhci, "Set TR Deq failed, due to running endpoint\n");
+			cmd = xhci_alloc_command(xhci, false, GFP_ATOMIC);
+			if (!cmd)
+				return;
+			ep->ep_state |= EP_STOP_CMD_PENDING;
+			xhci_queue_stop_endpoint(xhci, cmd, slot_id, ep_index, 0);
+			xhci_ring_cmd_db(xhci);
 			return;
 		case EP_STATE_STOPPED:
 		case EP_STATE_ERROR:
