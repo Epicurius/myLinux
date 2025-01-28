@@ -1373,8 +1373,6 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 	u64 deq;
 	unsigned int ep_index;
 	unsigned int stream_id;
-	unsigned int ep_state;
-	unsigned int slot_state;
 	struct xhci_td *td, *_td;
 	struct xhci_ring *ep_ring;
 	struct xhci_virt_ep *ep;
@@ -1515,13 +1513,6 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 		case EP_STATE_ERROR:
 			xhci_dbg(xhci, "Set TR Deq failed. State corrected, reissuing command\n");
 			break;
-		default:
-			xhci_warn(xhci, "Set TR Deq Ptr cmd failed due to incorrect ep state.\n");
-			ep_state = GET_EP_CTX_STATE(ep_ctx);
-			slot_state = le32_to_cpu(slot_ctx->dev_state);
-			slot_state = GET_SLOT_STATE(slot_state);
-			xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
-				       "Slot state = %u, EP state = %u", slot_state, ep_state);
 		}
 		break;
 	default:
