@@ -1375,7 +1375,7 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 	unsigned int stream_id;
 	unsigned int ep_state;
 	unsigned int slot_state;
-	struct xhci_td *td;
+	struct xhci_td *td, *_td;
 	struct xhci_ring *ep_ring;
 	struct xhci_virt_ep *ep;
 	struct xhci_ep_ctx *ep_ctx;
@@ -1476,8 +1476,21 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 		}
 		return;
 	case COMP_CONTEXT_STATE_ERROR:
-		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed due to incorrect slot or ep state.\n");
 		xhci_cleanup_set_deq(xhci, ep, cmd_comp_code);
+		if (GET_SLOT_STATE(le32_to_cpu(slot_ctx->dev_state)) == SLOT_STATE_ENABLED) {
+			xhci_warn(xhci, "Set TR Deq failed, invalid slot %u state\n", slot_id);
+
+			/* Slot state Enabled does not have TDs associated with it */
+			list_for_each_entry_safe(td, _td, &ep->cancelled_td_list,
+						 cancelled_td_list) {
+				td->cancel_status = TD_CLEARED;
+				ep_ring = xhci_urb_to_transfer_ring(xhci, td->urb);
+				xhci_td_cleanup(xhci, td, ep_ring, td->status);
+			}
+			return;
+		}
+
+		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed due to incorrect slot or ep state.\n");
 		ep_state = GET_EP_CTX_STATE(ep_ctx);
 		slot_state = le32_to_cpu(slot_ctx->dev_state);
 		slot_state = GET_SLOT_STATE(slot_state);
