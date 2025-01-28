@@ -1475,12 +1475,14 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 			xhci_handle_halted_endpoint(xhci, ep, td, EP_HARD_RESET);
 		}
 		return;
+	case COMP_SLOT_NOT_ENABLED_ERROR:
 	case COMP_CONTEXT_STATE_ERROR:
 		xhci_cleanup_set_deq(xhci, ep, cmd_comp_code);
+		/* Slot state values for Enabled and Disabled are both zero */
 		if (GET_SLOT_STATE(le32_to_cpu(slot_ctx->dev_state)) == SLOT_STATE_ENABLED) {
 			xhci_warn(xhci, "Set TR Deq failed, invalid slot %u state\n", slot_id);
 
-			/* Slot state Enabled does not have TDs associated with it */
+			/* Slot states Enabled and Disabled do not have TDs associated with them */
 			list_for_each_entry_safe(td, _td, &ep->cancelled_td_list,
 						 cancelled_td_list) {
 				td->cancel_status = TD_CLEARED;
@@ -1496,11 +1498,6 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 		slot_state = GET_SLOT_STATE(slot_state);
 		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb, "Slot state = %u, EP state = %u",
 			       slot_state, ep_state);
-		break;
-	case COMP_SLOT_NOT_ENABLED_ERROR:
-		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed because slot %u was not enabled.\n",
-			  slot_id);
-		xhci_cleanup_set_deq(xhci, ep, cmd_comp_code);
 		break;
 	default:
 		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd with unknown completion code of %u.\n",
