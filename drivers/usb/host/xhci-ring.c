@@ -1492,12 +1492,20 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 			return;
 		}
 
-		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed due to incorrect slot or ep state.\n");
-		ep_state = GET_EP_CTX_STATE(ep_ctx);
-		slot_state = le32_to_cpu(slot_ctx->dev_state);
-		slot_state = GET_SLOT_STATE(slot_state);
-		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb, "Slot state = %u, EP state = %u",
-			       slot_state, ep_state);
+		/* Endpoint State is not Stopped or Error. Rev 1.2 section 4.8.3 */
+		switch (GET_EP_CTX_STATE(ep_ctx)) {
+		case EP_STATE_STOPPED:
+		case EP_STATE_ERROR:
+			xhci_dbg(xhci, "Set TR Deq failed. State corrected, reissuing command\n");
+			break;
+		default:
+			xhci_warn(xhci, "Set TR Deq Ptr cmd failed due to incorrect ep state.\n");
+			ep_state = GET_EP_CTX_STATE(ep_ctx);
+			slot_state = le32_to_cpu(slot_ctx->dev_state);
+			slot_state = GET_SLOT_STATE(slot_state);
+			xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
+				       "Slot state = %u, EP state = %u", slot_state, ep_state);
+		}
 		break;
 	default:
 		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd with unknown completion code of %u.\n",
