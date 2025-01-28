@@ -1507,6 +1507,10 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 			xhci_queue_stop_endpoint(xhci, cmd, slot_id, ep_index, 0);
 			xhci_ring_cmd_db(xhci);
 			return;
+		case EP_STATE_HALTED:
+			xhci_warn(xhci, "Set TR Deq failed, due to halted endpoint\n");
+			xhci_handle_halted_endpoint(xhci, ep, NULL, EP_SOFT_RESET);
+			return;
 		case EP_STATE_STOPPED:
 		case EP_STATE_ERROR:
 			xhci_dbg(xhci, "Set TR Deq failed. State corrected, reissuing command\n");
