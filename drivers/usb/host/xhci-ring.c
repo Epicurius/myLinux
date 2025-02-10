@@ -2829,9 +2829,9 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 		/* Is this a TRB in the currently executing TD? */
 		ep_seg = trb_in_td(xhci, td, ep_trb_dma, false);
 
-		if (!ep_seg) {
+		if (ep->skip) {
 
-			if (ep->skip && usb_endpoint_xfer_isoc(&td->urb->ep->desc)) {
+			if (!ep_seg && usb_endpoint_xfer_isoc(&td->urb->ep->desc)) {
 				skip_isoc_td(xhci, td, ep, status);
 				if (!list_empty(&ep_ring->td_list))
 					continue;
@@ -2843,38 +2843,6 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 				goto check_endpoint_halted;
 			}
 
-			/*
-			 * Skip the Force Stopped Event. The 'ep_trb' of FSE is not in the current
-			 * TD pointed by 'ep_ring->dequeue' because that the hardware dequeue
-			 * pointer still at the previous TRB of the current TD. The previous TRB
-			 * maybe a Link TD or the last TRB of the previous TD. The command
-			 * completion handle will take care the rest.
-			 */
-			if (trb_comp_code == COMP_STOPPED ||
-			    trb_comp_code == COMP_STOPPED_LENGTH_INVALID) {
-				return 0;
-			}
-
-			/*
-			 * Some hosts give a spurious success event after a short
-			 * transfer. Ignore it.
-			 */
-			if ((xhci->quirks & XHCI_SPURIOUS_SUCCESS) &&
-			    ep_ring->last_td_was_short) {
-				ep_ring->last_td_was_short = false;
-				return 0;
-			}
-
-			/* HC is busted, give up! */
-			xhci_err(xhci,
-				 "ERROR Transfer event TRB DMA ptr not part of current TD ep_index %d comp_code %u\n",
-				 ep_index, trb_comp_code);
-			trb_in_td(xhci, td, ep_trb_dma, true);
-
-			return -ESHUTDOWN;
-		}
-
-		if (ep->skip) {
 			xhci_dbg(xhci,
 				 "Found td. Clear skip flag for slot %u ep %u.\n",
 				 slot_id, ep_index);
@@ -2888,6 +2856,38 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	 * the event.
 	 */
 	} while (ep->skip);
+
+	if (!ep_seg) {
+		/*
+		 * Skip the Force Stopped Event. The 'ep_trb' of FSE is not in the current
+		 * TD pointed by 'ep_ring->dequeue' because that the hardware dequeue
+		 * pointer still at the previous TRB of the current TD. The previous TRB
+		 * maybe a Link TD or the last TRB of the previous TD. The command
+		 * completion handle will take care the rest.
+		 */
+		if (trb_comp_code == COMP_STOPPED ||
+		    trb_comp_code == COMP_STOPPED_LENGTH_INVALID) {
+			return 0;
+		}
+
+		/*
+		 * Some hosts give a spurious success event after a short
+		 * transfer. Ignore it.
+		 */
+		if ((xhci->quirks & XHCI_SPURIOUS_SUCCESS) &&
+		    ep_ring->last_td_was_short) {
+			ep_ring->last_td_was_short = false;
+			return 0;
+		}
+
+		/* HC is busted, give up! */
+		xhci_err(xhci,
+			 "ERROR Transfer event TRB DMA ptr not part of current TD ep_index %d comp_code %u\n",
+			 ep_index, trb_comp_code);
+		trb_in_td(xhci, td, ep_trb_dma, true);
+
+		return -ESHUTDOWN;
+	}
 
 	if (trb_comp_code == COMP_SHORT_PACKET)
 		ep_ring->last_td_was_short = true;
