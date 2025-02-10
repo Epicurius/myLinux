@@ -1457,7 +1457,28 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 
 		switch (cmd_comp_code) {
 		case COMP_TRB_ERROR:
-			xhci_warn(xhci, "WARN Set TR Deq Ptr cmd invalid because of stream ID configuration\n");
+			/*
+			 * If Stream ID is non-zero a Stream ID boundary check is performed.
+			 * If a boundary error is detected for Set TR Deq command, a Command
+			 * Completion Event is set with a TRB Error which shall halt the endpoint.
+			 * xHCI spec rev 1.2 section 4.12.2.1
+			 */
+			xhci_warn(xhci, "Set TR Deq failed, due to stream %u boundary check\n",
+				  stream_id);
+			if (GET_EP_CTX_STATE(ep_ctx) == EP_STATE_HALTED) {
+				ep->ep_state &= ~SET_DEQ_PENDING;
+				ep->queued_deq_seg = NULL;
+				ep->queued_deq_ptr = NULL;
+				list_for_each_entry(td, &ep->cancelled_td_list, cancelled_td_list) {
+					if (td->cancel_status == TD_CLEARING_CACHE)
+						td->cancel_status = TD_DIRTY;
+				}
+
+				td = find_halted_td(ep);
+				td->status = -EPIPE;
+				xhci_handle_halted_endpoint(xhci, ep, td, EP_HARD_RESET);
+				return;
+			}
 			break;
 		case COMP_SLOT_NOT_ENABLED_ERROR:
 		case COMP_CONTEXT_STATE_ERROR:
