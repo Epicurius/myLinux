@@ -1501,6 +1501,14 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 				xhci_queue_stop_endpoint(xhci, cmd, slot_id, ep_index, 0);
 				xhci_ring_cmd_db(xhci);
 				return;
+			case EP_STATE_STOPPED:
+			case EP_STATE_ERROR:
+				xhci_warn(xhci, "Set TR Deq failed. State corrected, reissuing command\n");
+				list_for_each_entry(td, &ep->cancelled_td_list, cancelled_td_list) {
+					if (td->cancel_status == TD_CLEARING_CACHE)
+						td->cancel_status = TD_DIRTY;
+				}
+				goto cleanup;
 			default:
 				xhci_warn(xhci, "Set TR Deq Ptr cmd failed due to incorrect ep state.\n");
 				xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
