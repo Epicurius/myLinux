@@ -1416,6 +1416,7 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 	unsigned int stream_id;
 	struct xhci_ring *ep_ring;
 	struct xhci_virt_ep *ep;
+	struct xhci_command *cmd;
 	struct xhci_ep_ctx *ep_ctx;
 	struct xhci_slot_ctx *slot_ctx;
 	struct xhci_stream_ctx *stream_ctx;
@@ -1480,11 +1481,32 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 				return;
 			}
 
-			xhci_warn(xhci, "Set TR Deq Ptr cmd failed due to incorrect ep state.\n");
 			ep_state = GET_EP_CTX_STATE(ep_ctx);
-			xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
-					"Slot state = %u, EP state = %u",
-					slot_state, ep_state);
+			switch (ep_state) {
+			case EP_STATE_RUNNING:
+				xhci_warn(xhci, "Set TR Deq failed, due to running endpoint\n");
+				cmd = xhci_alloc_command(xhci, false, GFP_ATOMIC);
+				if (!cmd)
+					break;
+
+				ep->ep_state &= ~SET_DEQ_PENDING;
+				ep->queued_deq_seg = NULL;
+				ep->queued_deq_ptr = NULL;
+				list_for_each_entry(td, &ep->cancelled_td_list, cancelled_td_list) {
+					if (td->cancel_status == TD_CLEARING_CACHE)
+						td->cancel_status = TD_DIRTY;
+				}
+
+				ep->ep_state |= EP_STOP_CMD_PENDING;
+				xhci_queue_stop_endpoint(xhci, cmd, slot_id, ep_index, 0);
+				xhci_ring_cmd_db(xhci);
+				return;
+			default:
+				xhci_warn(xhci, "Set TR Deq Ptr cmd failed due to incorrect ep state.\n");
+				xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
+					       "Slot state = %u, EP state = %u",
+					       slot_state, ep_state);
+			}
 			break;
 		default:
 			xhci_warn(xhci, "WARN Set TR Deq Ptr cmd with unknown completion code of %u.\n",
