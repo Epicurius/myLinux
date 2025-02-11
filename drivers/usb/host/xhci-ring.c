@@ -1483,6 +1483,9 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 
 			ep_state = GET_EP_CTX_STATE(ep_ctx);
 			switch (ep_state) {
+			case EP_STATE_DISABLED:
+				xhci_warn(xhci, "Set TR Deq failed, due to disabled endpoint\n");
+				break;
 			case EP_STATE_RUNNING:
 				xhci_warn(xhci, "Set TR Deq failed, due to running endpoint\n");
 				cmd = xhci_alloc_command(xhci, false, GFP_ATOMIC);
@@ -1521,11 +1524,6 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 						td->cancel_status = TD_DIRTY;
 				}
 				goto cleanup;
-			default:
-				xhci_warn(xhci, "Set TR Deq Ptr cmd failed due to incorrect ep state.\n");
-				xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
-					       "Slot state = %u, EP state = %u",
-					       slot_state, ep_state);
 			}
 			break;
 		default:
