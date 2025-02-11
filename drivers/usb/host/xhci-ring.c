@@ -1459,10 +1459,27 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 			xhci_warn(xhci, "WARN Set TR Deq Ptr cmd invalid because of stream ID configuration\n");
 			break;
 		case COMP_CONTEXT_STATE_ERROR:
-			xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed due to incorrect slot or ep state.\n");
-			ep_state = GET_EP_CTX_STATE(ep_ctx);
 			slot_state = le32_to_cpu(slot_ctx->dev_state);
 			slot_state = GET_SLOT_STATE(slot_state);
+			if (slot_state == SLOT_STATE_ENABLED) {
+				xhci_warn(xhci, "Set TR Deq failed, slot state Enabled\n");
+
+				ep->ep_state &= ~SET_DEQ_PENDING;
+				ep->queued_deq_seg = NULL;
+				ep->queued_deq_ptr = NULL;
+
+				/* Enabled slots don't have TDs associated with them */
+				list_for_each_entry_safe(td, tmp_td, &ep->cancelled_td_list,
+							 cancelled_td_list) {
+					td->cancel_status = TD_CLEARED;
+					ep_ring = xhci_urb_to_transfer_ring(xhci, td->urb);
+					xhci_td_cleanup(xhci, td, ep_ring, td->status);
+				}
+				return;
+			}
+
+			xhci_warn(xhci, "Set TR Deq Ptr cmd failed due to incorrect ep state.\n");
+			ep_state = GET_EP_CTX_STATE(ep_ctx);
 			xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
 					"Slot state = %u, EP state = %u",
 					slot_state, ep_state);
