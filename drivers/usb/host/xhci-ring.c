@@ -927,12 +927,10 @@ static void xhci_giveback_invalidated_tds(struct xhci_virt_ep *ep)
 
 	list_for_each_entry_safe(td, tmp_td, &ep->cancelled_td_list,
 				 cancelled_td_list) {
-
-		ring = xhci_urb_to_transfer_ring(ep->xhci, td->urb);
-
 		if (td->cancel_status == TD_CLEARED) {
 			xhci_dbg(ep->xhci, "%s: Giveback cancelled URB %p TD\n",
 				 __func__, td->urb);
+			ring = xhci_urb_to_transfer_ring(ep->xhci, td->urb);
 			xhci_td_cleanup(ep->xhci, td, ring, td->status);
 		} else {
 			xhci_dbg(ep->xhci, "%s: Keep cancelled URB %p TD as cancel_status is %d\n",
@@ -1509,11 +1507,11 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 	/* HW cached TDs cleared from cache, give them back */
 	list_for_each_entry_safe(td, tmp_td, &ep->cancelled_td_list,
 				 cancelled_td_list) {
-		ep_ring = xhci_urb_to_transfer_ring(ep->xhci, td->urb);
 		if (td->cancel_status == TD_CLEARING_CACHE) {
 			td->cancel_status = TD_CLEARED;
 			xhci_dbg(ep->xhci, "%s: Giveback cancelled URB %p TD\n",
 				 __func__, td->urb);
+			ep_ring = xhci_urb_to_transfer_ring(ep->xhci, td->urb);
 			xhci_td_cleanup(ep->xhci, td, ep_ring, td->status);
 		} else {
 			xhci_dbg(ep->xhci, "%s: Keep cancelled URB %p TD as cancel_status is %d\n",
