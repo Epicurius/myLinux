@@ -420,7 +420,7 @@ struct xhci_slot_ctx {
  * 		Average TRB lengths for the endpoint ring and
  * 		max payload within an Endpoint Service Interval Time (ESIT).
  *
- * Endpoint Context - section 6.2.1.2.  This assumes the HC uses 32-byte context
+ * Endpoint Context - section 6.2.3, rev 1.2.  This assumes the HC uses 32-byte context
  * structures.  If the HC uses 64-byte contexts, there is an additional 32 bytes
  * reserved at the end of the endpoint context for HC internal use.
  */
@@ -434,47 +434,38 @@ struct xhci_ep_ctx {
 };
 
 /* ep_info bitmasks */
-/*
- * Endpoint State - bits 0:2
- * 0 - disabled
- * 1 - running
- * 2 - halted due to halt condition - ok to manipulate endpoint ring
- * 3 - stopped
- * 4 - TRB error
- * 5-7 - reserved
- */
+/* bits 2:0 - Endpoint State */
 #define EP_STATE_MASK		(0x7)
 #define EP_STATE_DISABLED	0
 #define EP_STATE_RUNNING	1
+/* Halted due to halt condition - ok to manipulate endpoint ring */
 #define EP_STATE_HALTED		2
 #define EP_STATE_STOPPED	3
 #define EP_STATE_ERROR		4
 #define GET_EP_CTX_STATE(ctx)	(le32_to_cpu((ctx)->ep_info) & EP_STATE_MASK)
-
-/* Mult - Max number of burtst within an interval, in EP companion desc. */
+/* 5-7 - reserved */
+/* bits 7:2 - RsvdZ */
+/* bits 9:8 - Max number of bursts within an interval, in EP companion desc. */
 #define EP_MULT(p)		(((p) & 0x3) << 8)
 #define CTX_TO_EP_MULT(p)	(((p) >> 8) & 0x3)
-/* bits 10:14 are Max Primary Streams */
-/* bit 15 is Linear Stream Array */
-/* Interval - period between requests to an endpoint - 125u increments. */
-#define EP_INTERVAL(p)			(((p) & 0xff) << 16)
-#define EP_INTERVAL_TO_UFRAMES(p)	(1 << (((p) >> 16) & 0xff))
-#define CTX_TO_EP_INTERVAL(p)		(((p) >> 16) & 0xff)
+/* bits 14:10 - Max Primary Streams the endpoint supports. */
 #define EP_MAXPSTREAMS_MASK		(0x1f << 10)
 #define EP_MAXPSTREAMS(p)		(((p) << 10) & EP_MAXPSTREAMS_MASK)
 #define CTX_TO_EP_MAXPSTREAMS(p)	(((p) & EP_MAXPSTREAMS_MASK) >> 10)
-/* Endpoint is set up with a Linear Stream Array (vs. Secondary Stream Array) */
+/* bit 15 - Linear Stream array identifies how a Stream ID shall be interpreted. */
 #define	EP_HAS_LSA		(1 << 15)
-/* hosts with LEC=1 use bits 31:24 as ESIT high bits. */
+/* bits 23:16 - Interval period between requests to an endpoint - 125u increments. */
+#define EP_INTERVAL(p)			(((p) & 0xff) << 16)
+#define EP_INTERVAL_TO_UFRAMES(p)	(1 << (((p) >> 16) & 0xff))
+#define CTX_TO_EP_INTERVAL(p)		(((p) >> 16) & 0xff)
+/* bits 31:24 - Max Endpoint Service Time Interval Payload High. LEC=1 use bits as ESIT high bits */
 #define CTX_TO_MAX_ESIT_PAYLOAD_HI(p)	(((p) >> 24) & 0xff)
 
 /* ep_info2 bitmasks */
-/*
- * Force Event - generate transfer events for all TRBs for this endpoint
- * This will tell the HC to ignore the IOC and ISP flags (for debugging only).
- */
-#define	FORCE_EVENT	(0x1)
+/* bit 0 - RsvdZ */
+/* bits 2:1 - Error Count, the number of consecutive USB Bus Errors allowed while executing a TD. */
 #define ERROR_COUNT(p)	(((p) & 0x3) << 1)
+/* bits 5:3 - Endpoint Type identifies whether an EP CTX is valid. */
 #define CTX_TO_EP_TYPE(p)	(((p) >> 3) & 0x7)
 #define EP_TYPE(p)	((p) << 3)
 #define ISOC_OUT_EP	1
@@ -484,26 +475,37 @@ struct xhci_ep_ctx {
 #define ISOC_IN_EP	5
 #define BULK_IN_EP	6
 #define INT_IN_EP	7
-/* bit 6 reserved */
-/* bit 7 is Host Initiate Disable - for disabling stream selection */
+/* bit 6 - RsvdZ */
+/* bit 7 - Host Initiate Disable, for disabling stream selection */
 #define	EP_HID		0x80
+/* bits 15:8 - Max Burst Size, max number of consecutive USB transactions executed. */
 #define MAX_BURST(p)	(((p)&0xff) << 8)
 #define CTX_TO_MAX_BURST(p)	(((p) >> 8) & 0xff)
+/* bits 31:16 - Max Packet Size indicates the max packet size that an EP can send and receive. */
 #define MAX_PACKET(p)	(((p)&0xffff) << 16)
 #define MAX_PACKET_MASK		(0xffff << 16)
 #define MAX_PACKET_DECODED(p)	(((p) >> 16) & 0xffff)
 
 /* tx_info bitmasks */
+/* bits 15:0 - Average TRB Length for EP. */
 #define EP_AVG_TRB_LENGTH(p)		((p) & 0xffff)
+/* bits 31:16 - Max Endpoint Service Time Interval Payload Low. */
 #define EP_MAX_ESIT_PAYLOAD_LO(p)	(((p) & 0xffff) << 16)
 #define EP_MAX_ESIT_PAYLOAD_HI(p)	((((p) >> 16) & 0xff) << 24)
 #define CTX_TO_MAX_ESIT_PAYLOAD(p)	(((p) >> 16) & 0xffff)
 
 /* deq bitmasks */
+/* bit 0 - Dequeue Cycle State */
 #define EP_CTX_CYCLE_MASK		(1 << 0)
+/* bits 3:1 - RsvdZ */
 /* bits 63:4 - TR Dequeue Pointer */
 #define TR_DEQ_PTR_MASK			GENMASK_ULL(63, 4)
 
+/*
+ * Force Event - generate transfer events for all TRBs for this endpoint
+ * This will tell the HC to ignore the IOC and ISP flags (for debugging only).
+ */
+#define	FORCE_EVENT	(1 << 1)
 
 /**
  * struct xhci_input_control_context
