@@ -82,6 +82,19 @@ dma_addr_t xhci_trb_virt_to_dma(struct xhci_segment *seg,
 	return seg->dma + (segment_offset * sizeof(*trb));
 }
 
+static union xhci_trb *xhci_dma_to_virt_trb(struct xhci_segment *seg, dma_addr_t dma)
+{
+	unsigned long trb_offset;
+
+	if (!seg || !dma || dma < seg->dma)
+		return NULL;
+
+	trb_offset = (dma - seg->dma) / sizeof(union xhci_trb);
+	if (trb_offset >= TRBS_PER_SEGMENT)
+		return NULL;
+	return &seg->trbs[trb_offset];
+}
+
 static bool trb_is_noop(union xhci_trb *trb)
 {
 	return TRB_TYPE_NOOP_LE32(trb->generic.field[3]);
@@ -2921,7 +2934,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	else
 		ep_ring->last_td_was_short = false;
 
-	ep_trb = &ep_seg->trbs[(ep_trb_dma - ep_seg->dma) / sizeof(*ep_trb)];
+	ep_trb = xhci_dma_to_virt_trb(ep_seg, ep_trb_dma);
 	trace_xhci_handle_transfer(ep_ring, (struct xhci_generic_trb *) ep_trb, ep_trb_dma);
 
 	/*
