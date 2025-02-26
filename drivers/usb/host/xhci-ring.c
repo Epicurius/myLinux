@@ -82,13 +82,17 @@ dma_addr_t xhci_trb_virt_to_dma(struct xhci_segment *seg,
 	return seg->dma + (segment_offset * sizeof(*trb));
 }
 
-static union xhci_trb *xhci_dma_to_trb(struct xhci_ring *ring, dma_addr_t dma)
+static union xhci_trb *xhci_dma_to_trb(struct xhci_segment *start_seg, dma_addr_t dma,
+				       struct xhci_segment **match_seg)
 {
 	struct xhci_segment *seg;
 
-	xhci_for_each_ring_seg(ring->deq_seg, seg) {
-		if (in_range(dma, seg->dma, TRB_SEGMENT_SIZE))
+	xhci_for_each_ring_seg(start_seg, seg) {
+		if (in_range(dma, seg->dma, TRB_SEGMENT_SIZE)) {
+			if (match_seg)
+				*match_seg = seg;
 			return &seg->trbs[(dma - seg->dma) / sizeof(union xhci_trb)];
+		}
 	}
 
 	return NULL;
@@ -153,6 +157,11 @@ static void trb_to_noop(union xhci_trb *trb, u32 noop_type)
 		trb->generic.field[3] &= cpu_to_le32(TRB_CYCLE);
 		trb->generic.field[3] |= cpu_to_le32(TRB_TYPE(noop_type));
 	}
+}
+
+static unsigned int trb_to_pos(struct xhci_segment *seg, union xhci_trb *trb)
+{
+	return seg->num * TRBS_PER_SEGMENT + (trb - seg->trbs);
 }
 
 /* Updates trb to point to the next TRB in the ring, and updates seg if the next
@@ -294,55 +303,33 @@ static void inc_enq(struct xhci_hcd *xhci, struct xhci_ring *ring,
 		inc_enq_past_link(xhci, ring, chain);
 }
 
-/*
- * If the suspect DMA address is a TRB in this TD, this function returns that
- * TRB's segment. Otherwise it returns 0.
- */
-static struct xhci_segment *trb_in_td(struct xhci_td *td, dma_addr_t suspect_dma)
+static bool dma_in_range(dma_addr_t dma,
+			 struct xhci_segment *start_seg, union xhci_trb *start_trb,
+			 struct xhci_segment *end_seg, union xhci_trb *end_trb)
 {
-	dma_addr_t start_dma;
-	dma_addr_t end_seg_dma;
-	dma_addr_t end_trb_dma;
-	struct xhci_segment *cur_seg;
+	unsigned int val, start, end;
+	struct xhci_segment *val_seg;
+	union xhci_trb *val_trb = xhci_dma_to_trb(start_seg, dma, &val_seg);
 
-	start_dma = xhci_trb_virt_to_dma(td->start_seg, td->start_trb);
-	cur_seg = td->start_seg;
+	if (!val_trb)
+		return false;
 
-	do {
-		if (start_dma == 0)
-			return NULL;
-		/* We may get an event for a Link TRB in the middle of a TD */
-		end_seg_dma = xhci_trb_virt_to_dma(cur_seg,
-				&cur_seg->trbs[TRBS_PER_SEGMENT - 1]);
-		/* If the end TRB isn't in this segment, this is set to 0 */
-		end_trb_dma = xhci_trb_virt_to_dma(cur_seg, td->end_trb);
+	val = trb_to_pos(val_seg, val_trb);
+	start = trb_to_pos(start_seg, start_trb);
+	end = trb_to_pos(end_seg, end_trb);
 
-		if (end_trb_dma > 0) {
-			/* The end TRB is in this segment, so suspect should be here */
-			if (start_dma <= end_trb_dma) {
-				if (suspect_dma >= start_dma && suspect_dma <= end_trb_dma)
-					return cur_seg;
-			} else {
-				/* Case for one segment with
-				 * a TD wrapped around to the top
-				 */
-				if ((suspect_dma >= start_dma &&
-							suspect_dma <= end_seg_dma) ||
-						(suspect_dma >= cur_seg->dma &&
-						 suspect_dma <= end_trb_dma))
-					return cur_seg;
-			}
-			return NULL;
-		}
-		/* Might still be somewhere in this segment */
-		if (suspect_dma >= start_dma && suspect_dma <= end_seg_dma)
-			return cur_seg;
+	/* wrapped */
+	if (end < start)
+		return !(val > end && val < start);
 
-		cur_seg = cur_seg->next;
-		start_dma = xhci_trb_virt_to_dma(cur_seg, &cur_seg->trbs[0]);
-	} while (cur_seg != td->start_seg);
+	return (val >= start && val <= end);
+}
 
-	return NULL;
+/* If the suspect DMA address is a TRB in this TD, this function returns true */
+static bool trb_in_td(struct xhci_td *td, dma_addr_t suspect_dma)
+{
+	return dma_in_range(suspect_dma, td->start_seg, td->start_trb,
+			    td->end_seg, td->end_trb);
 }
 
 /*
@@ -2695,7 +2682,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 		return handle_transferless_tx_event(xhci, ep, trb_comp_code);
 
 	/* find the transfer trb this events points to */
-	ep_trb = xhci_dma_to_trb(ep_ring, ep_trb_dma);
+	ep_trb = xhci_dma_to_trb(ep_ring->deq_seg, ep_trb_dma, NULL);
 
 	/* Look for common error cases */
 	switch (trb_comp_code) {
