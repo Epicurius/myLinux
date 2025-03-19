@@ -2301,44 +2301,40 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	struct xhci_interrupter *ir;
-	unsigned int i;
-	int err = -ENOSPC;
+	unsigned int intr_num = 0;
 
 	if (!xhci->interrupters || xhci->max_interrupters <= 1)
 		return NULL;
+
+	/* Find available secondary interrupter, interrupter 0 is reserved for primary */
+	for (int i = 1; i < xhci->max_interrupters; i++) {
+		if (xhci->interrupters[i] == NULL) {
+			intr_num = i;
+			break;
+		}
+	}
+
+	if (!intr_num) {
+		xhci_warn(xhci, "Failed to add secondary interrupter, max interrupters %u\n",
+			  xhci->max_interrupters);
+		return NULL;
+	}
 
 	ir = xhci_alloc_interrupter(xhci, segs, GFP_KERNEL);
 	if (!ir)
 		return NULL;
 
 	spin_lock_irq(&xhci->lock);
-
-	/* Find available secondary interrupter, interrupter 0 is reserved for primary */
-	for (i = 1; i < xhci->max_interrupters; i++) {
-		if (xhci->interrupters[i] == NULL) {
-			xhci->interrupters[i] = ir;
-			xhci_init_interrupter(xhci, i);
-			err = 0;
-			break;
-		}
-	}
-
+	xhci->interrupters[intr_num] = ir;
+	xhci_init_interrupter(xhci, intr_num);
 	spin_unlock_irq(&xhci->lock);
 
-	if (err) {
-		xhci_warn(xhci, "Failed to add secondary interrupter, max interrupters %d\n",
-			  xhci->max_interrupters);
-		xhci_free_interrupter(xhci, ir);
-		return NULL;
-	}
+	if (xhci_set_interrupter_moderation(ir, imod_interval))
+		xhci_warn(xhci, "Failed to set interrupter %u moderation to %uns\n",
+			  intr_num, imod_interval);
 
-	err = xhci_set_interrupter_moderation(ir, imod_interval);
-	if (err)
-		xhci_warn(xhci, "Failed to set interrupter %d moderation to %uns\n",
-			  i, imod_interval);
-
-	xhci_dbg(xhci, "Add secondary interrupter %d, max interrupters %d\n",
-		 i, xhci->max_interrupters);
+	xhci_dbg(xhci, "Add secondary interrupter %u, max interrupters %u\n",
+		 intr_num, xhci->max_interrupters);
 
 	return ir;
 }
