@@ -2407,7 +2407,7 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	 * Program the Number of Device Slots Enabled field in the CONFIG
 	 * register with the max value of slots the HC can handle.
 	 */
-	val = HCS_MAX_SLOTS(readl(&xhci->cap_regs->hcs_params1));
+	val = HCS_MAX_SLOTS(xhci->hcs_params1);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 			"// xHC can handle at most %d device slots.", val);
 	val2 = readl(&xhci->op_regs->config_reg);
