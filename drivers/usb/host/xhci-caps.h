@@ -63,7 +63,7 @@
 #define CTX_SIZE(_hcc)		(HCC_64BYTE_CONTEXT(_hcc) ? 64 : 32)
 
 /* db_off bitmask - bits 0:1 reserved */
-#define	DBOFF_MASK	(~0x3)
+#define	DBOFF_MASK	(0xfffffffc)
 
 /* run_regs_off bitmask - bits 0:4 reserved */
 #define	RTSOFF_MASK	(~0x1f)
