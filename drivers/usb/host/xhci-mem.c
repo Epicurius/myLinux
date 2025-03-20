@@ -2113,7 +2113,6 @@ static void xhci_create_rhub_port_array(struct xhci_hcd *xhci, struct xhci_hub *
 					unsigned int max_ports, gfp_t flags)
 {
 	int port_index = 0;
-	int i;
 	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
 
 	if (!rhub->num_ports) {
@@ -2131,17 +2130,18 @@ static void xhci_create_rhub_port_array(struct xhci_hcd *xhci, struct xhci_hub *
 			       rhub->maj_rev, max_ports);
 	}
 
-	rhub->ports = kcalloc_node(rhub->num_ports, sizeof(*rhub->ports),
-			flags, dev_to_node(dev));
+	rhub->ports = kcalloc_node(rhub->num_ports, sizeof(*rhub->ports), flags, dev_to_node(dev));
 	if (!rhub->ports)
 		return;
 
-	for (i = 0; i < HCS_MAX_PORTS(xhci->hcs_params1); i++) {
+	for (int i = 0; i < HCS_MAX_PORTS(xhci->hcs_params1); i++) {
 		if (xhci->hw_ports[i].rhub != rhub ||
 		    xhci->hw_ports[i].hcd_portnum == DUPLICATE_ENTRY)
 			continue;
+
 		xhci->hw_ports[i].hcd_portnum = port_index;
 		rhub->ports[port_index] = &xhci->hw_ports[i];
+
 		port_index++;
 		if (port_index == rhub->num_ports)
 			break;
