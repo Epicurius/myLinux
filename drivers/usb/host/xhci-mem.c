@@ -2160,37 +2160,34 @@ static int xhci_setup_port_arrays(struct xhci_hcd *xhci, gfp_t flags)
 {
 	void __iomem *base;
 	u32 offset;
-	unsigned int num_ports;
-	int i, j;
+	unsigned int num_ports = HCS_MAX_PORTS(xhci->hcs_params1);
 	int cap_count = 0;
 	u32 cap_start;
 	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
+	struct xhci_interval_bw_table *bw_table;
+	inline int node = dev_to_node(dev);
 
-	num_ports = HCS_MAX_PORTS(xhci->hcs_params1);
-	xhci->hw_ports = kcalloc_node(num_ports, sizeof(*xhci->hw_ports),
-				flags, dev_to_node(dev));
+	xhci->hw_ports = kcalloc_node(num_ports, sizeof(*xhci->hw_ports), flags, dev);
 	if (!xhci->hw_ports)
 		return -ENOMEM;
 
-	for (i = 0; i < num_ports; i++) {
-		xhci->hw_ports[i].addr = &xhci->op_regs->port_status_base +
-			NUM_PORT_REGS * i;
+	for (int i = 0; i < num_ports; i++) {
+		xhci->hw_ports[i].addr = &xhci->op_regs->port_status_base + NUM_PORT_REGS * i;
 		xhci->hw_ports[i].hw_portnum = i;
 
 		init_completion(&xhci->hw_ports[i].rexit_done);
 		init_completion(&xhci->hw_ports[i].u3exit_done);
 	}
 
-	xhci->rh_bw = kcalloc_node(num_ports, sizeof(*xhci->rh_bw), flags,
-				   dev_to_node(dev));
+	xhci->rh_bw = kcalloc_node(num_ports, sizeof(*xhci->rh_bw), flags, dev);
 	if (!xhci->rh_bw)
 		return -ENOMEM;
-	for (i = 0; i < num_ports; i++) {
-		struct xhci_interval_bw_table *bw_table;
 
+	for (int i = 0; i < num_ports; i++) {
 		INIT_LIST_HEAD(&xhci->rh_bw[i].tts);
 		bw_table = &xhci->rh_bw[i].bw_table;
-		for (j = 0; j < XHCI_MAX_INTERVAL; j++)
+
+		for (int j = 0; j < XHCI_MAX_INTERVAL; j++)
 			INIT_LIST_HEAD(&bw_table->interval_bw[j].endpoints);
 	}
 	base = &xhci->cap_regs->hc_capbase;
@@ -2205,12 +2202,10 @@ static int xhci_setup_port_arrays(struct xhci_hcd *xhci, gfp_t flags)
 	/* count extended protocol capability entries for later caching */
 	while (offset) {
 		cap_count++;
-		offset = xhci_find_next_ext_cap(base, offset,
-						      XHCI_EXT_CAPS_PROTOCOL);
+		offset = xhci_find_next_ext_cap(base, offset, XHCI_EXT_CAPS_PROTOCOL);
 	}
 
-	xhci->port_caps = kcalloc_node(cap_count, sizeof(*xhci->port_caps),
-				flags, dev_to_node(dev));
+	xhci->port_caps = kcalloc_node(cap_count, sizeof(*xhci->port_caps), flags, dev);
 	if (!xhci->port_caps)
 		return -ENOMEM;
 
@@ -2218,18 +2213,18 @@ static int xhci_setup_port_arrays(struct xhci_hcd *xhci, gfp_t flags)
 
 	while (offset) {
 		xhci_add_in_port(xhci, num_ports, base + offset, cap_count);
-		if (xhci->usb2_rhub.num_ports + xhci->usb3_rhub.num_ports ==
-		    num_ports)
+		if (xhci->usb2_rhub.num_ports + xhci->usb3_rhub.num_ports == num_ports)
 			break;
-		offset = xhci_find_next_ext_cap(base, offset,
-						XHCI_EXT_CAPS_PROTOCOL);
+
+		offset = xhci_find_next_ext_cap(base, offset, XHCI_EXT_CAPS_PROTOCOL);
 	}
+
 	if (xhci->usb2_rhub.num_ports == 0 && xhci->usb3_rhub.num_ports == 0) {
 		xhci_warn(xhci, "No ports on the roothubs?\n");
 		return -ENODEV;
 	}
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-		       "Found %u USB 2.0 ports and %u USB 3.0 ports.",
+
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Found %u USB 2.0 ports and %u USB 3.0 ports",
 		       xhci->usb2_rhub.num_ports, xhci->usb3_rhub.num_ports);
 
 	xhci_create_rhub_port_array(xhci, &xhci->usb2_rhub, USB_MAXCHILDREN, flags);
