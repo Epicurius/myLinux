@@ -1064,35 +1064,13 @@ int xhci_suspend(struct xhci_hcd *xhci, bool do_wakeup)
 }
 EXPORT_SYMBOL_GPL(xhci_suspend);
 
-static int xhci_reinit(struct xhci_hcd *xhci)
+static void xhci_reinit(struct xhci_hcd *xhci)
 {
-	struct usb_hcd *hcd = xhci_to_hcd(xhci);
-	u32 val_32;
+	u32 status;
 	int ret;
 
-	if ((xhci->quirks & XHCI_COMP_MODE_QUIRK) && !xhci_all_ports_seen_u0(xhci)) {
-		del_timer_sync(&xhci->comp_mode_recovery_timer);
-		xhci_dbg_trace(xhci, trace_xhci_dbg_quirks,
-			       "Compliance Mode Recovery Timer deleted!");
-	}
-
-	/* Let the USB core know _both_ roothubs lost power. */
-	usb_root_hub_lost_power(xhci->main_hcd->self.root_hub);
-	if (xhci->shared_hcd)
-		usb_root_hub_lost_power(xhci->shared_hcd->self.root_hub);
-
-	xhci_dbg(xhci, "Stop HCD\n");
-	xhci_halt(xhci);
-
-	xhci_zero_64b_regs(xhci);
-
-	ret = xhci_reset(xhci, XHCI_RESET_LONG_USEC);
-	spin_unlock_irq(&xhci->lock);
-	if (ret)
-		return ret;
-
-	val_32 = readl(&xhci->op_regs->status);
-	writel((val_32 & ~0x1fff) | STS_EINT, &xhci->op_regs->status);
+	status = readl(&xhci->op_regs->status);
+	writel((status & ~0x1fff) | STS_EINT, &xhci->op_regs->status);
 	for (int i = 0; i < xhci->max_interrupters; i++) {
 		xhci_disable_interrupter(xhci->interrupters[i]);
 		xhci_remove_interrupter(xhci, xhci->interrupters[i]);
@@ -1113,8 +1091,22 @@ static int xhci_reinit(struct xhci_hcd *xhci)
 	/* Init command timeout work */
 	INIT_LIST_HEAD(&xhci->cmd_list);
 	INIT_DELAYED_WORK(&xhci->cmd_timer, xhci_handle_command_timeout);
+
+	/* Set the Number of Device Slots Enabled to the maximum supported value */
+	xhci_enable_max_dev_slots(xhci);
+
+	/* xhci_set_cmd_ring_deq() is set on suspend */
 	xhci_reset_ring(xhci, xhci->cmd_ring);
-	xhci->cmd_ring_reserved_trbs++;
+	xhci->cmd_ring_reserved_trbs = 1;
+
+	/* Set private xHCD pointer */
+	xhci_write_64(xhci, xhci->dcbaa->dma, &xhci->op_regs->dcbaa_ptr);
+
+	/* Set Doorbell array pointer */
+	xhci_set_doorbell_ptr(xhci);
+
+	/* Set USB 3.0 device notifications for function remote wake */
+	xhci_set_dev_notifications(xhci);
 
 	for (int i = 0; i < xhci->max_interrupters; i++) {
 		if (xhci->interrupters[i]) {
@@ -1123,50 +1115,155 @@ static int xhci_reinit(struct xhci_hcd *xhci)
 		}
 	}
 
-	/* Set the Number of Device Slots Enabled */
-	xhci_set_dev_slots_enabled(xhci);
-
-	/* xhci_set_cmd_ring_deq() is set on suspend */
-
-	/* Set private xHCD pointer */
-	xhci_write_64(xhci, xhci->dcbaa->dma, &xhci->op_regs->dcbaa_ptr);
-
-	/* Set Doorbell array pointer */
-	val_32 = readl(&xhci->cap_regs->db_off) & DBOFF_MASK;
-	xhci->dba = (void __iomem *)xhci->cap_regs + val_32;
-
-	/* Set USB 3.0 device notifications for function remote wake */
-	xhci_set_dev_notifications(xhci);
-
 	/* Initializing Compliance Mode Recovery Data If Needed */
 	if (xhci_compliance_mode_recovery_timer_quirk_check()) {
 		xhci->quirks |= XHCI_COMP_MODE_QUIRK;
 		compliance_mode_recovery_timer_init(xhci);
 	}
 
-	xhci_dbg(xhci, "Start primary HCD\n");
-	ret = xhci_run(hcd);
-	if (ret)
-		return ret;
+	return 0;
+}
 
-	if (xhci->shared_hcd) {
-		xhci_dbg(xhci, "Start secondary HCD\n");
-		ret = xhci_run(xhci->shared_hcd);
-		if (ret)
-			return ret;
+static int xhci_resume_2(struct xhci_hcd *xhci, pm_message_t msg, bool reinit_xhc)
+{
+	u32			command, temp = 0;
+	struct usb_hcd		*hcd = xhci_to_hcd(xhci);
+	int			retval = 0;
+	bool			pending_portevent = false;
+	bool			suspended_usb3_devs = false;
 
-		xhci->shared_hcd->state = HC_STATE_SUSPENDED;
-		usb_hcd_resume_root_hub(xhci->shared_hcd);
+	spin_lock_irq(&xhci->lock);
+
+	if (!reinit_xhc) {
+		/*
+		 * Some controllers might lose power during suspend, so wait
+		 * for controller not ready bit to clear, just as in xHC init.
+		 */
+		retval = xhci_handshake(&xhci->op_regs->status, STS_CNR, 0, 10 * 1000 * 1000);
+		if (retval) {
+			xhci_warn(xhci, "Controller not ready at resume %d\n",  retval);
+			spin_unlock_irq(&xhci->lock);
+			return retval;
+		}
+
+		/* step 1: restore register */
+		xhci_restore_registers(xhci);
+		/* step 2: initialize command ring buffer */
+		xhci_set_cmd_ring_deq(xhci);
+		/* step 3: restore state and start state */
+		command = readl(&xhci->op_regs->command);
+		command |= CMD_CRS;
+		writel(command, &xhci->op_regs->command);
+
+		/*
+		 * Some controllers take up to 55+ ms to complete the controller
+		 * restore so setting the timeout to 100ms. Xhci specification
+		 * doesn't mention any timeout value.
+		 */
+		retval = xhci_handshake(&xhci->op_regs->status, STS_RESTORE, 0, 100 * 1000);
+		if (retval) {
+			xhci_warn(xhci, "WARN: xHC restore state timeout\n");
+			spin_unlock_irq(&xhci->lock);
+			return -ETIMEDOUT;
+		}
+
+		/* re-initialize the HC on Restore Error, or Host Controller Error */
+		temp = readl(&xhci->op_regs->status);
+		if ((temp & (STS_SRE | STS_HCE)) && !(xhci->xhc_state & XHCI_STATE_REMOVING)) {
+			reinit_xhc = true;
+			if (!xhci->broken_suspend)
+				xhci_warn(xhci, "xHC error in resume, USBSTS 0x%x, Reinit\n", temp);
+		}
 	}
 
-	/*
-	 * Resume roothubs unconditionally as PORTSC change bits are not immediately
-	 * visible after xHC reset
-	 */
-	hcd->state = HC_STATE_SUSPENDED;
-	usb_hcd_resume_root_hub(hcd);
+	if (reinit_xhc) {
+		if ((xhci->quirks & XHCI_COMP_MODE_QUIRK) && !xhci_all_ports_seen_u0(xhci)) {
+			del_timer_sync(&xhci->comp_mode_recovery_timer);
+			xhci_dbg_trace(xhci, trace_xhci_dbg_quirks,
+				       "Compliance Mode Recovery Timer deleted!");
+		}
+	
+		/* Let the USB core know _both_ roothubs lost power. */
+		usb_root_hub_lost_power(xhci->main_hcd->self.root_hub);
+		if (xhci->shared_hcd)
+			usb_root_hub_lost_power(xhci->shared_hcd->self.root_hub);
+	
+		xhci_dbg(xhci, "Stop HCD\n");
+		xhci_halt(xhci);
+	
+		xhci_zero_64b_regs(xhci);
+	
+		retval = xhci_reset(xhci, XHCI_RESET_LONG_USEC);
+		spin_unlock_irq(&xhci->lock);
+		if (retval)
+			return retval;
 
-	xhci_dbg(xhci, "Start HCD completed - status = %x\n", readl(&xhci->op_regs->status));
+		xhci_reinit(xhci);
+
+		xhci_dbg(xhci, "Start primary HCD\n");
+		retval = xhci_run(hcd); // Will call xhci_start()
+		if (retval)
+			return retval;
+
+		if (xhci->shared_hcd) {
+			xhci_dbg(xhci, "Start secondary HCD\n");
+			retval = xhci_run(xhci->shared_hcd);
+			if (retval)
+				return retval;
+
+			xhci->shared_hcd->state = HC_STATE_SUSPENDED;
+			usb_hcd_resume_root_hub(xhci->shared_hcd);
+		}
+
+		/*
+		* Resume roothubs unconditionally as PORTSC change bits are not immediately
+		* visible after xHC reset
+		*/
+		hcd->state = HC_STATE_SUSPENDED;
+		usb_hcd_resume_root_hub(hcd);
+
+		xhci_dbg(xhci, "Start HCD completed - status = %x\n", readl(&xhci->op_regs->status));
+	} else {
+		retval = xhci_start(xhci, 250 * 1000);
+		spin_unlock_irq(&xhci->lock);
+		if (retval)
+			return retval;
+
+		xhci_dbc_resume(xhci);
+
+		/*
+		* Resume roothubs only if there are pending events.
+		* USB 3 devices resend U3 LFPS wake after a 100ms delay if
+		* the first wake signalling failed, give it that chance if
+		* there are suspended USB 3 devices.
+		*/
+		if (xhci->usb3_rhub.bus_state.suspended_ports ||
+		    xhci->usb3_rhub.bus_state.bus_suspended)
+			suspended_usb3_devs = true;
+
+		pending_portevent = xhci_pending_portevent(xhci);
+		if (!pending_portevent && suspended_usb3_devs && msg.event == PM_EVENT_AUTO_RESUME) {
+			msleep(120);
+			pending_portevent = xhci_pending_portevent(xhci);
+		}
+
+		if (pending_portevent) {
+			if (xhci->shared_hcd)
+				usb_hcd_resume_root_hub(xhci->shared_hcd);
+
+			usb_hcd_resume_root_hub(hcd);
+		}
+
+		/*
+		* If system is subject to the Quirk, Compliance Mode Timer needs to
+		* be re-initialized Always after a system resume. Ports are subject
+		* to suffer the Compliance Mode issue again. It doesn't matter if
+		* ports have entered previously to U0 before system's suspension.
+		*/
+		if (xhci->quirks & XHCI_COMP_MODE_QUIRK)
+			compliance_mode_recovery_timer_init(xhci);
+	}
+
 	return 0;
 }
 
@@ -1176,21 +1273,17 @@ static int xhci_reinit(struct xhci_hcd *xhci)
  * This is called when the machine transition from S3/S4 mode.
  *
  */
-int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
+int xhci_resume(struct xhci_hcd *xhci, pm_message_t msg)
 {
-	u32			command, temp = 0;
 	struct usb_hcd		*hcd = xhci_to_hcd(xhci);
-	int			retval = 0;
-	bool			pending_portevent = false;
-	bool			suspended_usb3_devs = false;
+	int			retval;
 
 	if (!hcd->state)
 		return 0;
 
-	/* Wait a bit if either of the roothubs need to settle from the
-	 * transition into bus suspend.
+	/*
+	 * Wait a bit if either of the roothubs need to settle from the transition into bus suspend.
 	 */
-
 	if (time_before(jiffies, xhci->usb2_rhub.bus_state.next_statechange) ||
 	    time_before(jiffies, xhci->usb3_rhub.bus_state.next_statechange))
 		msleep(100);
@@ -1199,117 +1292,17 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 	if (xhci->shared_hcd)
 		set_bit(HCD_FLAG_HW_ACCESSIBLE, &xhci->shared_hcd->flags);
 
-	spin_lock_irq(&xhci->lock);
+	retval = xhci_resume_2(xhci, msg, msg.event == PM_EVENT_RESTORE ||
+					  xhci->quirks & XHCI_RESET_ON_RESUME ||
+					  xhci->broken_suspend);
+	if (retval)
+		return retval;
 
-	if (xhci->quirks & XHCI_RESET_ON_RESUME || xhci->broken_suspend)
- 		power_lost = true;
-
-	if (!power_lost) {
-		/*
-		 * Some controllers might lose power during suspend, so wait
-		 * for controller not ready bit to clear, just as in xHC init.
-		 */
-		retval = xhci_handshake(&xhci->op_regs->status,
-					STS_CNR, 0, 10 * 1000 * 1000);
-		if (retval) {
-			xhci_warn(xhci, "Controller not ready at resume %d\n",
-				  retval);
-			spin_unlock_irq(&xhci->lock);
-			return retval;
-		}
-		/* step 1: restore register */
-		xhci_restore_registers(xhci);
-		/* step 2: initialize command ring buffer */
-		xhci_set_cmd_ring_deq(xhci);
-		/* step 3: restore state and start state*/
-		/* step 3: set CRS flag */
-		command = readl(&xhci->op_regs->command);
-		command |= CMD_CRS;
-		writel(command, &xhci->op_regs->command);
-		/*
-		 * Some controllers take up to 55+ ms to complete the controller
-		 * restore so setting the timeout to 100ms. Xhci specification
-		 * doesn't mention any timeout value.
-		 */
-		if (xhci_handshake(&xhci->op_regs->status,
-			      STS_RESTORE, 0, 100 * 1000)) {
-			xhci_warn(xhci, "WARN: xHC restore state timeout\n");
-			spin_unlock_irq(&xhci->lock);
-			return -ETIMEDOUT;
-		}
-	}
-
-	temp = readl(&xhci->op_regs->status);
-
-	/* re-initialize the HC on Restore Error, or Host Controller Error */
-	if ((temp & (STS_SRE | STS_HCE)) &&
-	    !(xhci->xhc_state & XHCI_STATE_REMOVING)) {
-		if (!power_lost)
-			xhci_warn(xhci, "xHC error in resume, USBSTS 0x%x, Reinit\n", temp);
-		power_lost = true;
-	}
-
-	if (power_lost) {
-		retval = xhci_reinit(xhci);
-		if (retval)
-			return retval;
-		goto done;
-	}
-
-	/* step 4: set Run/Stop bit */
-	xhci_start(xhci, 250 * 1000);
-
-	/* step 5: walk topology and initialize portsc,
-	 * portpmsc and portli
-	 */
-	/* this is done in bus_resume */
-
-	/* step 6: restart each of the previously
-	 * Running endpoints by ringing their doorbells
-	 */
-
-	spin_unlock_irq(&xhci->lock);
-
-	xhci_dbc_resume(xhci);
-
-	/*
-	 * Resume roothubs only if there are pending events.
-	 * USB 3 devices resend U3 LFPS wake after a 100ms delay if
-	 * the first wake signalling failed, give it that chance if
-	 * there are suspended USB 3 devices.
-	 */
-	if (xhci->usb3_rhub.bus_state.suspended_ports ||
-		xhci->usb3_rhub.bus_state.bus_suspended)
-		suspended_usb3_devs = true;
-
-	pending_portevent = xhci_pending_portevent(xhci);
-
-	if (suspended_usb3_devs && !pending_portevent && is_auto_resume) {
-		msleep(120);
-		pending_portevent = xhci_pending_portevent(xhci);
-	}
-
-	if (pending_portevent) {
-		if (xhci->shared_hcd)
-			usb_hcd_resume_root_hub(xhci->shared_hcd);
-		usb_hcd_resume_root_hub(hcd);
-	}
-
-	/*
-	 * If system is subject to the Quirk, Compliance Mode Timer needs to
-	 * be re-initialized Always after a system resume. Ports are subject
-	 * to suffer the Compliance Mode issue again. It doesn't matter if
-	 * ports have entered previously to U0 before system's suspension.
-	 */
-	if (xhci->quirks & XHCI_COMP_MODE_QUIRK)
-		compliance_mode_recovery_timer_init(xhci);
-done:
 	if (xhci->quirks & XHCI_ASMEDIA_MODIFY_FLOWCONTROL)
 		usb_asmedia_modifyflowcontrol(to_pci_dev(hcd->self.controller));
 
 	/* Re-enable port polling. */
-	xhci_dbg(xhci, "%s: starting usb%d port polling.\n",
-		 __func__, hcd->self.busnum);
+	xhci_dbg(xhci, "%s: starting usb%d port polling.\n", __func__, hcd->self.busnum);
 	if (xhci->shared_hcd) {
 		set_bit(HCD_FLAG_POLL_RH, &xhci->shared_hcd->flags);
 		usb_hcd_poll_rh_status(xhci->shared_hcd);
@@ -1317,7 +1310,7 @@ done:
 	set_bit(HCD_FLAG_POLL_RH, &hcd->flags);
 	usb_hcd_poll_rh_status(hcd);
 
-	return retval;
+	return 0;
 }
 EXPORT_SYMBOL_GPL(xhci_resume);
 #endif	/* CONFIG_PM */
