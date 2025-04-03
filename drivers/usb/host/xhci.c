@@ -596,7 +596,6 @@ static int xhci_init(struct usb_hcd *hcd)
 
 static int xhci_run_finished(struct xhci_hcd *xhci)
 {
-	struct xhci_interrupter *ir = xhci->interrupters[0];
 	unsigned long	flags;
 	u32		temp;
 
@@ -608,11 +607,11 @@ static int xhci_run_finished(struct xhci_hcd *xhci)
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Enable interrupts");
 	temp = readl(&xhci->op_regs->command);
-	temp |= (CMD_EIE);
+	temp |= CMD_EIE;
 	writel(temp, &xhci->op_regs->command);
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Enable primary interrupter");
-	xhci_enable_interrupter(ir);
+	xhci_enable_interrupter(xhci->interrupters[0]);
 
 	if (xhci_start(xhci)) {
 		xhci_halt(xhci);
@@ -646,6 +645,7 @@ int xhci_run(struct usb_hcd *hcd)
 {
 	u64 temp_64;
 	int ret;
+	struct xhci_command *command;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	struct xhci_interrupter *ir = xhci->interrupters[0];
 	/* Start the xHCI host controller running only after the USB 2.0 roothub
@@ -656,43 +656,38 @@ int xhci_run(struct usb_hcd *hcd)
 	if (hcd->msi_enabled)
 		ir->ip_autoclear = true;
 
-	if (!usb_hcd_is_primary_hcd(hcd))
-		return xhci_run_finished(xhci);
+	if (usb_hcd_is_primary_hcd(hcd)) {
+		xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_run");
 
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_run");
+		temp_64 = xhci_read_64(xhci, &ir->ir_set->erst_dequeue);
+		temp_64 &= ERST_PTR_MASK;
+		xhci_dbg_trace(xhci, trace_xhci_dbg_init, "ERST deq = 64'h%0lx", temp_64);
 
-	temp_64 = xhci_read_64(xhci, &ir->ir_set->erst_dequeue);
-	temp_64 &= ERST_PTR_MASK;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			"ERST deq = 64'h%0lx", (long unsigned int) temp_64);
+		xhci_set_interrupter_moderation(ir, xhci->imod_interval);
 
-	xhci_set_interrupter_moderation(ir, xhci->imod_interval);
+		if (xhci->quirks & XHCI_NEC_HOST) {
+			command = xhci_alloc_command(xhci, false, GFP_KERNEL);
+			if (!command)
+				return -ENOMEM;
 
-	if (xhci->quirks & XHCI_NEC_HOST) {
-		struct xhci_command *command;
+			ret = xhci_queue_vendor_command(xhci, command, 0, 0, 0,
+							TRB_TYPE(TRB_NEC_GET_FW));
+			if (ret)
+				xhci_free_command(xhci, command);
+		}
+		xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Finished %s for main hcd", __func__);
 
-		command = xhci_alloc_command(xhci, false, GFP_KERNEL);
-		if (!command)
-			return -ENOMEM;
+		xhci_create_dbc_dev(xhci);
 
-		ret = xhci_queue_vendor_command(xhci, command, 0, 0, 0,
-				TRB_TYPE(TRB_NEC_GET_FW));
-		if (ret)
-			xhci_free_command(xhci, command);
+		xhci_debugfs_init(xhci);
+
+		if (!xhci_has_one_roothub(xhci)) {
+			set_bit(HCD_FLAG_DEFER_RH_REGISTER, &hcd->flags);
+			return 0;
+		}
 	}
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			"Finished %s for main hcd", __func__);
 
-	xhci_create_dbc_dev(xhci);
-
-	xhci_debugfs_init(xhci);
-
-	if (xhci_has_one_roothub(xhci))
-		return xhci_run_finished(xhci);
-
-	set_bit(HCD_FLAG_DEFER_RH_REGISTER, &hcd->flags);
-
-	return 0;
+	return xhci_run_finished(xhci);
 }
 EXPORT_SYMBOL_GPL(xhci_run);
 
