@@ -134,7 +134,7 @@ int xhci_halt(struct xhci_hcd *xhci)
 /*
  * Set the run bit and wait for the host to be running.
  */
-int xhci_start(struct xhci_hcd *xhci)
+int xhci_start(struct xhci_hcd *xhci, u64 timeout_us)
 {
 	u32 temp;
 	int ret;
@@ -149,12 +149,10 @@ int xhci_start(struct xhci_hcd *xhci)
 	 * Wait for the HCHalted Status bit to be 0 to indicate the host is
 	 * running.
 	 */
-	ret = xhci_handshake(&xhci->op_regs->status,
-			STS_HALT, 0, XHCI_MAX_HALT_USEC);
+	ret = xhci_handshake(&xhci->op_regs->status, STS_HALT, 0, timeout_us);
 	if (ret == -ETIMEDOUT)
-		xhci_err(xhci, "Host took too long to start, "
-				"waited %u microseconds.\n",
-				XHCI_MAX_HALT_USEC);
+		xhci_err(xhci, "Host took too long to start, waited %llu microseconds\n",
+			 timeout_us);
 	if (!ret) {
 		/* clear state flags. Including dying, halted or removing */
 		xhci->xhc_state = 0;
@@ -601,7 +599,7 @@ static int xhci_run_finished(struct xhci_hcd *xhci)
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Enable primary interrupter");
 	xhci_enable_interrupter(ir);
 
-	if (xhci_start(xhci)) {
+	if (xhci_start(xhci, XHCI_MAX_HALT_USEC)) {
 		xhci_halt(xhci);
 		spin_unlock_irqrestore(&xhci->lock, flags);
 		return -ENODEV;
@@ -1203,11 +1201,10 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 	}
 
 	/* step 4: set Run/Stop bit */
-	command = readl(&xhci->op_regs->command);
-	command |= CMD_RUN;
-	writel(command, &xhci->op_regs->command);
-	xhci_handshake(&xhci->op_regs->status, STS_HALT,
-		  0, 250 * 1000);
+	retval = xhci_start(xhci, XHCI_RESET_SHORT_USEC);
+	spin_unlock_irq(&xhci->lock);
+	if (retval)
+		return retval;
 
 	/* step 5: walk topology and initialize portsc,
 	 * portpmsc and portli
@@ -1217,8 +1214,6 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 	/* step 6: restart each of the previously
 	 * Running endpoints by ringing their doorbells
 	 */
-
-	spin_unlock_irq(&xhci->lock);
 
 	xhci_dbc_resume(xhci);
 
