@@ -2486,7 +2486,7 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	 * Since the USB core grabs the shared usb_bus bandwidth mutex before
 	 * disabling LPM, we only need to reserve one TRB for all devices.
 	 */
-	xhci->cmd_ring_reserved_trbs++;
+	xhci->cmd_ring_reserved_trbs = 1;
 
 	/* Allocate and set up primary interrupter 0 with an event ring. */
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Allocating primary event ring");
