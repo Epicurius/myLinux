@@ -2316,8 +2316,7 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	struct xhci_interrupter *ir;
-	unsigned int i;
-	int err = -ENOSPC;
+	int err;
 
 	if (!xhci->interrupters || xhci->max_interrupters <= 1 ||
 	    intr_num >= xhci->max_interrupters)
@@ -2329,40 +2328,36 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
 
 	spin_lock_irq(&xhci->lock);
 	if (!intr_num) {
+		intr_num = 1;
 		/* Find available secondary interrupter, interrupter 0 is reserved for primary */
-		for (i = 1; i < xhci->max_interrupters; i++) {
-			if (!xhci->interrupters[i]) {
-				xhci->interrupters[i] = ir;
-				xhci_add_interrupter(xhci, i);
-				err = 0;
-				break;
-			}
+		while (xhci->interrupters[intr_num]) {
+			if (++intr_num == xhci->max_interrupters)
+				goto intr_slot_occupied;
 		}
-	} else {
-		if (!xhci->interrupters[intr_num]) {
-			xhci->interrupters[intr_num] = ir;
-			xhci_add_interrupter(xhci, intr_num);
-			err = 0;
-		}
+	} else if (xhci->interrupters[intr_num]) {
+		goto intr_slot_occupied;
 	}
-	spin_unlock_irq(&xhci->lock);
 
-	if (err) {
-		xhci_warn(xhci, "Failed to add secondary interrupter, max interrupters %d\n",
-			  xhci->max_interrupters);
-		xhci_free_interrupter(xhci, ir);
-		return NULL;
-	}
+	xhci->interrupters[intr_num] = ir;
+	xhci_add_interrupter(xhci, intr_num);
+	spin_unlock_irq(&xhci->lock);
 
 	err = xhci_set_interrupter_moderation(ir, imod_interval);
 	if (err)
-		xhci_warn(xhci, "Failed to set interrupter %d moderation to %uns\n",
-			  i, imod_interval);
+		xhci_warn(xhci, "Failed to set interrupter %u moderation to %uns\n",
+			  intr_num, imod_interval);
 
 	xhci_dbg(xhci, "Add secondary interrupter %d, max interrupters %d\n",
 		 ir->intr_num, xhci->max_interrupters);
 
 	return ir;
+
+intr_slot_occupied:
+	spin_unlock_irq(&xhci->lock);
+	xhci_warn(xhci, "Failed to add secondary interrupter, max interrupters %d\n",
+		  xhci->max_interrupters);
+	xhci_free_interrupter(xhci, ir);
+	return NULL;
 }
 EXPORT_SYMBOL_GPL(xhci_create_secondary_interrupter);
 
