@@ -1453,25 +1453,19 @@ static void xhci_unmap_urb_for_dma(struct usb_hcd *hcd, struct urb *urb)
 		usb_hcd_unmap_urb_for_dma(hcd, urb);
 }
 
-/**
- * xhci_get_endpoint_index - Used for passing endpoint bitmasks between the core and
- * HCDs.  Find the index for an endpoint given its descriptor.  Use the return
+/*
+ * xhci_get_endpoint_index - Used for passing endpoint bitmasks between the core
+ * and HCDs. Find the index for an endpoint given its descriptor. Use the return
  * value to right shift 1 for the bitmask.
- * @desc: USB endpoint descriptor to determine index for
- *
- * Index  = (epnum * 2) + direction - 1,
- * where direction = 0 for OUT, 1 for IN.
- * For control endpoints, the IN index is used (OUT index is unused), so
- * index = (epnum * 2) + direction - 1 = (epnum * 2) + 1 - 1 = (epnum * 2)
  */
 unsigned int xhci_get_endpoint_index(struct usb_endpoint_descriptor *desc)
 {
-	unsigned int index;
-	if (usb_endpoint_xfer_control(desc))
-		index = (unsigned int) (usb_endpoint_num(desc)*2);
-	else
-		index = (unsigned int) (usb_endpoint_num(desc)*2) +
-			(usb_endpoint_dir_in(desc) ? 1 : 0) - 1;
+	unsigned int index = usb_endpoint_num(desc) * 2;
+
+	/* For control endpoints, the IN index is used (OUT index is unused) */
+	if (!usb_endpoint_xfer_control(desc) && usb_endpoint_dir_in(desc))
+		index -= 1;
+
 	return index;
 }
 EXPORT_SYMBOL_GPL(xhci_get_endpoint_index);
