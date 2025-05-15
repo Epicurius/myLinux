@@ -903,6 +903,7 @@ static void xhci_td_cleanup(struct xhci_hcd *xhci, struct xhci_td *td,
 
 	inc_td_cnt(urb);
 	/* Giveback the urb when all the tds are completed */
+	printk("NIK: xhci: %d\n", urb->dev->port_is_suspended);
 	if (last_td_in_urb(td)) {
 		if ((urb->actual_length != urb->transfer_buffer_length &&
 		     (urb->transfer_flags & URB_SHORT_NOT_OK)) ||
