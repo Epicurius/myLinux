@@ -1250,6 +1250,7 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 		temp = readl(&xhci->op_regs->status);
 		if ((temp & (STS_SRE | STS_HCE)) && !(xhci->xhc_state & XHCI_STATE_REMOVING)) {
 			xhci_warn(xhci, "xHC error in resume, USBSTS 0x%x, Reinit\n", temp);
+			printk("NIK: xhci: reinit\n");
 			power_lost = true;
 			hard_reset = true;
 		}
@@ -1313,8 +1314,10 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 	/* step 4: set Run/Stop bit */
 	retval = xhci_start(xhci, XHCI_RESET_SHORT_USEC);
 	spin_unlock_irq(&xhci->lock);
-	if (retval)
+	if (retval) {
+		printk("NIK: xhci: xhci_start %d\n", retval);
 		return retval;
+	}
 
 	/* step 5: walk topology and initialize portsc,
 	 * portpmsc and portli

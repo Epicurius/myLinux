@@ -841,6 +841,7 @@ static int xhci_pci_resume(struct usb_hcd *hcd, pm_message_t msg)
 	if (xhci->quirks & XHCI_PME_STUCK_QUIRK)
 		xhci_pme_quirk(hcd);
 
+	dev_warn(&pdev->dev, "NIK: xhci: Device\n");
 	return xhci_resume(xhci, power_lost, is_auto_resume);
 }
 

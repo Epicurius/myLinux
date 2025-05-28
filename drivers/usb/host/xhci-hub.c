@@ -1276,8 +1276,8 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 		if (status == 0xffffffff)
 			goto error;
 
-		xhci_dbg(xhci, "Get port status %d-%d read: 0x%x, return 0x%x",
-			 hcd->self.busnum, portnum1, temp, status);
+		// xhci_dbg(xhci, "Get port status %d-%d read: 0x%x, return 0x%x",
+		// 	 hcd->self.busnum, portnum1, temp, status);
 
 		put_unaligned(cpu_to_le32(status), (__le32 *) buf);
 		/* if USB 3.1 extended port status return additional 4 bytes */
