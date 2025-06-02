@@ -434,6 +434,7 @@ static int suspend_common(struct device *dev, pm_message_t msg)
 	 * and the stub usb_device (which we check here).  But maybe it
 	 * didn't; writing sysfs power/state files ignores such rules...
 	 */
+	printk("NIK: xhci: suspend_common()\n");
 	retval = check_root_hub_suspended(dev);
 	if (retval)
 		return retval;
@@ -523,11 +524,13 @@ static int resume_common(struct device *dev, pm_message_t msg)
 
 static int hcd_pci_suspend(struct device *dev)
 {
+	printk("NIK: xhci: hcd_pci_suspend()\n");
 	return suspend_common(dev, PMSG_SUSPEND);
 }
 
 static int hcd_pci_freeze(struct device *dev)
 {
+	printk("NIK: xhci: hcd_pci_freeze()\n");
 	return suspend_common(dev, PMSG_FREEZE);
 }
 
@@ -537,6 +540,7 @@ static int hcd_pci_suspend_noirq(struct device *dev)
 	struct usb_hcd		*hcd = pci_get_drvdata(pci_dev);
 	int			retval;
 
+	printk("NIK: xhci: hcd_pci_suspend_noirq()\n");
 	retval = check_root_hub_suspended(dev);
 	if (retval)
 		return retval;
@@ -613,6 +617,7 @@ static int hcd_pci_runtime_suspend(struct device *dev)
 {
 	int	retval;
 
+	printk("NIK: xhci: hcd_pci_runtime_suspend()\n");
 	retval = suspend_common(dev, PMSG_AUTO_SUSPEND);
 	if (retval == 0)
 		powermac_set_asic(to_pci_dev(dev), 0);

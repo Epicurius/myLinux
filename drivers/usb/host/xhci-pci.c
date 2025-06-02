@@ -610,10 +610,12 @@ int xhci_pci_common_probe(struct pci_dev *dev, const struct pci_device_id *id)
 	/* USB 2.0 roothub is stored in the PCI device now. */
 	hcd = dev_get_drvdata(&dev->dev);
 	xhci = hcd_to_xhci(hcd);
+	xhci->allow_single_roothub = 1;
+	printk("NIK: xhci: %d %d %d\n", xhci->allow_single_roothub, xhci->usb2_rhub.num_ports, xhci->usb3_rhub.num_ports);
 	xhci->reset = reset;
 
-	xhci->allow_single_roothub = 1;
 	if (!xhci_has_one_roothub(xhci)) {
+		printk("NIK: xhci: xhci has ? roothub\n");
 		xhci->shared_hcd = usb_create_shared_hcd(&xhci_pci_hc_driver, &dev->dev,
 							 pci_name(dev), hcd);
 		if (!xhci->shared_hcd) {
@@ -625,32 +627,43 @@ int xhci_pci_common_probe(struct pci_dev *dev, const struct pci_device_id *id)
 		if (retval)
 			goto put_usb3_hcd;
 
+		// Primary HCD is added in usb_hcd_pci_probe()
 		retval = usb_add_hcd(xhci->shared_hcd, dev->irq, IRQF_SHARED);
 		if (retval)
 			goto put_usb3_hcd;
 	} else {
+		printk("NIK: xhci: xhci has 1 roothub\n");
 		retval = xhci_ext_cap_init(xhci);
 		if (retval)
 			goto dealloc_usb2_hcd;
 	}
+	printk("NIK: xhci: 1\n");
 
 	usb3_hcd = xhci_get_usb3_hcd(xhci);
 	if (usb3_hcd && !(xhci->quirks & XHCI_BROKEN_STREAMS) && HCC_MAX_PSA(xhci->hcc_params) >= 4)
 		usb3_hcd->can_do_streams = 1;
 
+	printk("NIK: xhci: 2\n");
 	/* USB-2 and USB-3 roothubs initialized, allow runtime pm suspend */
 	pm_runtime_put_noidle(&dev->dev);
 
-	if (pci_choose_state(dev, PMSG_SUSPEND) == PCI_D0)
+	printk("NIK: xhci: 3\n");
+	if (pci_choose_state(dev, PMSG_SUSPEND) == PCI_D0) {
+		printk("NIK: xhci: 3.1\n");
 		pm_runtime_get(&dev->dev);
-	else if (xhci->quirks & XHCI_DEFAULT_PM_RUNTIME_ALLOW)
+	} else if (xhci->quirks & XHCI_DEFAULT_PM_RUNTIME_ALLOW) {
+		printk("NIK: xhci: 3.2\n");
 		pm_runtime_allow(&dev->dev);
+	}
 
+	printk("NIK: xhci: 4\n");
 	dma_set_max_seg_size(&dev->dev, UINT_MAX);
 
+	printk("NIK: xhci: 5\n");
 	if (device_property_read_bool(&dev->dev, "ti,pwron-active-high"))
 		pci_clear_and_set_config_dword(dev, 0xE0, 0, 1 << 22);
 
+	printk("NIK: xhci: HERE\n");
 	return 0;
 
 put_usb3_hcd:

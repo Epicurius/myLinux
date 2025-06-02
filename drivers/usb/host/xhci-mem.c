@@ -1974,7 +1974,7 @@ static void xhci_set_hc_event_deq(struct xhci_hcd *xhci, struct xhci_interrupter
 	xhci_write_64(xhci, deq & ERST_PTR_MASK, &ir->ir_set->erst_dequeue);
 }
 
-static void xhci_add_in_port(struct xhci_hcd *xhci, unsigned int num_ports,
+static int xhci_add_in_port(struct xhci_hcd *xhci, unsigned int num_ports,
 		__le32 __iomem *addr, int max_caps)
 {
 	u32 temp, port_offset, port_count;
@@ -1989,6 +1989,7 @@ static void xhci_add_in_port(struct xhci_hcd *xhci, unsigned int num_ports,
 	minor_revision = XHCI_EXT_PORT_MINOR(temp);
 
 	if (major_revision == 0x03) {
+		return 1;
 		rhub = &xhci->usb3_rhub;
 		/*
 		 * Some hosts incorrectly use sub-minor version for minor
@@ -2014,7 +2015,7 @@ static void xhci_add_in_port(struct xhci_hcd *xhci, unsigned int num_ports,
 		xhci_warn(xhci, "Ignoring unknown port speed, Ext Cap %p, revision = 0x%x\n",
 				addr, major_revision);
 		/* Ignoring port protocol we can't understand. FIXME */
-		return;
+		return 0;
 	}
 
 	/* Port offset and count in the third dword, see section 7.2 */
@@ -2027,11 +2028,11 @@ static void xhci_add_in_port(struct xhci_hcd *xhci, unsigned int num_ports,
 	/* Port count includes the current port offset */
 	if (port_offset == 0 || (port_offset + port_count - 1) > num_ports)
 		/* WTF? "Valid values are ‘1’ to MaxPorts" */
-		return;
+		return 0;
 
 	port_cap = &xhci->port_caps[xhci->num_port_caps++];
 	if (xhci->num_port_caps > max_caps)
-		return;
+		return 0;
 
 	port_cap->psi_count = XHCI_EXT_PORT_PSIC(temp);
 
@@ -2107,6 +2108,7 @@ static void xhci_add_in_port(struct xhci_hcd *xhci, unsigned int num_ports,
 		rhub->num_ports++;
 	}
 	/* FIXME: Should we disable ports not in the Extended Capabilities? */
+	return 0;
 }
 
 static void xhci_create_rhub_port_array(struct xhci_hcd *xhci,
@@ -2202,14 +2204,24 @@ static int xhci_setup_port_arrays(struct xhci_hcd *xhci, gfp_t flags)
 
 	offset = cap_start;
 
+	printk("NIK: xhci: hcs_params1 %d\n", num_ports);
 	while (offset) {
-		xhci_add_in_port(xhci, num_ports, base + offset, cap_count);
-		if (xhci->usb2_rhub.num_ports + xhci->usb3_rhub.num_ports ==
-		    num_ports)
+		int ret = xhci_add_in_port(xhci, num_ports, base + offset, cap_count);
+		if (ret)
+			num_ports--;
+		if (xhci->usb2_rhub.num_ports + xhci->usb3_rhub.num_ports == num_ports)
 			break;
 		offset = xhci_find_next_ext_cap(base, offset,
 						XHCI_EXT_CAPS_PROTOCOL);
 	}
+
+	printk("NIK: xhci: num_ports %d\n", num_ports);
+	xhci->hcs_params1 &= ~4278190080;
+	xhci->hcs_params1 |= num_ports << 24;
+	printk("NIK: xhci: hcs_params1 %d\n", HCS_MAX_PORTS(xhci->hcs_params1));
+
+	//usb_generic_driver_suspend(struct usb_device);
+
 	if (xhci->usb2_rhub.num_ports == 0 && xhci->usb3_rhub.num_ports == 0) {
 		xhci_warn(xhci, "No ports on the roothubs?\n");
 		return -ENODEV;
