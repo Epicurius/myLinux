@@ -633,6 +633,23 @@ int xhci_pci_common_probe(struct pci_dev *dev, const struct pci_device_id *id)
 			goto put_usb3_hcd;
 	} else {
 		printk("NIK: xhci: xhci has 1 roothub\n");
+		xhci->shared_temp = usb_create_shared_hcd(&xhci_pci_hc_driver, &dev->dev,
+							 pci_name(dev), hcd);
+		if (!xhci->shared_temp) {
+			retval = -ENOMEM;
+			goto dealloc_usb2_hcd;
+		}
+
+		// retval = xhci_ext_cap_init(xhci);
+		// if (retval)
+		// 	goto put_usb3_hcd;
+
+		// Primary HCD is added in usb_hcd_pci_probe()
+		retval = usb_add_hcd(xhci->shared_temp, dev->irq, IRQF_SHARED);
+		if (retval)
+			goto put_usb3_hcd;
+
+
 		retval = xhci_ext_cap_init(xhci);
 		if (retval)
 			goto dealloc_usb2_hcd;
@@ -790,6 +807,7 @@ static int xhci_pci_suspend(struct usb_hcd *hcd, bool do_wakeup)
 	struct pci_dev		*pdev = to_pci_dev(hcd->self.controller);
 	int			ret;
 
+	printk("NIK: xhci: xhci_pci_suspend()");
 	/*
 	 * Systems with the TI redriver that loses port status change events
 	 * need to have the registers polled during D3, so avoid D3cold.

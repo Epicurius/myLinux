@@ -617,7 +617,7 @@ static int hcd_pci_runtime_suspend(struct device *dev)
 {
 	int	retval;
 
-	printk("NIK: xhci: hcd_pci_runtime_suspend()\n");
+	printk("NIK: xhci: hcd_pci_runtime_suspend() caller is %pS\n", __builtin_return_address(0));
 	retval = suspend_common(dev, PMSG_AUTO_SUSPEND);
 	if (retval == 0)
 		powermac_set_asic(to_pci_dev(dev), 0);

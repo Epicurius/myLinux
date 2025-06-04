@@ -1250,8 +1250,9 @@ static void unbind_no_pm_drivers_interfaces(struct usb_device *udev)
 static int usb_suspend_device(struct usb_device *udev, pm_message_t msg)
 {
 	struct usb_device_driver	*udriver;
-	int				status = 0;
+	int		status;
 
+	printk("NIK: xhci: usb_suspend_device() caller is %pS\n", __builtin_return_address(0));
 	if (udev->state == USB_STATE_NOTATTACHED ||
 			udev->state == USB_STATE_SUSPENDED)
 		goto done;
@@ -1416,6 +1417,7 @@ static int usb_suspend_both(struct usb_device *udev, pm_message_t msg)
 	int			i = 0, n = 0;
 	struct usb_interface	*intf;
 
+	printk("NIK: xhci: usb_suspend_both() caller is %pS\n", __builtin_return_address(0));
 	if (udev->state == USB_STATE_NOTATTACHED ||
 			udev->state == USB_STATE_SUSPENDED)
 		goto done;
@@ -1953,6 +1955,7 @@ int usb_runtime_suspend(struct device *dev)
 	struct usb_device	*udev = to_usb_device(dev);
 	int			status;
 
+	printk("NIK: xhci: usb_runtime_suspend() caller is %pS\n", __builtin_return_address(0));
 	/* A USB device can be suspended if it passes the various autosuspend
 	 * checks.  Runtime suspend for a USB device means suspending all the
 	 * interfaces and then the device itself.

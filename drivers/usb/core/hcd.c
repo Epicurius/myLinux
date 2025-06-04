@@ -2248,6 +2248,7 @@ int hcd_bus_suspend(struct usb_device *rhdev, pm_message_t msg)
 	int		status;
 	int		old_state = hcd->state;
 
+	printk("NIK: xhci: hcd_bus_suspend() caller is %pS\n", __builtin_return_address(0));
 	dev_dbg(&rhdev->dev, "bus %ssuspend, wakeup %d\n",
 			(PMSG_IS_AUTO(msg) ? "auto-" : ""),
 			rhdev->do_remote_wakeup);

@@ -1497,6 +1497,7 @@ struct xhci_hub {
 struct xhci_hcd {
 	struct usb_hcd *main_hcd;
 	struct usb_hcd *shared_hcd;
+	struct usb_hcd *shared_temp;
 	/* glue to PCI and HCD framework */
 	struct xhci_cap_regs __iomem *cap_regs;
 	struct xhci_op_regs __iomem *op_regs;

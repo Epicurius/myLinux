@@ -278,6 +278,7 @@ int usb_generic_driver_suspend(struct usb_device *udev, pm_message_t msg)
 {
 	int rc;
 
+	printk("NIK: xhci: usb_generic_driver_suspend() caller is %pS\n", __builtin_return_address(0));
 	/* Normal USB devices suspend through their upstream port.
 	 * Root hubs don't have upstream ports to suspend,
 	 * so we have to shut down their downstream HC-to-USB
