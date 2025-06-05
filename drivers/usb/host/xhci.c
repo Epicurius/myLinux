@@ -1060,6 +1060,20 @@ int xhci_suspend(struct xhci_hcd *xhci, bool do_wakeup)
 }
 EXPORT_SYMBOL_GPL(xhci_suspend);
 
+static int xhci_hard_reset(struct xhci_hcd *xhci)
+{
+	xhci_dbg(xhci, "Hard resetting xhci\n");
+
+	writel(STS_EINT, &xhci->op_regs->status);
+	for (int i = 0; i < xhci->max_interrupters; i++)
+		xhci_disable_interrupter(xhci, xhci->interrupters[i]);
+
+	xhci_mem_cleanup(xhci);
+	xhci_debugfs_exit(xhci);
+
+	return xhci_init(xhci);
+}
+
 /*
  * start xHC (not bus-specific)
  *
@@ -1164,22 +1178,8 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 		if (retval)
 			return retval;
 
-		xhci_dbg(xhci, "// Disabling event ring interrupts\n");
-		writel(STS_EINT, &xhci->op_regs->status);
-		xhci_disable_interrupter(xhci, xhci->interrupters[0]);
-
-		xhci_dbg(xhci, "cleaning up memory\n");
-		xhci_mem_cleanup(xhci);
-		xhci_debugfs_exit(xhci);
-		xhci_dbg(xhci, "xhci_stop completed - status = %x\n",
-			    readl(&xhci->op_regs->status));
-
-		/* USB core calls the PCI reinit and start functions twice:
-		 * first with the primary HCD, and then with the secondary HCD.
-		 * If we don't do the same, the host will never be started.
-		 */
-		xhci_dbg(xhci, "Initialize the xhci_hcd\n");
-		retval = xhci_init(xhci);
+		/* Fully free and re-allocate 'xhci' */
+		retval = xhci_hard_reset(xhci);
 		if (retval)
 			return retval;
 
