@@ -1060,6 +1060,88 @@ int xhci_suspend(struct xhci_hcd *xhci, bool do_wakeup)
 }
 EXPORT_SYMBOL_GPL(xhci_suspend);
 
+/*
+ * Resume the driver by initializing registers, and re-allocating only the necessary memory.
+ * This is the opposite of xhci_hard_reset() which re-allocates everything.
+ */
+static int xhci_soft_reset(struct xhci_hcd *xhci)
+{
+	struct xhci_segment *seg;
+
+	writel(STS_EINT, &xhci->op_regs->status);
+	for (int i = 0; i < xhci->max_interrupters; i++) {
+		if (!xhci->interrupters[i])
+			continue;
+
+		/* Disable IMAN Interrupt Enable bit */
+		xhci_disable_interrupter(xhci, xhci->interrupters[i]);
+		/* Clear ERSTS and EHB bit and update ERDP */
+		xhci_remove_interrupter(xhci, xhci->interrupters[i]);
+		/* Reset all Event TRBs */
+		xhci_for_each_ring_seg(xhci->interrupters[i]->event_ring->first_seg, seg)
+			memset(seg->trbs, 0, sizeof(union xhci_trb) * TRBS_PER_SEGMENT);
+	}
+
+	cancel_delayed_work_sync(&xhci->cmd_timer);
+
+	/* Free all 'vdev'. They are re-created during runtime by xhci_alloc_virt_device() */
+	for (int i = HCS_MAX_PORTS(xhci->hcs_params1); i > 0; i--)
+		xhci_free_virt_devices_depth_first(xhci, i);
+
+	/* Delete all remaining commands */
+	xhci_cleanup_command_queue(xhci);
+
+	/* Reset all Coammand TRBs. Link TRBs are re-initialized later. */
+	xhci_for_each_ring_seg(xhci->cmd_ring->first_seg, seg)
+		memset(seg->trbs, 0, sizeof(union xhci_trb) * TRBS_PER_SEGMENT);
+	xhci->cmd_ring_reserved_trbs = 0;
+
+	xhci_debugfs_exit(xhci);
+
+	xhci_dbg(xhci, "Soft reset cleanup completed\n");
+
+	/* Init command timeout work */
+	INIT_LIST_HEAD(&xhci->cmd_list);
+	INIT_DELAYED_WORK(&xhci->cmd_timer, xhci_handle_command_timeout);
+
+	/* Set the Number of Device Slots Enabled to the maximum supported value */
+	xhci_enable_max_dev_slots(xhci);
+
+	/* Init Command ring Link TRBs */
+	xhci_initialize_ring_segments(xhci, xhci->cmd_ring);
+	/* Init Command ring; Queue ptr, cycle state and number trbs free */
+	xhci_initialize_ring_info(xhci->cmd_ring);
+	xhci->cmd_ring_reserved_trbs = 1;
+	/* Write Command ring register values */
+	xhci_set_cmd_ring_deq(xhci);
+
+	/* Set private xHCD pointer */
+	xhci_write_64(xhci, xhci->dcbaa->dma, &xhci->op_regs->dcbaa_ptr);
+
+	/* Set Doorbell array pointer */
+	xhci_set_doorbell_ptr(xhci);
+
+	/* Set USB 3.0 device notifications for function remote wake */
+	xhci_set_dev_notifications(xhci);
+
+	for (int i = 0; i < xhci->max_interrupters; i++) {
+		if (!xhci->interrupters[i])
+			continue;
+
+		/* Init Event ring; Queue ptr, cycle state and number trbs free */
+		xhci_initialize_ring_info(xhci->interrupters[i]->event_ring);
+		/* Write to ERST registers to enable the interrupter */
+		xhci_add_interrupter(xhci, i);
+	}
+
+	/* Initializing Compliance Mode Recovery Timer */
+	if (xhci->quirks & XHCI_COMP_MODE_QUIRK)
+		compliance_mode_recovery_timer_init(xhci);
+
+	xhci_dbg(xhci, "Soft reset initialization completed\n");
+	return 0;
+}
+
 static int xhci_hard_reset(struct xhci_hcd *xhci)
 {
 	xhci_dbg(xhci, "Hard resetting xhci\n");
@@ -1087,6 +1169,7 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 	int			retval = 0;
 	bool			pending_portevent = false;
 	bool			suspended_usb3_devs = false;
+	bool			hard_reset = false;
 
 	if (!hcd->state)
 		return 0;
@@ -1147,6 +1230,7 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 		if ((temp & (STS_SRE | STS_HCE)) && !(xhci->xhc_state & XHCI_STATE_REMOVING)) {
 			xhci_warn(xhci, "xHC error in resume, USBSTS 0x%x, Reinit\n", temp);
 			power_lost = true;
+			hard_reset = true;
 		}
 	}
 
@@ -1178,8 +1262,10 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 		if (retval)
 			return retval;
 
-		/* Fully free and re-allocate 'xhci' */
-		retval = xhci_hard_reset(xhci);
+		if (hard_reset)
+			retval = xhci_hard_reset(xhci);
+		else
+			retval = xhci_soft_reset(xhci);
 		if (retval)
 			return retval;
 

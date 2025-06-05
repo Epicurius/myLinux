@@ -113,7 +113,7 @@ static void xhci_set_link_trb(struct xhci_segment *seg, bool chain_links)
 	trb->link.segment_ptr = cpu_to_le64(seg->next->dma);
 }
 
-static void xhci_initialize_ring_segments(struct xhci_hcd *xhci, struct xhci_ring *ring)
+void xhci_initialize_ring_segments(struct xhci_hcd *xhci, struct xhci_ring *ring)
 {
 	struct xhci_segment *seg;
 	bool chain_links;
@@ -930,7 +930,7 @@ void xhci_free_virt_device(struct xhci_hcd *xhci, struct xhci_virt_device *dev,
  * that tt_info, then free the child first. Recursive.
  * We can't rely on udev at this point to find child-parent relationships.
  */
-static void xhci_free_virt_devices_depth_first(struct xhci_hcd *xhci, int slot_id)
+void xhci_free_virt_devices_depth_first(struct xhci_hcd *xhci, int slot_id)
 {
 	struct xhci_virt_device *vdev;
 	struct list_head *tt_list_head;
@@ -1822,8 +1822,7 @@ static int xhci_alloc_erst(struct xhci_hcd *xhci,
 	return 0;
 }
 
-static void
-xhci_remove_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
+void xhci_remove_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
 {
 	u32 tmp;
 

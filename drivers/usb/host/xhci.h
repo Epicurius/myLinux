@@ -1865,6 +1865,9 @@ void xhci_remove_secondary_interrupter(struct usb_hcd
 void xhci_skip_sec_intr_events(struct xhci_hcd *xhci,
 			       struct xhci_ring *ring,
 			       struct xhci_interrupter *ir);
+void xhci_free_virt_devices_depth_first(struct xhci_hcd *xhci, int slot_id);
+void xhci_initialize_ring_segments(struct xhci_hcd *xhci, struct xhci_ring *ring);
+void xhci_remove_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir);
 
 /* xHCI host controller glue */
 typedef void (*xhci_get_quirks_t)(struct device *, struct xhci_hcd *);
