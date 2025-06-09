@@ -95,9 +95,9 @@ DECLARE_EVENT_CLASS(xhci_log_ctx,
 			((HCC_64BYTE_CONTEXT(xhci->hcc_params) + 1) * 32) *
 			((ctx->type == XHCI_CTX_TYPE_INPUT) + ep_num + 1));
 	),
-	TP_printk("ctx_64=%d, ctx_type=%u, ctx_dma=@%llx, ctx_va=@%p",
+	TP_printk("ctx_64=%d, ctx_type=%u, ctx_dma=@%pad, ctx_va=@%p",
 			__entry->ctx_64, __entry->ctx_type,
-			(unsigned long long) __entry->ctx_dma, __entry->ctx_va
+			&__entry->ctx_dma, __entry->ctx_va
 	)
 );
 
@@ -174,22 +174,22 @@ DECLARE_EVENT_CLASS(xhci_log_free_virt_dev,
 	TP_ARGS(vdev),
 	TP_STRUCT__entry(
 		__field(void *, vdev)
-		__field(unsigned long long, out_ctx)
-		__field(unsigned long long, in_ctx)
+		__field(dma_addr_t, out_ctx)
+		__field(dma_addr_t, in_ctx)
 		__field(int, slot_id)
 		__field(u16, current_mel)
 
 	),
 	TP_fast_assign(
 		__entry->vdev = vdev;
-		__entry->in_ctx = (unsigned long long) vdev->in_ctx->dma;
-		__entry->out_ctx = (unsigned long long) vdev->out_ctx->dma;
+		__entry->in_ctx = vdev->in_ctx->dma;
+		__entry->out_ctx = vdev->out_ctx->dma;
 		__entry->slot_id = (int) vdev->slot_id;
 		__entry->current_mel = (u16) vdev->current_mel;
 		),
-	TP_printk("vdev %p slot %d ctx %llx | %llx current_mel %d",
-		__entry->vdev, __entry->slot_id, __entry->in_ctx,
-		__entry->out_ctx, __entry->current_mel
+	TP_printk("vdev %p slot %d ctx %pad | %pad current_mel %d",
+		__entry->vdev, __entry->slot_id, &__entry->in_ctx,
+		&__entry->out_ctx, __entry->current_mel
 	)
 );
 
@@ -203,8 +203,8 @@ DECLARE_EVENT_CLASS(xhci_log_virt_dev,
 	TP_ARGS(vdev),
 	TP_STRUCT__entry(
 		__field(void *, vdev)
-		__field(unsigned long long, out_ctx)
-		__field(unsigned long long, in_ctx)
+		__field(dma_addr_t, out_ctx)
+		__field(dma_addr_t, in_ctx)
 		__field(int, devnum)
 		__field(int, state)
 		__field(int, speed)
@@ -214,8 +214,8 @@ DECLARE_EVENT_CLASS(xhci_log_virt_dev,
 	),
 	TP_fast_assign(
 		__entry->vdev = vdev;
-		__entry->in_ctx = (unsigned long long) vdev->in_ctx->dma;
-		__entry->out_ctx = (unsigned long long) vdev->out_ctx->dma;
+		__entry->in_ctx = vdev->in_ctx->dma;
+		__entry->out_ctx = vdev->out_ctx->dma;
 		__entry->devnum = vdev->udev->devnum;
 		__entry->state = vdev->udev->state;
 		__entry->speed = vdev->udev->speed;
@@ -223,8 +223,8 @@ DECLARE_EVENT_CLASS(xhci_log_virt_dev,
 		__entry->level = vdev->udev->level;
 		__entry->slot_id = vdev->udev->slot_id;
 	),
-	TP_printk("vdev %p ctx %llx | %llx num %d state %d speed %d port %d level %d slot %d",
-		__entry->vdev, __entry->in_ctx, __entry->out_ctx,
+	TP_printk("vdev %p ctx %pad | %pad num %d state %d speed %d port %d level %d slot %d",
+		__entry->vdev, &__entry->in_ctx, &__entry->out_ctx,
 		__entry->devnum, __entry->state, __entry->speed,
 		__entry->portnum, __entry->level, __entry->slot_id
 	)
