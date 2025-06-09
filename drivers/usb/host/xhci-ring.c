@@ -782,7 +782,7 @@ static int xhci_move_dequeue_past_td(struct xhci_hcd *xhci,
 	ep->queued_deq_ptr = new_deq;
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
-		       "Set TR Deq ptr 0x%llx, cycle %u\n", addr, new_cycle);
+		       "Set TR Deq ptr 0x%pad, cycle %u\n", &addr, new_cycle);
 
 	/* Stop the TD queueing code from ringing the doorbell until
 	 * this command completes.  The HC won't set the dequeue pointer
@@ -1036,6 +1036,7 @@ static int xhci_invalidate_cancelled_tds(struct xhci_virt_ep *ep)
 	u64			hw_deq;
 	unsigned int		slot_id = ep->vdev->slot_id;
 	int			err;
+	dma_addr_t		dma;
 
 	/*
 	 * This is not going to work if the hardware is changing its dequeue
@@ -1047,11 +1048,10 @@ static int xhci_invalidate_cancelled_tds(struct xhci_virt_ep *ep)
 	xhci = ep->xhci;
 
 	list_for_each_entry_safe(td, tmp_td, &ep->cancelled_td_list, cancelled_td_list) {
+		dma = xhci_trb_virt_to_dma(td->start_seg, td->start_trb);
 		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
-			       "Removing canceled TD starting at 0x%llx (dma) in stream %u URB %p",
-			       (unsigned long long)xhci_trb_virt_to_dma(
-				       td->start_seg, td->start_trb),
-			       td->urb->stream_id, td->urb);
+			       "Removing canceled TD starting at 0x%pad (dma) in stream %u URB %p",
+			       &dma, td->urb->stream_id, td->urb);
 		list_del_init(&td->td_list);
 		ring = xhci_urb_to_transfer_ring(xhci, td->urb);
 		if (!ring) {
@@ -2215,6 +2215,7 @@ static void finish_td(struct xhci_hcd *xhci, struct xhci_virt_ep *ep,
 		      u32 trb_comp_code)
 {
 	struct xhci_ep_ctx *ep_ctx;
+	dma_addr_t dma;
 
 	ep_ctx = xhci_get_ep_ctx(xhci, ep->vdev->out_ctx, ep->ep_index);
 
@@ -2250,9 +2251,8 @@ static void finish_td(struct xhci_hcd *xhci, struct xhci_virt_ep *ep,
 			 */
 			if ((ep->ep_state & EP_HALTED) &&
 			    !list_empty(&td->cancelled_td_list)) {
-				xhci_dbg(xhci, "Already resolving halted ep for 0x%llx\n",
-					 (unsigned long long)xhci_trb_virt_to_dma(
-						 td->start_seg, td->start_trb));
+				dma = xhci_trb_virt_to_dma(td->start_seg, td->start_trb);
+				xhci_dbg(xhci, "Already resolving halted ep for 0x%pad\n", &dma);
 				return;
 			}
 			/* endpoint not halted, don't reset it */
@@ -2974,18 +2974,18 @@ check_endpoint_halted:
 	return 0;
 
 debug_finding_td:
-	xhci_err(xhci, "Event dma %pad for ep %d status %d not part of TD at %016llx - %016llx\n",
+	xhci_err(xhci, "Event dma %pad for ep %d status %d not part of TD at %pad - %pad\n",
 		 &ep_trb_dma, ep_index, trb_comp_code,
-		 (unsigned long long)xhci_trb_virt_to_dma(td->start_seg, td->start_trb),
-		 (unsigned long long)xhci_trb_virt_to_dma(td->end_seg, td->end_trb));
+		 &(dma_addr_t){xhci_trb_virt_to_dma(td->start_seg, td->start_trb)},
+		 &(dma_addr_t){xhci_trb_virt_to_dma(td->end_seg, td->end_trb)});
 
 	return -ESHUTDOWN;
 
 err_out:
-	xhci_err(xhci, "@%016llx %08x %08x %08x %08x\n",
-		 (unsigned long long) xhci_trb_virt_to_dma(
-			 ir->event_ring->deq_seg,
-			 ir->event_ring->dequeue),
+	xhci_err(xhci, "@%pad %08x %08x %08x %08x\n",
+		 &(dma_addr_t){xhci_trb_virt_to_dma(
+			ir->event_ring->deq_seg,
+			ir->event_ring->dequeue)},
 		 lower_32_bits(le64_to_cpu(event->buffer)),
 		 upper_32_bits(le64_to_cpu(event->buffer)),
 		 le32_to_cpu(event->transfer_len),
