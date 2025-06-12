@@ -4430,11 +4430,8 @@ static int xhci_setup_device(struct usb_hcd *hcd, struct usb_device *udev,
 	xhci_dbg_trace(xhci, trace_xhci_dbg_address,
 			"Op regs DCBAA ptr = %#016llx", temp_64);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_address,
-		"Slot ID %d dcbaa entry @%p = %#016llx",
-		udev->slot_id,
-		&xhci->dcbaa->dev_context_ptrs[udev->slot_id],
-		(unsigned long long)
-		le64_to_cpu(xhci->dcbaa->dev_context_ptrs[udev->slot_id]));
+		"Slot ID %d dcbaa entry 0x%llx",
+		udev->slot_id, xhci->dcbaa->dev_context_ptrs[udev->slot_id]);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_address,
 			"Output Context DMA address = %#08llx",
 			(unsigned long long)virt_dev->out_ctx->dma);
