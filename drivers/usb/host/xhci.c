@@ -655,7 +655,7 @@ static int xhci_run_finished(struct xhci_hcd *xhci)
  */
 int xhci_run(struct usb_hcd *hcd)
 {
-	u64 temp_64;
+	u64 erdp;
 	int ret;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	struct xhci_interrupter *ir = xhci->interrupters[0];
@@ -672,10 +672,9 @@ int xhci_run(struct usb_hcd *hcd)
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_run");
 
-	temp_64 = xhci_read_64(xhci, &ir->ir_set->erst_dequeue);
-	temp_64 &= ERST_PTR_MASK;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			"ERST deq = 64'h%0lx", (long unsigned int) temp_64);
+	erdp = xhci_read_64(xhci, &ir->ir_set->erst_dequeue);
+	erdp &= ERST_PTR_MASK;
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "ERST deq = %#llx", erdp);
 
 	xhci_set_interrupter_moderation(ir, xhci->imod_interval);
 
