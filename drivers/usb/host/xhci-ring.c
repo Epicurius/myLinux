@@ -462,7 +462,7 @@ static void xhci_handle_stopped_cmd_ring(struct xhci_hcd *xhci,
 
 		i_cmd->status = COMP_COMMAND_RING_STOPPED;
 
-		xhci_dbg(xhci, "Turn aborted command %p to no-op\n",
+		xhci_dbg(xhci, "Turn aborted command @0x%p to no-op\n",
 			 i_cmd->command_trb);
 
 		trb_to_noop(i_cmd->command_trb, TRB_CMD_NOOP);
@@ -750,7 +750,7 @@ static int xhci_move_dequeue_past_td(struct xhci_hcd *xhci,
 	addr = xhci_trb_virt_to_dma(new_seg, new_deq);
 	if (addr == 0) {
 		xhci_warn(xhci, "Can't find dma of new dequeue ptr\n");
-		xhci_warn(xhci, "deq seg = %p, deq ptr = %p\n", new_seg, new_deq);
+		xhci_warn(xhci, "deq seg = @0x%p, deq ptr = @0x%p\n", new_seg, new_deq);
 		return -EINVAL;
 	}
 
@@ -905,7 +905,7 @@ static void xhci_td_cleanup(struct xhci_hcd *xhci, struct xhci_td *td,
 		if ((urb->actual_length != urb->transfer_buffer_length &&
 		     (urb->transfer_flags & URB_SHORT_NOT_OK)) ||
 		    (status != 0 && !usb_endpoint_xfer_isoc(&urb->ep->desc)))
-			xhci_dbg(xhci, "Giveback URB %p, len = %d, expected = %d, status = %d\n",
+			xhci_dbg(xhci, "Giveback URB @0x%p, len = %d, expected = %d, status = %d\n",
 				 urb, urb->actual_length,
 				 urb->transfer_buffer_length, status);
 
@@ -939,11 +939,11 @@ static void xhci_giveback_invalidated_tds(struct xhci_virt_ep *ep)
 		ring = xhci_urb_to_transfer_ring(ep->xhci, td->urb);
 
 		if (td->cancel_status == TD_CLEARED) {
-			xhci_dbg(ep->xhci, "%s: Giveback cancelled URB %p TD\n",
+			xhci_dbg(ep->xhci, "%s: Giveback cancelled URB @0x%p TD\n",
 				 __func__, td->urb);
 			xhci_td_cleanup(ep->xhci, td, ring, td->status);
 		} else {
-			xhci_dbg(ep->xhci, "%s: Keep cancelled URB %p TD as cancel_status is %d\n",
+			xhci_dbg(ep->xhci, "%s: Keep cancelled URB @0x%p TD as cancel_status is %d\n",
 				 __func__, td->urb, td->cancel_status);
 		}
 		if (ep->xhci->xhc_state & XHCI_STATE_DYING)
@@ -1049,12 +1049,12 @@ static int xhci_invalidate_cancelled_tds(struct xhci_virt_ep *ep)
 	list_for_each_entry_safe(td, tmp_td, &ep->cancelled_td_list, cancelled_td_list) {
 		dma = xhci_trb_virt_to_dma(td->start_seg, td->start_trb);
 		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
-			       "Removing canceled TD starting at @%pad (dma) in stream %u URB %p",
+			       "Removing canceled TD starting at @%pad (dma) in stream %u URB @0x%p",
 			       &dma, td->urb->stream_id, td->urb);
 		list_del_init(&td->td_list);
 		ring = xhci_urb_to_transfer_ring(xhci, td->urb);
 		if (!ring) {
-			xhci_warn(xhci, "WARN Cancelled URB %p has invalid stream ID %u.\n",
+			xhci_warn(xhci, "WARN Cancelled URB @0x%p has invalid stream ID %u.\n",
 				  td->urb, td->urb->stream_id);
 			continue;
 		}
@@ -1080,7 +1080,7 @@ static int xhci_invalidate_cancelled_tds(struct xhci_virt_ep *ep)
 					if (cached_td->urb->stream_id != td->urb->stream_id) {
 						/* Multiple streams case, defer move dq */
 						xhci_dbg(xhci,
-							 "Move dq deferred: stream %u URB %p\n",
+							 "Move dq deferred: stream %u URB @0x%p\n",
 							 td->urb->stream_id, td->urb);
 						td->cancel_status = TD_CLEARING_CACHE_DEFERRED;
 						break;
@@ -1088,7 +1088,7 @@ static int xhci_invalidate_cancelled_tds(struct xhci_virt_ep *ep)
 
 					/* Should never happen, but clear the TD if it does */
 					xhci_warn(xhci,
-						  "Found multiple active URBs %p and %p in stream %u?\n",
+						  "Found multiple active URBs @0x%p and @0x%p in stream %u?\n",
 						  td->urb, cached_td->urb,
 						  td->urb->stream_id);
 					td_to_noop(cached_td, false);
@@ -1123,7 +1123,7 @@ static int xhci_invalidate_cancelled_tds(struct xhci_virt_ep *ep)
 			if (td->cancel_status != TD_CLEARING_CACHE &&
 			    td->cancel_status != TD_CLEARING_CACHE_DEFERRED)
 				continue;
-			xhci_warn(xhci, "Failed to clear cancelled cached URB %p, mark clear anyway\n",
+			xhci_warn(xhci, "Failed to clear cancelled cached URB @0x%p, mark clear anyway\n",
 				  td->urb);
 			td_to_noop(td, false);
 			td->cancel_status = TD_CLEARED;
@@ -1507,7 +1507,7 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 			ep_ring->dequeue = ep->queued_deq_ptr;
 		} else {
 			xhci_warn(xhci, "Mismatch between completed Set TR Deq Ptr command & xHCI internal state.\n");
-			xhci_warn(xhci, "ep deq seg = %p, deq ptr = %p\n",
+			xhci_warn(xhci, "ep deq seg = @0x%p, deq ptr = @0x%p\n",
 				  ep->queued_deq_seg, ep->queued_deq_ptr);
 		}
 	}
@@ -1517,11 +1517,11 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 		ep_ring = xhci_urb_to_transfer_ring(ep->xhci, td->urb);
 		if (td->cancel_status == TD_CLEARING_CACHE) {
 			td->cancel_status = TD_CLEARED;
-			xhci_dbg(ep->xhci, "%s: Giveback cancelled URB %p TD\n",
+			xhci_dbg(ep->xhci, "%s: Giveback cancelled URB @0x%p TD\n",
 				 __func__, td->urb);
 			xhci_td_cleanup(ep->xhci, td, ep_ring, td->status);
 		} else {
-			xhci_dbg(ep->xhci, "%s: Keep cancelled URB %p TD as cancel_status is %d\n",
+			xhci_dbg(ep->xhci, "%s: Keep cancelled URB @0x%p TD as cancel_status is %d\n",
 				 __func__, td->urb, td->cancel_status);
 		}
 	}

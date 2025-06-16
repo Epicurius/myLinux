@@ -1684,7 +1684,7 @@ static int xhci_urb_enqueue(struct usb_hcd *hcd, struct urb *urb, gfp_t mem_flag
 	}
 
 	if (xhci->xhc_state & XHCI_STATE_DYING) {
-		xhci_dbg(xhci, "Ep 0x%x: URB %p submitted for non-responsive xHCI host.\n",
+		xhci_dbg(xhci, "Ep 0x%x: URB @0x%p submitted for non-responsive xHCI host.\n",
 			 urb->ep->desc.bEndpointAddress, urb);
 		ret = -ESHUTDOWN;
 		goto free_priv;
@@ -1841,7 +1841,7 @@ static int xhci_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 		dma_addr_t dma = xhci_trb_virt_to_dma(urb_priv->td[i].start_seg,
 						      urb_priv->td[i].start_trb);
 		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
-				"Cancel URB %p, dev %s, ep 0x%x, starting at offset @%pad",
+				"Cancel URB @0x%p, dev %s, ep 0x%x, starting at offset @%pad",
 				urb, urb->dev->devpath,
 				urb->ep->desc.bEndpointAddress,
 				&dma);
@@ -1928,7 +1928,7 @@ int xhci_drop_endpoint(struct usb_hcd *hcd, struct usb_device *udev,
 	if (xhci->xhc_state & XHCI_STATE_DYING)
 		return -ENODEV;
 
-	xhci_dbg(xhci, "%s called for udev %p\n", __func__, udev);
+	xhci_dbg(xhci, "%s called for udev @0x%p\n", __func__, udev);
 	drop_flag = xhci_get_endpoint_flag(&ep->desc);
 	if (drop_flag == SLOT_FLAG || drop_flag == EP0_FLAG) {
 		xhci_dbg(xhci, "xHCI %s - can't drop slot or ep 0 %#x\n",
@@ -1955,7 +1955,7 @@ int xhci_drop_endpoint(struct usb_hcd *hcd, struct usb_device *udev,
 	    xhci_get_endpoint_flag(&ep->desc)) {
 		/* Do not warn when called after a usb_device_reset */
 		if (xhci->devs[udev->slot_id]->eps[ep_index].ring != NULL)
-			xhci_warn(xhci, "xHCI %s called with disabled ep %p\n",
+			xhci_warn(xhci, "xHCI %s called with disabled ep @0x%p\n",
 				  __func__, ep);
 		return 0;
 	}
@@ -2051,7 +2051,7 @@ int xhci_add_endpoint(struct usb_hcd *hcd, struct usb_device *udev,
 	 * ignore this request.
 	 */
 	if (le32_to_cpu(ctrl_ctx->add_flags) & added_ctxs) {
-		xhci_warn(xhci, "xHCI %s called with enabled ep %p\n",
+		xhci_warn(xhci, "xHCI %s called with enabled ep @0x%p\n",
 				__func__, ep);
 		return 0;
 	}
@@ -3082,7 +3082,7 @@ int xhci_check_bandwidth(struct usb_hcd *hcd, struct usb_device *udev)
 		(xhci->xhc_state & XHCI_STATE_REMOVING))
 		return -ENODEV;
 
-	xhci_dbg(xhci, "%s called for udev %p\n", __func__, udev);
+	xhci_dbg(xhci, "%s called for udev @0x%p\n", __func__, udev);
 	virt_dev = xhci->devs[udev->slot_id];
 
 	command = xhci_alloc_command(xhci, true, GFP_KERNEL);
@@ -3174,7 +3174,7 @@ void xhci_reset_bandwidth(struct usb_hcd *hcd, struct usb_device *udev)
 		return;
 	xhci = hcd_to_xhci(hcd);
 
-	xhci_dbg(xhci, "%s called for udev %p\n", __func__, udev);
+	xhci_dbg(xhci, "%s called for udev @0x%p\n", __func__, udev);
 	virt_dev = xhci->devs[udev->slot_id];
 	/* Free any rings allocated for added endpoints */
 	for (i = 0; i < 31; i++) {
@@ -4433,7 +4433,7 @@ static int xhci_setup_device(struct usb_hcd *hcd, struct usb_device *udev,
 	xhci_dbg_trace(xhci, trace_xhci_dbg_address,
 			"Op regs DCBAA ptr = %#016llx", temp_64);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_address,
-		"Slot ID %d dcbaa entry @%p = %#016llx",
+		"Slot ID %d dcbaa entry @0x%p = %#016llx",
 		udev->slot_id,
 		&xhci->dcbaa->dev_context_ptrs[udev->slot_id],
 		(unsigned long long)
