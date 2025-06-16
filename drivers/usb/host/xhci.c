@@ -5382,7 +5382,7 @@ static void xhci_hcd_init_usb3_data(struct xhci_hcd *xhci, struct usb_hcd *hcd)
 		hcd->self.root_hub->ssp_rate = USB_SSP_GEN_2x1;
 		break;
 	}
-	xhci_info(xhci, "Host supports USB 3.%x %sSuperSpeed\n",
+	xhci_info(xhci, "Host supports USB 3.%u %sSuperSpeed\n",
 		  minor_rev, minor_rev ? "Enhanced " : "");
 
 	xhci->usb3_rhub.hcd = hcd;
