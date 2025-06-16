@@ -1015,7 +1015,7 @@ int xhci_alloc_virt_device(struct xhci_hcd *xhci, int slot_id,
 
 	/* Point to output device context in dcbaa. */
 	xhci->dcbaa->dev_context_ptrs[slot_id] = cpu_to_le64(dev->out_ctx->dma);
-	xhci_dbg(xhci, "Set slot id %d dcbaa entry @0x%p to 0x%llx\n",
+	xhci_dbg(xhci, "Set slot id %d dcbaa entry @0x%p to @0x%llx\n",
 		 slot_id,
 		 &xhci->dcbaa->dev_context_ptrs[slot_id],
 		 le64_to_cpu(xhci->dcbaa->dev_context_ptrs[slot_id]));
