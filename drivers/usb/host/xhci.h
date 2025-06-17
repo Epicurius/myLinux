@@ -2581,7 +2581,7 @@ static inline const char *xhci_decode_ep_context(char *str, u32 info,
 	ret += sprintf(str + ret, "interval %d us max ESIT payload %d CErr %d ",
 			(1 << interval) * 125, esit, cerr);
 
-	ret += sprintf(str + ret, "Type %s %sburst %d maxp %d deq %pad cycle %llu",
+	ret += sprintf(str + ret, "Type %s %sburst %d maxp %d deq @%pad cycle %llu",
 			xhci_ep_type_string(ep_type), hid ? "HID" : "",
 			burst, maxp, &dma, deq & EP_CTX_CYCLE_MASK);
 
