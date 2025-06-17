@@ -1841,7 +1841,7 @@ static int xhci_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 		dma_addr_t dma = xhci_trb_virt_to_dma(urb_priv->td[i].start_seg,
 						      urb_priv->td[i].start_trb);
 		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
-				"Cancel URB %p, dev %s, ep 0x%x, starting at offset %pad",
+				"Cancel URB %p, dev %s, ep 0x%x, starting at offset @%pad",
 				urb, urb->dev->devpath,
 				urb->ep->desc.bEndpointAddress,
 				&dma);
