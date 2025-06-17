@@ -652,8 +652,7 @@ int xhci_run(struct usb_hcd *hcd)
 
 	temp_64 = xhci_read_64(xhci, &ir->ir_set->erst_dequeue);
 	temp_64 &= ERST_PTR_MASK;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
-			"ERST deq = 64'h%0lx", (long unsigned int) temp_64);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "ERST deq = %llx", temp_64);
 
 	xhci_set_interrupter_moderation(ir, xhci->imod_interval);
 
@@ -1822,7 +1821,7 @@ static int xhci_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 		dma_addr_t dma = xhci_trb_virt_to_dma(urb_priv->td[i].start_seg,
 						      urb_priv->td[i].start_trb);
 		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
-				"Cancel URB %p, dev %s, ep 0x%x, starting at %pad",
+				"Cancel URB %p, dev %s, ep 0x%x, starting at @%pad",
 				urb, urb->dev->devpath,
 				urb->ep->desc.bEndpointAddress,
 				&dma);
@@ -4416,12 +4415,12 @@ static int xhci_setup_device(struct usb_hcd *hcd, struct usb_device *udev,
 			"Op regs DCBAA ptr = %#016llx", temp_64);
 	dma = le64_to_cpu(xhci->dcbaa->dev_context_ptrs[udev->slot_id]);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_address,
-		"Slot ID %d dcbaa entry @%p = %pad",
+		"Slot ID %d dcbaa entry %p = @%pad",
 		udev->slot_id,
 		&xhci->dcbaa->dev_context_ptrs[udev->slot_id],
 		&dma);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_address,
-			"Output Context DMA address = %pad",
+			"Output Context DMA address = @%pad",
 			&virt_dev->out_ctx->dma);
 	trace_xhci_address_ctx(xhci, virt_dev->in_ctx,
 				le32_to_cpu(slot_ctx->dev_info) >> 27);
