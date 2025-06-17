@@ -754,15 +754,14 @@ static int xhci_move_dequeue_past_td(struct xhci_hcd *xhci,
 	}
 
 	if ((ep->ep_state & SET_DEQ_PENDING)) {
-		xhci_warn(xhci, "Set TR Deq already pending, don't submit for 0x%pad\n",
-			  &addr);
+		xhci_warn(xhci, "Set TR Deq already pending, don't submit for @%pad\n", &addr);
 		return -EBUSY;
 	}
 
 	/* This function gets called from contexts where it cannot sleep */
 	cmd = xhci_alloc_command(xhci, false, GFP_ATOMIC);
 	if (!cmd) {
-		xhci_warn(xhci, "Can't alloc Set TR Deq cmd 0x%pad\n", &addr);
+		xhci_warn(xhci, "Can't alloc Set TR Deq cmd @%pad\n", &addr);
 		return -ENOMEM;
 	}
 
@@ -781,7 +780,7 @@ static int xhci_move_dequeue_past_td(struct xhci_hcd *xhci,
 	ep->queued_deq_ptr = new_deq;
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
-		       "Set TR Deq ptr %pad, cycle %u\n", &addr, new_cycle);
+		       "Set TR Deq ptr @%pad, cycle %u\n", &addr, new_cycle);
 
 	/* Stop the TD queueing code from ringing the doorbell until
 	 * this command completes.  The HC won't set the dequeue pointer
@@ -1049,7 +1048,7 @@ static int xhci_invalidate_cancelled_tds(struct xhci_virt_ep *ep)
 	list_for_each_entry_safe(td, tmp_td, &ep->cancelled_td_list, cancelled_td_list) {
 		dma = xhci_trb_virt_to_dma(td->start_seg, td->start_trb);
 		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
-			       "Removing canceled TD starting at %pad (dma) in stream %u URB %p",
+			       "Removing canceled TD starting at @%pad (dma) in stream %u URB %p",
 			       &dma, td->urb->stream_id, td->urb);
 		list_del_init(&td->td_list);
 		ring = xhci_urb_to_transfer_ring(xhci, td->urb);
@@ -1500,7 +1499,7 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 			deq = le64_to_cpu(ep_ctx->deq) & TR_DEQ_PTR_MASK;
 		}
 		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
-			"Successful Set TR Deq Ptr cmd, deq = @%08llx", deq);
+			"Successful Set TR Deq Ptr cmd, deq = 0x%llx", deq);
 		if (xhci_trb_virt_to_dma(ep->queued_deq_seg,
 					 ep->queued_deq_ptr) == deq) {
 			/* Update the ring's dequeue segment and dequeue pointer
@@ -2254,7 +2253,7 @@ static void finish_td(struct xhci_hcd *xhci, struct xhci_virt_ep *ep,
 			if ((ep->ep_state & EP_HALTED) &&
 			    !list_empty(&td->cancelled_td_list)) {
 				dma = xhci_trb_virt_to_dma(td->start_seg, td->start_trb);
-				xhci_dbg(xhci, "Already resolving halted ep for %pad\n", &dma);
+				xhci_dbg(xhci, "Already resolving halted ep for @%pad\n", &dma);
 				return;
 			}
 			/* endpoint not halted, don't reset it */
@@ -2914,7 +2913,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 			 * transfer or error on last TRB. Ignore it.
 			 */
 			if (xhci_spurious_success_tx_event(xhci, ep_ring)) {
-				xhci_dbg(xhci, "Spurious event dma %pad, comp_code %u after %u\n",
+				xhci_dbg(xhci, "Spurious event dma @%pad, comp_code %u after %u\n",
 					 &ep_trb_dma, trb_comp_code, ep_ring->old_trb_comp_code);
 				ep_ring->old_trb_comp_code = 0;
 				return 0;
@@ -2978,7 +2977,7 @@ check_endpoint_halted:
 debug_finding_td:
 	td_start = xhci_trb_virt_to_dma(td->start_seg, td->start_trb);
 	td_end = xhci_trb_virt_to_dma(td->end_seg, td->end_trb);
-	xhci_err(xhci, "Event dma %pad for ep %d status %d not part of TD at %pad - %pad\n",
+	xhci_err(xhci, "Event dma @%pad for ep %d status %d not part of TD at @%pad - @%pad\n",
 		 &ep_trb_dma, ep_index, trb_comp_code, &td_start, &td_end);
 
 	return -ESHUTDOWN;

@@ -499,7 +499,7 @@ static void xhci_set_cmd_ring_deq(struct xhci_hcd *xhci)
 	crcr &= ~CMD_RING_CYCLE;
 	crcr |= xhci->cmd_ring->cycle_state;
 
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Command ring deq %pad running %u cycle %u",
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Command ring deq @%pad running %u cycle %u",
 		       &deq_dma, crcr & CMD_RING_RUNNING, xhci->cmd_ring->cycle_state);
 	xhci_write_64(xhci, crcr, &xhci->op_regs->cmd_ring);
 }
@@ -652,7 +652,7 @@ int xhci_run(struct usb_hcd *hcd)
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_run");
 
 	erdp = xhci_read_64(xhci, &ir->ir_set->erst_dequeue);
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "ERST ptr %llx DESI %llu EHB %llu",
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "ERST ptr 0x%llx DESI %llu EHB %llu",
 		       erdp & ERST_PTR_MASK, erdp & ERST_DESI_MASK, erdp & ERST_EHB);
 
 	xhci_set_interrupter_moderation(ir, xhci->imod_interval);
@@ -1822,7 +1822,7 @@ static int xhci_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 		dma_addr_t dma = xhci_trb_virt_to_dma(urb_priv->td[i].start_seg,
 						      urb_priv->td[i].start_trb);
 		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
-				"Cancel URB %p, dev %s, ep 0x%x, starting at %pad",
+				"Cancel URB %p, dev %s, ep 0x%x, starting at @%pad",
 				urb, urb->dev->devpath,
 				urb->ep->desc.bEndpointAddress,
 				&dma);
@@ -4413,15 +4413,15 @@ static int xhci_setup_device(struct usb_hcd *hcd, struct usb_device *udev,
 		goto out;
 	temp_64 = xhci_read_64(xhci, &xhci->op_regs->dcbaa_ptr);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_address,
-			"Op regs DCBAA ptr = %#016llx", temp_64);
+			"Op regs DCBAA ptr = 0x%llx", temp_64);
 	dma = le64_to_cpu(xhci->dcbaa->dev_context_ptrs[udev->slot_id]);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_address,
-		"Slot ID %d dcbaa entry @%p = %pad",
+		"Slot ID %d dcbaa entry %p = @%pad",
 		udev->slot_id,
 		&xhci->dcbaa->dev_context_ptrs[udev->slot_id],
 		&dma);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_address,
-			"Output Context DMA address = %pad",
+			"Output Context DMA address = @%pad",
 			&virt_dev->out_ctx->dma);
 	trace_xhci_address_ctx(xhci, virt_dev->in_ctx,
 				le32_to_cpu(slot_ctx->dev_info) >> 27);
