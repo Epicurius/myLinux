@@ -13,9 +13,11 @@
 #define __LINUX_XHCI_HCD_H
 
 #include <linux/usb.h>
+#include <linux/bits.h>
 #include <linux/timer.h>
 #include <linux/kernel.h>
 #include <linux/usb/hcd.h>
+#include <linux/bitfield.h>
 #include <linux/io-64-nonatomic-lo-hi.h>
 #include <linux/io-64-nonatomic-hi-lo.h>
 
@@ -358,12 +360,10 @@ struct xhci_slot_ctx {
 #define DEV_MTT		(0x1 << 25)
 /* Set if the device is a hub - bit 26 */
 #define DEV_HUB		(0x1 << 26)
-/* Index of the last valid endpoint context in this device context - 27:31 */
-#define LAST_CTX_MASK	(0x1f << 27)
-#define LAST_CTX(p)	((p) << 27)
-#define LAST_CTX_TO_EP_NUM(p)	(((p) >> 27) - 1)
-#define SLOT_FLAG	(1 << 0)
-#define EP0_FLAG	(1 << 1)
+/* bits 31:27 - Context Entries, last valid endpoint context in this device context */
+#define LAST_CTX	GENMASK(31, 17)
+#define SLOT_FLAG	BIT(0)
+#define EP0_FLAG	BIT(1)
 
 /* dev_info2 bitmasks */
 /* Max Exit Latency (ms) - worst case time to wake up all links in dev path */
@@ -2309,11 +2309,11 @@ static inline const char *xhci_decode_slot_context(char *str,
 	hub = info & DEV_HUB;
 	mtt = info & DEV_MTT;
 
-	ret = sprintf(str, "RS %05x %s%s Ctx Entries %d MEL %d us Port# %d/%d",
+	ret = sprintf(str, "RS %05x %s%s Ctx Entries %ld MEL %d us Port# %d/%d",
 			info & ROUTE_STRING_MASK,
 			mtt ? " multi-TT" : "",
 			hub ? " Hub" : "",
-			(info & LAST_CTX_MASK) >> 27,
+			FIELD_GET(LAST_CTX, info),
 			info2 & MAX_EXIT,
 			DEVINFO_TO_ROOT_HUB_PORT(info2),
 			DEVINFO_TO_MAX_PORTS(info2));
