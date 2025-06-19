@@ -1106,7 +1106,7 @@ int xhci_setup_addressable_virt_dev(struct xhci_hcd *xhci, struct usb_device *ud
 	slot_ctx = xhci_get_slot_ctx(xhci, dev->in_ctx);
 
 	/* 3) Only the control endpoint is valid - one endpoint context */
-	slot_ctx->dev_info |= cpu_to_le32(LAST_CTX(1) | udev->route);
+	slot_ctx->dev_info |= cpu_to_le32(FIELD_PREP(LAST_CTX_MASK, 1) | udev->route);
 	switch (udev->speed) {
 	case USB_SPEED_SUPER_PLUS:
 		slot_ctx->dev_info |= cpu_to_le32(SLOT_SPEED_SSP);
