@@ -399,7 +399,6 @@ struct xhci_slot_ctx {
 /* bits 26:8 - RsvdZ */
 /* bits 31:27 - Slot state */
 #define SLOT_STATE	GENMASK(31, 27)
-#define GET_SLOT_STATE(p)	(((p) & (0x1f << 27)) >> 27)
 #define SLOT_STATE_DISABLED	0
 #define SLOT_STATE_ENABLED	SLOT_STATE_DISABLED
 #define SLOT_STATE_DEFAULT	1
@@ -2324,7 +2323,7 @@ static inline const char *xhci_decode_slot_context(char *str,
 			tt_info & TT_SLOT, FIELD_GET(TT_PORT, tt_info),
 			GET_TT_THINK_TIME(tt_info), GET_INTR_TARGET(tt_info),
 			state & DEV_ADDR_MASK,
-			xhci_slot_state_string(GET_SLOT_STATE(state)));
+			xhci_slot_state_string(FIELD_GET(SLOT_STATE, state)));
 
 	return str;
 }
