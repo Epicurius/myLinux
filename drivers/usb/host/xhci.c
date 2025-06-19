@@ -5296,7 +5296,7 @@ int xhci_update_hub_device(struct usb_hcd *hcd, struct usb_device *hdev,
 		xhci_dbg(xhci, "xHCI version %x needs hub "
 				"TT think time and number of ports\n",
 				(unsigned int) xhci->hci_version);
-		slot_ctx->dev_info2 |= cpu_to_le32(XHCI_MAX_PORTS(hdev->maxchild));
+		slot_ctx->dev_info2 |= cpu_to_le32(FIELD_PREP(MAX_PORTS, hdev->maxchild));
 		/* Set TT think time - convert from ns to FS bit times.
 		 * 0 = 8 FS bit times, 1 = 16 FS bit times,
 		 * 2 = 24 FS bit times, 3 = 32 FS bit times.
