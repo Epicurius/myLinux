@@ -5307,8 +5307,7 @@ int xhci_update_hub_device(struct usb_hcd *hcd, struct usb_device *hdev,
 		if (think_time != 0)
 			think_time = (think_time / 666) - 1;
 		if (xhci->hci_version < 0x100 || hdev->speed == USB_SPEED_HIGH)
-			slot_ctx->tt_info |=
-				cpu_to_le32(TT_THINK_TIME(think_time));
+			slot_ctx->tt_info |= cpu_to_le32(FIELD_PREP(TT_THINK_TIME, think_time));
 	} else {
 		xhci_dbg(xhci, "xHCI version %x doesn't need hub "
 				"TT think time or number of ports\n",

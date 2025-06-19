@@ -395,8 +395,7 @@ struct xhci_slot_ctx {
  */
 #define TT_PORT		GENMASK(15, 8)
 /* bits 17:16 - TT Think Time */
-#define TT_THINK_TIME(p)	(((p) & 0x3) << 16)
-#define GET_TT_THINK_TIME(p)	(((p) & (0x3 << 16)) >> 16)
+#define TT_THINK_TIME		GENMASK(17, 16)
 /* bits 21:18 - RsvdZ */
 /*
  * bits 31:22 - Interrupter Target, which MSI-X vector to target the completion event at.
@@ -2349,9 +2348,9 @@ static inline const char *xhci_decode_slot_context(char *str,
 			FIELD_GET(ROOT_HUB_PORT, info2),
 			FIELD_GET(MAX_PORTS, info2));
 
-	ret += sprintf(str + ret, " [TT Slot %ld Port# %ld TTT %d Intr %d] Addr %ld State %s",
+	ret += sprintf(str + ret, " [TT Slot %ld Port# %ld TTT %ld Intr %d] Addr %ld State %s",
 			tt_info & TT_SLOT, (tt_info & TT_PORT) >> 8,
-			GET_TT_THINK_TIME(tt_info), GET_INTR_TARGET(tt_info),
+			FIELD_GET(TT_THINK_TIME, tt_info), GET_INTR_TARGET(tt_info),
 			state & DEV_ADDR_MASK,
 			xhci_slot_state_string(GET_SLOT_STATE(state)));
 
