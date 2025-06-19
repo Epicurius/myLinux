@@ -2345,7 +2345,7 @@ static inline const char *xhci_decode_slot_context(char *str,
 			FIELD_GET(MAX_PORTS, info2));
 
 	ret += sprintf(str + ret, " [TT Slot %ld Port# %ld TTT %ld Intr %d] Addr %ld State %s",
-			tt_info & TT_SLOT, (tt_info & TT_PORT) >> 8,
+			tt_info & TT_SLOT, FIELD_GET(TT_PORT, tt_info),
 			FIELD_GET(TT_THINK_TIME, tt_info), GET_INTR_TARGET(tt_info),
 			state & DEV_ADDR_MASK,
 			xhci_slot_state_string(GET_SLOT_STATE(state)));
