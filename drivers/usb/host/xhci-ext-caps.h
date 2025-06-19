@@ -11,7 +11,7 @@
 /* HC should halt within 16 ms, but use 32 ms as some hosts take longer */
 #define XHCI_MAX_HALT_USEC	(32 * 1000)
 /* HC not running - set to 1 when run/stop bit is cleared. */
-#define XHCI_STS_HALT		(1<<0)
+#define XHCI_STS_HALT		BIT(0)
 
 /* HCCPARAMS offset from PCI base address */
 #define XHCI_HCC_PARAMS_OFFSET	0x10
