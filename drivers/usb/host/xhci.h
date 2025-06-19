@@ -16,6 +16,7 @@
 #include <linux/timer.h>
 #include <linux/kernel.h>
 #include <linux/usb/hcd.h>
+#include <linux/bitfield.h>
 #include <linux/io-64-nonatomic-lo-hi.h>
 #include <linux/io-64-nonatomic-hi-lo.h>
 
@@ -446,8 +447,7 @@ struct xhci_ep_ctx {
 /* 5-7 - reserved */
 /* bits 7:2 - RsvdZ */
 /* bits 9:8 - Max number of bursts within an interval, in EP companion desc. */
-#define EP_MULT(p)		(((p) & 0x3) << 8)
-#define CTX_TO_EP_MULT(p)	(((p) >> 8) & 0x3)
+#define EP_MULT		GENMASK(9, 8)
 /* bits 14:10 - Max Primary Streams the endpoint supports. */
 #define EP_MAXPSTREAMS_MASK		GENMASK(14, 10)
 #define EP_MAXPSTREAMS(p)		(((p) << 10) & EP_MAXPSTREAMS_MASK)
@@ -2565,7 +2565,7 @@ static inline const char *xhci_decode_ep_context(char *str, u32 info,
 	ep_state = info & EP_STATE_MASK;
 	max_pstr = CTX_TO_EP_MAXPSTREAMS(info);
 	interval = CTX_TO_EP_INTERVAL(info);
-	mult = CTX_TO_EP_MULT(info) + 1;
+	mult = FIELD_GET(EP_MULT, info) + 1;
 	lsa = !!(info & EP_HAS_LSA);
 
 	cerr = (info2 & (3 << 1)) >> 1;

@@ -1498,7 +1498,7 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 	/* Fill the endpoint context */
 	ep_ctx->ep_info = cpu_to_le32(EP_MAX_ESIT_PAYLOAD_HI(max_esit_payload) |
 				      EP_INTERVAL(interval) |
-				      EP_MULT(mult));
+				      FIELD_PREP(EP_MULT, mult));
 	ep_ctx->ep_info2 = cpu_to_le32(EP_TYPE(endpoint_type) |
 				       MAX_PACKET(max_packet) |
 				       MAX_BURST(max_burst) |
@@ -1582,7 +1582,7 @@ void xhci_update_bw_info(struct xhci_hcd *xhci,
 			 * input context, but we want one-based for the
 			 * interval table.
 			 */
-			bw_info->mult = CTX_TO_EP_MULT(
+			bw_info->mult = FIELD_GET(EP_MULT,
 					le32_to_cpu(ep_ctx->ep_info)) + 1;
 			bw_info->num_packets = CTX_TO_MAX_BURST(
 					le32_to_cpu(ep_ctx->ep_info2)) + 1;
