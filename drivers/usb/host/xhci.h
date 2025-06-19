@@ -354,7 +354,6 @@ struct xhci_slot_ctx {
 #define ROUTE_STRING_MASK	0xfffff
 /* Device speed - values defined by PORTSC Device Speed field - 20:23 */
 #define DEV_SPEED	(0xf << 20)
-#define GET_DEV_SPEED(n) (((n) & DEV_SPEED) >> 20)
 /* bit 24 reserved */
 /* Is this LS/FS device connected through a HS hub? - bit 25 */
 #define DEV_MTT		(0x1 << 25)
@@ -363,7 +362,6 @@ struct xhci_slot_ctx {
 /* Index of the last valid endpoint context in this device context - 27:31 */
 #define LAST_CTX_MASK	(0x1f << 27)
 #define LAST_CTX(p)	((p) << 27)
-#define LAST_CTX_TO_EP_NUM(p)	(((p) >> 27) - 1)
 #define SLOT_FLAG	(1 << 0)
 #define EP0_FLAG	(1 << 1)
 
