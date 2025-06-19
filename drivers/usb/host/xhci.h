@@ -368,9 +368,8 @@ struct xhci_slot_ctx {
 /* dev_info2 bitmasks */
 /* Max Exit Latency (ms) - worst case time to wake up all links in dev path */
 #define MAX_EXIT	(0xffff)
-/* Root hub port number that is needed to access the USB device */
-#define ROOT_HUB_PORT(p)	(((p) & 0xff) << 16)
-#define DEVINFO_TO_ROOT_HUB_PORT(p)	(((p) >> 16) & 0xff)
+/* bits 23:16 - Root Hub Port Number, used to access the USB device */
+#define ROOT_HUB_PORT		GENMASK(23, 16)
 /* Maximum number of ports under a hub device */
 #define XHCI_MAX_PORTS(p)	(((p) & 0xff) << 24)
 #define DEVINFO_TO_MAX_PORTS(p)	(((p) & (0xff << 24)) >> 24)
@@ -2309,13 +2308,13 @@ static inline const char *xhci_decode_slot_context(char *str,
 	hub = info & DEV_HUB;
 	mtt = info & DEV_MTT;
 
-	ret = sprintf(str, "RS %05x %s%s Ctx Entries %ld MEL %d us Port# %d/%d",
+	ret = sprintf(str, "RS %05x %s%s Ctx Entries %ld MEL %d us Port# %ld/%d",
 			info & ROUTE_STRING_MASK,
 			mtt ? " multi-TT" : "",
 			hub ? " Hub" : "",
 			FIELD_GET(LAST_CTX, info),
 			info2 & MAX_EXIT,
-			DEVINFO_TO_ROOT_HUB_PORT(info2),
+			FIELD_GET(ROOT_HUB_PORT, info2),
 			DEVINFO_TO_MAX_PORTS(info2));
 
 	ret += sprintf(str + ret, " [TT Slot %d Port# %d TTT %d Intr %d] Addr %d State %s",
