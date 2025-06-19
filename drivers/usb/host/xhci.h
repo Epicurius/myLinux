@@ -19,6 +19,8 @@
 #include <linux/io-64-nonatomic-lo-hi.h>
 #include <linux/io-64-nonatomic-hi-lo.h>
 
+#include <linux/bitfield.h>
+
 /* Code sharing between pci-quirks and xhci hcd */
 #include	"xhci-ext-caps.h"
 #include "pci-quirks.h"
@@ -361,19 +363,16 @@ struct xhci_slot_ctx {
 #define DEV_HUB				BIT(26)
 /* bits 31:27 - Last valid endpoint context in this device context */
 #define LAST_CTX_MASK			GENMASK(31, 17)
-#define LAST_CTX(p)			((p) << 27)
-#define SLOT_FLAG			LAST_CTX(0)
-#define EP0_FLAG			LAST_CTX(1)
+#define SLOT_FLAG			FIELD_PREP(LAST_CTX_MASK, 0)
+#define EP0_FLAG			FIELD_PREP(LAST_CTX_MASK, 1)
 
 /* dev_info2 bitmasks */
 /* bits 15:0 - Max Exit Latency (ms), worst case time to wake up all links in dev path */
 #define MAX_EXIT			GENMASK(15, 0)
 /* bits 23:16 - Root hub port number that is needed to access the USB device */
-#define ROOT_HUB_PORT(p)		(((p) & 0xff) << 16)
-#define DEVINFO_TO_ROOT_HUB_PORT(p)	(((p) >> 16) & 0xff)
-/* bits 32:24 - Maximum number of ports under a hub device */
-#define XHCI_MAX_PORTS(p)		(((p) & 0xff) << 24)
-#define DEVINFO_TO_MAX_PORTS(p)		(((p) >> 24) & 0xff)
+#define ROOT_HUB_PORT			GENMASK(23, 16)
+/* bits 31:24 - Maximum number of ports under a hub device */
+#define MAX_PORTS			GENMASK(31, 24)
 
 /* tt_info bitmasks */
 /*
@@ -388,8 +387,7 @@ struct xhci_slot_ctx {
  */
 #define TT_PORT				GENMASK(15, 8)
 /* bits 17:16 - TT Think Time */
-#define TT_THINK_TIME(p)		(((p) & 0x3) << 16)
-#define GET_TT_THINK_TIME(p)		(((p) >> 16) & 0x3)
+#define TT_THINK_TIME			GENMASK(17, 16)
 /*
  * bits 31:22 - Interrupter Target, which MSI-X vector to target the completion event at.
  * Both are the same as dose defined in Normal TRB fields:
@@ -403,7 +401,6 @@ struct xhci_slot_ctx {
 /* bits 8:26 reserved */
 /* bits 31:27 - Slot state */
 #define SLOT_STATE			GENMASK(31, 27)
-#define GET_SLOT_STATE(p)		(((p) >> 27) & 0x1f)
 #define SLOT_STATE_DISABLED		0
 #define SLOT_STATE_ENABLED		SLOT_STATE_DISABLED
 #define SLOT_STATE_DEFAULT		1
@@ -2317,7 +2314,7 @@ static inline const char *xhci_decode_slot_context(char *str,
 	hub = info & DEV_HUB;
 	mtt = info & DEV_MTT;
 
-	ret = sprintf(str, "RS %05lx %s%s%s Ctx Entries %ld MEL %ld us Port# %d/%d",
+	ret = sprintf(str, "RS %05lx %s%s%s Ctx Entries %ld MEL %ld us Port# %ld/%ld",
 			info & ROUTE_STRING_MASK,
 			({ char *s;
 			switch (speed) {
@@ -2341,16 +2338,18 @@ static inline const char *xhci_decode_slot_context(char *str,
 			} s; }),
 			mtt ? " multi-TT" : "",
 			hub ? " Hub" : "",
-			(info & LAST_CTX_MASK) >> 27,
+			FIELD_GET(LAST_CTX_MASK, info),
 			info2 & MAX_EXIT,
-			DEVINFO_TO_ROOT_HUB_PORT(info2),
-			DEVINFO_TO_MAX_PORTS(info2));
+			FIELD_GET(ROOT_HUB_PORT, info2),
+			FIELD_GET(MAX_PORTS, info2));
 
-	ret += sprintf(str + ret, " [TT Slot %ld Port# %ld TTT %d Intr %d] Addr %ld State %s",
-			tt_info & TT_SLOT, (tt_info & TT_PORT) >> 8,
-			GET_TT_THINK_TIME(tt_info), GET_INTR_TARGET(tt_info),
+	ret += sprintf(str + ret, " [TT Slot %ld Port# %ld TTT %ld Intr %d] Addr %ld State %s",
+			tt_info & TT_SLOT,
+			(tt_info & TT_PORT) >> 8,
+			FIELD_GET(TT_THINK_TIME, tt_info),
+			GET_INTR_TARGET(tt_info),
 			state & DEV_ADDR_MASK,
-			xhci_slot_state_string(GET_SLOT_STATE(state)));
+			xhci_slot_state_string(FIELD_PREP(SLOT_STATE, state)));
 
 	return str;
 }

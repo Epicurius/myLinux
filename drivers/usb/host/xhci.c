@@ -3117,7 +3117,7 @@ int xhci_check_bandwidth(struct usb_hcd *hcd, struct usb_device *udev)
 		if ((virt_dev->eps[i-1].ring && !(ctrl_ctx->drop_flags & le32))
 		    || (ctrl_ctx->add_flags & le32) || i == 1) {
 			slot_ctx->dev_info &= cpu_to_le32(~LAST_CTX_MASK);
-			slot_ctx->dev_info |= cpu_to_le32(LAST_CTX(i));
+			slot_ctx->dev_info |= cpu_to_le32(FIELD_PREP(LAST_CTX_MASK, i));
 			break;
 		}
 	}
@@ -3942,8 +3942,7 @@ static int xhci_discover_or_reset_device(struct usb_hcd *hcd,
 
 	/* If device is not setup, there is no point in resetting it */
 	slot_ctx = xhci_get_slot_ctx(xhci, virt_dev->out_ctx);
-	if (GET_SLOT_STATE(le32_to_cpu(slot_ctx->dev_state)) ==
-						SLOT_STATE_DISABLED)
+	if (FIELD_GET(SLOT_STATE, le32_to_cpu(slot_ctx->dev_state)) == SLOT_STATE_DISABLED)
 		return 0;
 
 	if (xhci->quirks & XHCI_ETRON_HOST) {
@@ -4324,8 +4323,7 @@ static int xhci_setup_device(struct usb_hcd *hcd, struct usb_device *udev,
 	trace_xhci_setup_device_slot(slot_ctx);
 
 	if (setup == SETUP_CONTEXT_ONLY) {
-		if (GET_SLOT_STATE(le32_to_cpu(slot_ctx->dev_state)) ==
-		    SLOT_STATE_DEFAULT) {
+		if (FIELD_GET(SLOT_STATE, le32_to_cpu(slot_ctx->dev_state)) == SLOT_STATE_DEFAULT) {
 			xhci_dbg(xhci, "Slot already in default state\n");
 			goto out;
 		}
@@ -5296,7 +5294,7 @@ int xhci_update_hub_device(struct usb_hcd *hcd, struct usb_device *hdev,
 		xhci_dbg(xhci, "xHCI version %x needs hub "
 				"TT think time and number of ports\n",
 				(unsigned int) xhci->hci_version);
-		slot_ctx->dev_info2 |= cpu_to_le32(XHCI_MAX_PORTS(hdev->maxchild));
+		slot_ctx->dev_info2 |= cpu_to_le32(FIELD_PREP(MAX_PORTS, hdev->maxchild));
 		/* Set TT think time - convert from ns to FS bit times.
 		 * 0 = 8 FS bit times, 1 = 16 FS bit times,
 		 * 2 = 24 FS bit times, 3 = 32 FS bit times.
@@ -5309,7 +5307,7 @@ int xhci_update_hub_device(struct usb_hcd *hcd, struct usb_device *hdev,
 			think_time = (think_time / 666) - 1;
 		if (xhci->hci_version < 0x100 || hdev->speed == USB_SPEED_HIGH)
 			slot_ctx->tt_info |=
-				cpu_to_le32(TT_THINK_TIME(think_time));
+				cpu_to_le32(FIELD_PREP(TT_THINK_TIME, think_time));
 	} else {
 		xhci_dbg(xhci, "xHCI version %x doesn't need hub "
 				"TT think time or number of ports\n",

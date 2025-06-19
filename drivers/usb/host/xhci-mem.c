@@ -1140,7 +1140,7 @@ int xhci_setup_addressable_virt_dev(struct xhci_hcd *xhci, struct usb_device *ud
 	/* Slot ID is set to the device directly below the root hub */
 	if (!udev->parent->parent)
 		dev->rhub_port->slot_id = udev->slot_id;
-	slot_ctx->dev_info2 |= cpu_to_le32(ROOT_HUB_PORT(dev->rhub_port->hw_portnum + 1));
+	slot_ctx->dev_info2 |= cpu_to_le32(FIELD_PREP(ROOT_HUB_PORT, dev->rhub_port->hw_portnum + 1));
 	xhci_dbg(xhci, "Slot ID %d: HW portnum %d, hcd portnum %d\n",
 		 udev->slot_id, dev->rhub_port->hw_portnum, dev->rhub_port->hcd_portnum);
 
