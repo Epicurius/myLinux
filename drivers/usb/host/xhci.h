@@ -16,6 +16,7 @@
 #include <linux/timer.h>
 #include <linux/kernel.h>
 #include <linux/usb/hcd.h>
+#include <linux/bitfield.h>
 #include <linux/io-64-nonatomic-lo-hi.h>
 #include <linux/io-64-nonatomic-hi-lo.h>
 
@@ -361,10 +362,8 @@ struct xhci_slot_ctx {
 #define DEV_HUB		BIT(26)
 /* bits 31:27 - Last valid endpoint context in this device context */
 #define LAST_CTX_MASK	GENMASK(31, 17)
-#define LAST_CTX(p)	((p) << 27)
-#define LAST_CTX_TO_EP_NUM(p)	(((p) >> 27) - 1)
-#define SLOT_FLAG	(1 << 0)
-#define EP0_FLAG	(1 << 1)
+#define SLOT_FLAG	FIELD_PREP(LAST_CTX_MASK, 0)
+#define EP0_FLAG	FIELD_PREP(LAST_CTX_MASK, 1)
 
 /* dev_info2 bitmasks */
 /* bits 15:0 - Max Exit Latency (ms), worst case time to wake up all links in dev path */
@@ -2342,7 +2341,7 @@ static inline const char *xhci_decode_slot_context(char *str,
 			} s; }),
 			mtt ? " multi-TT" : "",
 			hub ? " Hub" : "",
-			(info & LAST_CTX_MASK) >> 27,
+			FIELD_GET(LAST_CTX_MASK, info),
 			info2 & MAX_EXIT,
 			DEVINFO_TO_ROOT_HUB_PORT(info2),
 			DEVINFO_TO_MAX_PORTS(info2));
