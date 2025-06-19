@@ -14,9 +14,11 @@
 
 #include <linux/bits.h>
 #include <linux/usb.h>
+#include <linux/bits.h>
 #include <linux/timer.h>
 #include <linux/kernel.h>
 #include <linux/usb/hcd.h>
+#include <linux/bitfield.h>
 #include <linux/io-64-nonatomic-lo-hi.h>
 #include <linux/io-64-nonatomic-hi-lo.h>
 
@@ -354,37 +356,32 @@ struct xhci_slot_ctx {
 
 /* dev_info - bitmasks */
 /* bits 19:0 - Route String */
-#define ROUTE_STRING_MASK	(0xfffff)
+#define ROUTE_STRING_MASK	GENMASK(19, 0)
 /*
  * bits 23:20 - Device speed, values defined by PORTSC Device Speed field
  * xHCI version 1.2 onwards these bits are Reserved
  */
-#define DEV_SPEED		(0xf << 20)
-#define GET_DEV_SPEED(n) 	(((n) & DEV_SPEED) >> 20)
-#define	SLOT_SPEED_FS		(PORT_SPEED_FS << 10)
-#define	SLOT_SPEED_LS		(PORT_SPEED_LS << 10)
-#define	SLOT_SPEED_HS		(PORT_SPEED_HS << 10)
-#define	SLOT_SPEED_SS		(PORT_SPEED_SS << 10)
-#define	SLOT_SPEED_SSP		(PORT_SPEED_SSP << 10)
+#define DEV_SPEED		GENMASK(23, 20)
+#define	SLOT_SPEED_FS		(XDEV_FS << 10)
+#define	SLOT_SPEED_LS		(XDEV_LS << 10)
+#define	SLOT_SPEED_HS		(XDEV_HS << 10)
+#define	SLOT_SPEED_SS		(XDEV_SS << 10)
+#define	SLOT_SPEED_SSP		(XDEV_SSP << 10)
 /* bit 24 - RsvdZ */
 /* bit 25 - Multi-TT, is this LS/FS device connected through a HS hub? */
-#define DEV_MTT		BIT(25)
+#define DEV_MTT			BIT(25)
 /* bit 26 - Hub, set if the device is a hub */
-#define DEV_HUB		BIT(26)
+#define DEV_HUB			BIT(26)
 /* bits 31:27 - Context Entries, last valid endpoint context in this device context */
-#define LAST_CTX_MASK	(0x1f << 27)
-#define LAST_CTX(p)	((p) << 27)
-#define LAST_CTX_TO_EP_NUM(p)	(((p) >> 27) - 1)
+#define LAST_CTX		GENMASK(31, 17)
 
 /* dev_info2 - bitmasks */
 /* bits 15:0 - Max Exit Latency (ms), worst case time to wake up all links in dev path */
-#define MAX_EXIT	(0xffff)
+#define MAX_EXIT		GENMASK(15, 0)
 /* bits 23:16 - Root Hub Port Number, used to access the USB device */
-#define ROOT_HUB_PORT(p)	(((p) & 0xff) << 16)
-#define DEVINFO_TO_ROOT_HUB_PORT(p)	(((p) >> 16) & 0xff)
+#define ROOT_HUB_PORT		GENMASK(23, 16)
 /* bits 31:24 - Number of Ports, maximum number of ports under a hub device */
-#define XHCI_MAX_PORTS(p)	(((p) & 0xff) << 24)
-#define DEVINFO_TO_MAX_PORTS(p)	(((p) & (0xff << 24)) >> 24)
+#define MAX_PORTS		GENMASK(31, 24)
 
 /* tt_info - bitmasks */
 /*
@@ -392,25 +389,23 @@ struct xhci_slot_ctx {
  * The Slot ID of the hub that isolates the high speed signaling from
  * this low or full-speed device.  '0' if attached to root hub port.
  */
-#define TT_SLOT		(0xff)
+#define TT_SLOT			GENMASK(7, 0)
 /*
  * bits 15:8 - Parent Port Number, number of the downstream facing port of the high-speed hub
  * '0' if the device is not low or full speed.
  */
-#define TT_PORT		(0xff << 8)
+#define TT_PORT			GENMASK(15, 8)
 /* bits 17:16 - TT Think Time */
-#define TT_THINK_TIME(p)	(((p) & 0x3) << 16)
-#define GET_TT_THINK_TIME(p)	(((p) & (0x3 << 16)) >> 16)
+#define TT_THINK_TIME		GENMASK(17, 16)
 /* bits 21:18 - RsvdZ */
 /* bits 31:22 - Interrupter Target, use TRB_INTR_TARGET(p) & GET_INTR_TARGET(p) */
 
 /* dev_state - bitmasks */
 /* bits 7:0 - USB device address, assigned by the HC */
-#define DEV_ADDR_MASK	(0xff)
+#define DEV_ADDR_MASK		GENMASK(7, 0)
 /* bits 26:8 - RsvdZ */
 /* bits 31:27 - Slot state */
-#define SLOT_STATE	(0x1f << 27)
-#define GET_SLOT_STATE(p)	(((p) & (0x1f << 27)) >> 27)
+#define SLOT_STATE		GENMASK(31, 27)
 #define SLOT_STATE_DISABLED	0
 #define SLOT_STATE_ENABLED	SLOT_STATE_DISABLED
 #define SLOT_STATE_DEFAULT	1
@@ -2317,8 +2312,8 @@ static inline const char *xhci_decode_slot_context(char *str,
 	hub = info & DEV_HUB;
 	mtt = info & DEV_MTT;
 
-	ret = sprintf(str, "RS %05x %s%s%s Ctx Entries %d MEL %d us Port# %d/%d",
-			info & ROUTE_STRING_MASK,
+	ret = sprintf(str, "RS %05lx %s%s%s Ctx Entries %ld MEL %ld us Port# %ld/%ld",
+			FIELD_GET(ROUTE_STRING_MASK, info),
 			({ char *s;
 			switch (speed) {
 			case SLOT_SPEED_FS:
@@ -2341,16 +2336,18 @@ static inline const char *xhci_decode_slot_context(char *str,
 			} s; }),
 			mtt ? " multi-TT" : "",
 			hub ? " Hub" : "",
-			(info & LAST_CTX_MASK) >> 27,
-			info2 & MAX_EXIT,
-			DEVINFO_TO_ROOT_HUB_PORT(info2),
-			DEVINFO_TO_MAX_PORTS(info2));
+			FIELD_GET(LAST_CTX, info),
+			FIELD_GET(MAX_EXIT, info2),
+			FIELD_GET(ROOT_HUB_PORT, info2),
+			FIELD_GET(MAX_PORTS, info2));
 
-	ret += sprintf(str + ret, " [TT Slot %d Port# %d TTT %d Intr %d] Addr %d State %s",
-			tt_info & TT_SLOT, (tt_info & TT_PORT) >> 8,
-			GET_TT_THINK_TIME(tt_info), GET_INTR_TARGET(tt_info),
-			state & DEV_ADDR_MASK,
-			xhci_slot_state_string(GET_SLOT_STATE(state)));
+	ret += sprintf(str + ret, " [TT Slot %ld Port# %ld TTT %ld Intr %d] Addr %ld State %s",
+			FIELD_GET(TT_SLOT, tt_info),
+			FIELD_GET(TT_PORT, tt_info),
+			FIELD_GET(TT_THINK_TIME, tt_info),
+			GET_INTR_TARGET(tt_info),
+			FIELD_GET(DEV_ADDR_MASK, state),
+			xhci_slot_state_string(FIELD_GET(SLOT_STATE, state)));
 
 	return str;
 }

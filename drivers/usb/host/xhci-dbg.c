@@ -14,7 +14,7 @@ char *xhci_get_slot_state(struct xhci_hcd *xhci,
 		struct xhci_container_ctx *ctx)
 {
 	struct xhci_slot_ctx *slot_ctx = xhci_get_slot_ctx(xhci, ctx);
-	int state = GET_SLOT_STATE(le32_to_cpu(slot_ctx->dev_state));
+	int state = FIELD_GET(SLOT_STATE, le32_to_cpu(slot_ctx->dev_state));
 
 	return xhci_slot_state_string(state);
 }
