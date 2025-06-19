@@ -2117,7 +2117,7 @@ static void xhci_zero_in_ctx(struct xhci_hcd *xhci, struct xhci_virt_device *vir
 	slot_ctx = xhci_get_slot_ctx(xhci, virt_dev->in_ctx);
 	slot_ctx->dev_info &= cpu_to_le32(~LAST_CTX_MASK);
 	/* Endpoint 0 is always valid */
-	slot_ctx->dev_info |= cpu_to_le32(LAST_CTX(1));
+	slot_ctx->dev_info |= cpu_to_le32(EP0_FLAG);
 	for (i = 1; i < 31; i++) {
 		ep_ctx = xhci_get_ep_ctx(xhci, virt_dev->in_ctx, i);
 		ep_ctx->ep_info = 0;
