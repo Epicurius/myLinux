@@ -3941,8 +3941,7 @@ static int xhci_discover_or_reset_device(struct usb_hcd *hcd,
 
 	/* If device is not setup, there is no point in resetting it */
 	slot_ctx = xhci_get_slot_ctx(xhci, virt_dev->out_ctx);
-	if (GET_SLOT_STATE(le32_to_cpu(slot_ctx->dev_state)) ==
-						SLOT_STATE_DISABLED)
+	if (FIELD_GET(SLOT_STATE, le32_to_cpu(slot_ctx->dev_state)) == SLOT_STATE_DISABLED)
 		return 0;
 
 	if (xhci->quirks & XHCI_ETRON_HOST) {
@@ -4323,8 +4322,7 @@ static int xhci_setup_device(struct usb_hcd *hcd, struct usb_device *udev,
 	trace_xhci_setup_device_slot(slot_ctx);
 
 	if (setup == SETUP_CONTEXT_ONLY) {
-		if (GET_SLOT_STATE(le32_to_cpu(slot_ctx->dev_state)) ==
-		    SLOT_STATE_DEFAULT) {
+		if (FIELD_GET(SLOT_STATE, le32_to_cpu(slot_ctx->dev_state)) == SLOT_STATE_DEFAULT) {
 			xhci_dbg(xhci, "Slot already in default state\n");
 			goto out;
 		}
