@@ -381,10 +381,10 @@ struct xhci_slot_ctx {
  */
 #define TT_SLOT		(0xff)
 /*
- * The number of the downstream facing port of the high-speed hub
+ * bits 15:8 - Parent Port Number, number of the downstream facing port of the high-speed hub
  * '0' if the device is not low or full speed.
  */
-#define TT_PORT		(0xff << 8)
+#define TT_PORT		GENMASK(15, 8)
 #define TT_THINK_TIME(p)	(((p) & 0x3) << 16)
 #define GET_TT_THINK_TIME(p)	(((p) & (0x3 << 16)) >> 16)
 
@@ -2316,8 +2316,8 @@ static inline const char *xhci_decode_slot_context(char *str,
 			FIELD_GET(ROOT_HUB_PORT, info2),
 			FIELD_GET(MAX_PORTS, info2));
 
-	ret += sprintf(str + ret, " [TT Slot %d Port# %d TTT %d Intr %d] Addr %d State %s",
-			tt_info & TT_SLOT, (tt_info & TT_PORT) >> 8,
+	ret += sprintf(str + ret, " [TT Slot %d Port# %ld TTT %d Intr %d] Addr %d State %s",
+			tt_info & TT_SLOT, FIELD_GET(TT_PORT, tt_info),
 			GET_TT_THINK_TIME(tt_info), GET_INTR_TARGET(tt_info),
 			state & DEV_ADDR_MASK,
 			xhci_slot_state_string(GET_SLOT_STATE(state)));
