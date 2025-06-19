@@ -30,7 +30,7 @@
 #define XHCI_MSG_MAX		500
 
 /* xHCI PCI Configuration Registers */
-#define XHCI_SBRN_OFFSET	(0x60)
+#define XHCI_SBRN_OFFSET	0x60
 
 /* Max number of USB devices for any host controller - limit in section 6.1 */
 #define MAX_HC_SLOTS		256
@@ -179,7 +179,7 @@ struct xhci_op_regs {
  * Generate a device notification event when the HC sees a transaction with a
  * notification type that matches a bit set in this bit field.
  */
-#define	DEV_NOTE_MASK		(0xffff)
+#define	DEV_NOTE_MASK		0xffff
 /* Most of the device notification types should only be used for debug.
  * SW does need to pay attention to function wake notifications.
  */
@@ -246,13 +246,13 @@ struct xhci_intr_reg {
  * (in 250ns intervals). The interval between interrupts will be longer if there are no
  * events on the event ring. Default is 4000 (1 ms).
  */
-#define IMODI_MASK		(0xffff)
+#define IMODI_MASK		0xffff
 /* bits 31:16 - Interrupt Moderation Counter, used to count down the time to the next interrupt */
 #define IMODC_MASK		(0xffff << 16)
 
 /* erst_size bitmasks */
 /* bits 15:0 - Event Ring Segment Table Size, number of ERST entries */
-#define	ERST_SIZE_MASK		(0xffff)
+#define	ERST_SIZE_MASK		0xffff
 
 /* erst_base bitmasks */
 /* bits 63:6 - Event Ring Segment Table Base Address Register */
@@ -263,7 +263,7 @@ struct xhci_intr_reg {
  * bits 2:0 - Dequeue ERST Segment Index (DESI), is the segment number (or alias) where the
  * current dequeue pointer lies. This is an optional HW hint.
  */
-#define ERST_DESI_MASK		(0x7)
+#define ERST_DESI_MASK		0x7
 /*
  * bit 3 - Event Handler Busy (EHB), whether the event ring is scheduled to be serviced by
  * a work queue (or delayed service routine)?
@@ -351,7 +351,7 @@ struct xhci_slot_ctx {
 
 /* dev_info bitmasks */
 /* Route String - 0:19 */
-#define ROUTE_STRING_MASK	(0xfffff)
+#define ROUTE_STRING_MASK	0xfffff
 /* Device speed - values defined by PORTSC Device Speed field - 20:23 */
 #define DEV_SPEED	(0xf << 20)
 #define GET_DEV_SPEED(n) (((n) & DEV_SPEED) >> 20)
@@ -369,7 +369,7 @@ struct xhci_slot_ctx {
 
 /* dev_info2 bitmasks */
 /* Max Exit Latency (ms) - worst case time to wake up all links in dev path */
-#define MAX_EXIT	(0xffff)
+#define MAX_EXIT	0xffff
 /* Root hub port number that is needed to access the USB device */
 #define ROOT_HUB_PORT(p)	(((p) & 0xff) << 16)
 #define DEVINFO_TO_ROOT_HUB_PORT(p)	(((p) >> 16) & 0xff)
@@ -383,7 +383,7 @@ struct xhci_slot_ctx {
  * The Slot ID of the hub that isolates the high speed signaling from
  * this low or full-speed device.  '0' if attached to root hub port.
  */
-#define TT_SLOT		(0xff)
+#define TT_SLOT		0xff
 /*
  * The number of the downstream facing port of the high-speed hub
  * '0' if the device is not low or full speed.
@@ -394,7 +394,7 @@ struct xhci_slot_ctx {
 
 /* dev_state bitmasks */
 /* USB device address - assigned by the HC */
-#define DEV_ADDR_MASK	(0xff)
+#define DEV_ADDR_MASK	0xff
 /* bits 8:26 reserved */
 /* Slot state */
 #define SLOT_STATE	(0x1f << 27)
@@ -443,7 +443,7 @@ struct xhci_ep_ctx {
  * 4 - TRB error
  * 5-7 - reserved
  */
-#define EP_STATE_MASK		(0x7)
+#define EP_STATE_MASK		0x7
 #define EP_STATE_DISABLED	0
 #define EP_STATE_RUNNING	1
 #define EP_STATE_HALTED		2
@@ -1093,7 +1093,7 @@ union xhci_trb {
 };
 
 /* TRB bit mask */
-#define	TRB_TYPE_BITMASK	(0xfc00)
+#define	TRB_TYPE_BITMASK	0xfc00
 #define TRB_TYPE(p)		((p) << 10)
 #define TRB_FIELD_TO_TYPE(p)	(((p) & TRB_TYPE_BITMASK) >> 10)
 /* TRB type IDs */
