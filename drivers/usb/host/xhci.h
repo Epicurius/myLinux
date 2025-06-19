@@ -386,8 +386,7 @@ struct xhci_slot_ctx {
  */
 #define TT_PORT		GENMASK(15, 8)
 /* bits 17:16 - TT Think Time */
-#define TT_THINK_TIME(p)	(((p) & 0x3) << 16)
-#define GET_TT_THINK_TIME(p)	(((p) & (0x3 << 16)) >> 16)
+#define TT_THINK_TIME		GENMASK(17, 16)
 /* bits 21:18 - RsvdZ */
 /*
  * bits 31:22 - Interrupter Target, which MSI-X vector to target the completion event at.
