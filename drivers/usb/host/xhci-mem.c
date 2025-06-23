@@ -1186,7 +1186,7 @@ int xhci_setup_addressable_virt_dev(struct xhci_hcd *xhci, struct usb_device *ud
 
 	/* Step 4 - ring already allocated */
 	/* Step 5 */
-	ep0_ctx->ep_info2 = cpu_to_le32(EP_TYPE(CTRL_EP));
+	ep0_ctx->ep_info2 = cpu_to_le32(FIELD_PREP(EP_TYPE, CTRL_EP));
 
 	/* EP 0 can handle "burst" sizes of 1, so Max Burst Size field is 0 */
 	ep0_ctx->ep_info2 |= cpu_to_le32(MAX_BURST(0) | FIELD_PREP(EP_ERROR_COUNT, 3) |
@@ -1499,7 +1499,7 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 	ep_ctx->ep_info = cpu_to_le32(FIELD_PREP(EP_MAX_ESIT_PAYLOAD_HI, max_esit_payload) |
 				      FIELD_PREP(EP_INTERVAL, interval) |
 				      FIELD_PREP(EP_MULT, mult));
-	ep_ctx->ep_info2 = cpu_to_le32(EP_TYPE(endpoint_type) |
+	ep_ctx->ep_info2 = cpu_to_le32(FIELD_PREP(EP_TYPE, endpoint_type) |
 				       MAX_PACKET(max_packet) |
 				       MAX_BURST(max_burst) |
 				       FIELD_PREP(EP_ERROR_COUNT, err_count));
@@ -1567,7 +1567,7 @@ void xhci_update_bw_info(struct xhci_hcd *xhci,
 
 		if (EP_IS_ADDED(ctrl_ctx, i)) {
 			ep_ctx = xhci_get_ep_ctx(xhci, in_ctx, i);
-			ep_type = CTX_TO_EP_TYPE(le32_to_cpu(ep_ctx->ep_info2));
+			ep_type = FIELD_GET(EP_TYPE, le32_to_cpu(ep_ctx->ep_info2));
 
 			/* Ignore non-periodic endpoints */
 			if (ep_type != ISOC_OUT_EP && ep_type != INT_OUT_EP &&

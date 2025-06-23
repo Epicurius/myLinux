@@ -301,7 +301,7 @@ static void setup_sch_info(struct xhci_ep_ctx *ep_ctx,
 	int i;
 
 	bwb_table = sch_ep->bw_budget_table;
-	ep_type = CTX_TO_EP_TYPE(le32_to_cpu(ep_ctx->ep_info2));
+	ep_type = FIELD_GET(EP_TYPE, le32_to_cpu(ep_ctx->ep_info2));
 	maxpkt = MAX_PACKET_DECODED(le32_to_cpu(ep_ctx->ep_info2));
 	max_burst = CTX_TO_MAX_BURST(le32_to_cpu(ep_ctx->ep_info2));
 	mult = FIELD_GET(EP_MULT, le32_to_cpu(ep_ctx->ep_info));

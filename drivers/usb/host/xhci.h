@@ -462,8 +462,7 @@ struct xhci_ep_ctx {
 /* bits 2:1 - Error Count, the number of consecutive USB Bus Errors allowed while executing a TD. */
 #define EP_ERROR_COUNT		GENMASK(2, 1)
 /* bits 5:3 - Endpoint Type identifies whether an EP CTX is valid. */
-#define CTX_TO_EP_TYPE(p)	(((p) >> 3) & 0x7)
-#define EP_TYPE(p)	((p) << 3)
+#define EP_TYPE			GENMASK(5, 3)
 #define ISOC_OUT_EP	1
 #define BULK_OUT_EP	2
 #define INT_OUT_EP	3
@@ -2563,7 +2562,7 @@ static inline const char *xhci_decode_ep_context(char *str, u32 info,
 	lsa = !!(info & EP_HAS_LSA);
 
 	cerr = FIELD_GET(EP_ERROR_COUNT, info2);
-	ep_type = CTX_TO_EP_TYPE(info2);
+	ep_type = FIELD_GET(EP_TYPE, info2);
 	hid = !!(info2 & EP_HID);
 	burst = CTX_TO_MAX_BURST(info2);
 	maxp = MAX_PACKET_DECODED(info2);
