@@ -1508,7 +1508,7 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 				  ep_ring->cycle_state);
 
 	ep_ctx->tx_info = cpu_to_le32(FIELD_PREP(EP_MAX_ESIT_PAYLOAD_LO, max_esit_payload) |
-				      EP_AVG_TRB_LENGTH(avg_trb_len));
+				      FIELD_PREP(EP_AVG_TRB_LENGTH, avg_trb_len));
 
 	return 0;
 }

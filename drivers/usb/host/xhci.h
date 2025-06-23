@@ -480,7 +480,7 @@ struct xhci_ep_ctx {
 
 /* tx_info bitmasks */
 /* bits 15:0 - Average TRB Length for EP. */
-#define EP_AVG_TRB_LENGTH(p)		((p) & 0xffff)
+#define EP_AVG_TRB_LENGTH		GENMASK(15, 0)
 /* bits 31:16 - Max Endpoint Service Time Interval Payload Low. */
 #define EP_MAX_ESIT_PAYLOAD_LO		GENMASK(31, 16)
 
@@ -2564,7 +2564,7 @@ static inline const char *xhci_decode_ep_context(char *str, u32 info,
 	burst = FIELD_GET(EP_MAX_BURST, info2);
 	maxp = FIELD_GET(MAX_PACKET_MASK, info2);
 
-	avg = EP_AVG_TRB_LENGTH(tx_info);
+	avg = FIELD_GET(EP_AVG_TRB_LENGTH, tx_info);
 
 	ret = sprintf(str, "State %s mult %d max P. Streams %d %s",
 			xhci_ep_state_string(ep_state), mult,
