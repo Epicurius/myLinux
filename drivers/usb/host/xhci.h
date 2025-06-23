@@ -449,9 +449,7 @@ struct xhci_ep_ctx {
 /* bits 9:8 - Max number of bursts within an interval, in EP companion desc. */
 #define EP_MULT		GENMASK(9, 8)
 /* bits 14:10 - Max Primary Streams the endpoint supports. */
-#define EP_MAXPSTREAMS_MASK		GENMASK(14, 10)
-#define EP_MAXPSTREAMS(p)		(((p) << 10) & EP_MAXPSTREAMS_MASK)
-#define CTX_TO_EP_MAXPSTREAMS(p)	(((p) & EP_MAXPSTREAMS_MASK) >> 10)
+#define EP_MAXPSTREAMS_MASK	GENMASK(14, 10)
 /* bit 15 - Linear Stream array identifies how a Stream ID shall be interpreted. */
 #define	EP_HAS_LSA		BIT(15)
 /* bits 23:16 - Interval period between requests to an endpoint - 125u increments. */
@@ -2563,7 +2561,7 @@ static inline const char *xhci_decode_ep_context(char *str, u32 info,
 		CTX_TO_MAX_ESIT_PAYLOAD(tx_info);
 
 	ep_state = info & EP_STATE_MASK;
-	max_pstr = CTX_TO_EP_MAXPSTREAMS(info);
+	max_pstr = FIELD_GET(EP_MAXPSTREAMS_MASK, info);
 	interval = CTX_TO_EP_INTERVAL(info);
 	mult = FIELD_GET(EP_MULT, info) + 1;
 	lsa = !!(info & EP_HAS_LSA);
