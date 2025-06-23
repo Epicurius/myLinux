@@ -363,20 +363,20 @@ struct xhci_slot_ctx {
 /* bits 19:0 - Route String */
 #define ROUTE_STRING_MASK	GENMASK(19, 0)
 /* bits 23:20 - Device speed defined by PORTSC Device Speed field */
-#define DEV_SPEED	GENMASK(23, 20)
+#define DEV_SPEED		GENMASK(23, 20)
 /* bit 24 - RsvdZ */
 /* bit 25 - Multi-TT, is this LS/FS device connected through a HS hub? */
-#define DEV_MTT		BIT(25)
+#define DEV_MTT			BIT(25)
 /* bit 26 - Set if the device is a hub */
-#define DEV_HUB		BIT(26)
+#define DEV_HUB			BIT(26)
 /* bits 31:27 - Last valid endpoint context in this device context */
-#define LAST_CTX_MASK	GENMASK(31, 17)
-#define SLOT_FLAG	BIT(0)
-#define EP0_FLAG	BIT(1)
+#define LAST_CTX_MASK		GENMASK(31, 17)
+#define SLOT_FLAG		BIT(0)
+#define EP0_FLAG		BIT(1)
 
 /* dev_info2 bitmasks */
 /* bits 15:0 - Max Exit Latency (ms), worst case time to wake up all links in dev path */
-#define MAX_EXIT	GENMASK(15, 0)
+#define MAX_EXIT		GENMASK(15, 0)
 /* bits 23:16 - Root hub port number that is needed to access the USB device */
 #define ROOT_HUB_PORT		GENMASK(23, 16)
 /* bits 31:24 - Maximum number of ports under a hub device */
@@ -388,12 +388,12 @@ struct xhci_slot_ctx {
  * The Slot ID of the hub that isolates the high speed signaling from
  * this low or full-speed device.  '0' if attached to root hub port.
  */
-#define TT_SLOT		GENMASK(7, 0)
+#define TT_SLOT			GENMASK(7, 0)
 /*
  * bits 15:8 - The number of the downstream facing port of the high-speed hub
  * '0' if the device is not low or full speed.
  */
-#define TT_PORT		GENMASK(15, 8)
+#define TT_PORT			GENMASK(15, 8)
 /* bits 17:16 - TT Think Time */
 #define TT_THINK_TIME		GENMASK(17, 16)
 /* bits 21:18 - RsvdZ */
@@ -406,10 +406,10 @@ struct xhci_slot_ctx {
 
 /* dev_state bitmasks */
 /* bits 7:0 - USB device address, assigned by the HC */
-#define DEV_ADDR_MASK	GENMASK(7, 0)
+#define DEV_ADDR_MASK		GENMASK(7, 0)
 /* bits 26:8 - RsvdZ */
 /* bits 31:27 - Slot state */
-#define SLOT_STATE	GENMASK(31, 27)
+#define SLOT_STATE		GENMASK(31, 27)
 #define SLOT_STATE_DISABLED	0
 #define SLOT_STATE_ENABLED	SLOT_STATE_DISABLED
 #define SLOT_STATE_DEFAULT	1
