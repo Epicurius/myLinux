@@ -1496,7 +1496,7 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 	ep_ring = virt_dev->eps[ep_index].new_ring;
 
 	/* Fill the endpoint context */
-	ep_ctx->ep_info = cpu_to_le32(EP_MAX_ESIT_PAYLOAD_HI(max_esit_payload) |
+	ep_ctx->ep_info = cpu_to_le32(FIELD_PREP(EP_MAX_ESIT_PAYLOAD_HI, max_esit_payload) |
 				      FIELD_PREP(EP_INTERVAL, interval) |
 				      FIELD_PREP(EP_MULT, mult));
 	ep_ctx->ep_info2 = cpu_to_le32(EP_TYPE(endpoint_type) |
@@ -1506,7 +1506,7 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 	ep_ctx->deq = cpu_to_le64(ep_ring->first_seg->dma |
 				  ep_ring->cycle_state);
 
-	ep_ctx->tx_info = cpu_to_le32(EP_MAX_ESIT_PAYLOAD_LO(max_esit_payload) |
+	ep_ctx->tx_info = cpu_to_le32(FIELD_PREP(EP_MAX_ESIT_PAYLOAD_LO, max_esit_payload) |
 				      EP_AVG_TRB_LENGTH(avg_trb_len));
 
 	return 0;
@@ -1589,9 +1589,10 @@ void xhci_update_bw_info(struct xhci_hcd *xhci,
 			bw_info->max_packet_size = MAX_PACKET_DECODED(
 					le32_to_cpu(ep_ctx->ep_info2));
 			bw_info->type = ep_type;
-			bw_info->max_esit_payload = (CTX_TO_MAX_ESIT_PAYLOAD_HI(
-					le32_to_cpu(ep_ctx->ep_info)) << 16) |
-					CTX_TO_MAX_ESIT_PAYLOAD(le32_to_cpu(ep_ctx->tx_info));
+			bw_info->max_esit_payload = 
+				FIELD_GET(EP_MAX_ESIT_PAYLOAD_HI,
+					  le32_to_cpu(ep_ctx->ep_info)) << 16 |
+				FIELD_GET(EP_MAX_ESIT_PAYLOAD_LO, le32_to_cpu(ep_ctx->tx_info));
 		}
 	}
 }
