@@ -453,9 +453,7 @@ struct xhci_ep_ctx {
 /* bit 15 - Linear Stream array identifies how a Stream ID shall be interpreted. */
 #define	EP_HAS_LSA		BIT(15)
 /* bits 23:16 - Interval period between requests to an endpoint - 125u increments. */
-#define EP_INTERVAL(p)			(((p) & 0xff) << 16)
-#define EP_INTERVAL_TO_UFRAMES(p)	(1 << (((p) >> 16) & 0xff))
-#define CTX_TO_EP_INTERVAL(p)		(((p) >> 16) & 0xff)
+#define EP_INTERVAL		GENMASK(23, 16)
 /* bits 31:24 - Max Endpoint Service Time Interval Payload High. LEC=1 use bits as ESIT high bits */
 #define CTX_TO_MAX_ESIT_PAYLOAD_HI(p)	(((p) >> 24) & 0xff)
 
@@ -2562,7 +2560,7 @@ static inline const char *xhci_decode_ep_context(char *str, u32 info,
 
 	ep_state = info & EP_STATE_MASK;
 	max_pstr = FIELD_GET(EP_MAXPSTREAMS_MASK, info);
-	interval = CTX_TO_EP_INTERVAL(info);
+	interval = FIELD_GET(EP_INTERVAL, info);
 	mult = FIELD_GET(EP_MULT, info) + 1;
 	lsa = !!(info & EP_HAS_LSA);
 

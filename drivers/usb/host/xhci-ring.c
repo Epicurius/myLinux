@@ -3462,7 +3462,7 @@ static void check_interval(struct urb *urb, struct xhci_ep_ctx *ep_ctx)
 	int xhci_interval;
 	int ep_interval;
 
-	xhci_interval = EP_INTERVAL_TO_UFRAMES(le32_to_cpu(ep_ctx->ep_info));
+	xhci_interval = 1 << FIELD_GET(EP_INTERVAL, le32_to_cpu(ep_ctx->ep_info));
 	ep_interval = urb->interval;
 
 	/* Convert to microframes */
