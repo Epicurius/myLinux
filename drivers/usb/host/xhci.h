@@ -454,7 +454,7 @@ struct xhci_ep_ctx {
 /* bits 23:16 - Interval period between requests to an endpoint - 125u increments. */
 #define EP_INTERVAL		0xff0000
 /* bits 31:24 - Max Endpoint Service Time Interval Payload High. LEC=1 use bits as ESIT high bits */
-#define EP_MAX_ESIT_PAYLOAD_HI		0xff000000
+#define EP_MAX_ESIT_PAYLOAD_HI	0xff000000
 
 /* ep_info2 bitmasks */
 /* bit 0 - RsvdZ */
@@ -462,33 +462,32 @@ struct xhci_ep_ctx {
 #define EP_ERROR_COUNT		0x6
 /* bits 5:3 - Endpoint Type identifies whether an EP CTX is valid. */
 #define EP_TYPE			0x38
-#define ISOC_OUT_EP	1
-#define BULK_OUT_EP	2
-#define INT_OUT_EP	3
-#define CTRL_EP		4
-#define ISOC_IN_EP	5
-#define BULK_IN_EP	6
-#define INT_IN_EP	7
-/* bit 6 - RsvdZ */
+#define ISOC_OUT_EP		1
+#define BULK_OUT_EP		2
+#define INT_OUT_EP		3
+#define CTRL_EP			4
+#define ISOC_IN_EP		5
+#define BULK_IN_EP		6
+#define INT_IN_EP		7
 /* bit 7 - Host Initiate Disable, for disabling stream selection */
-#define	EP_HID		BIT(7)
+#define	EP_HID			BIT(7)
 /* bits 15:8 - Max Burst Size, max number of consecutive USB transactions executed. */
-#define EP_MAX_BURST	0xff00
+#define EP_MAX_BURST		0xff00
 /* bits 31:16 - Max Packet Size indicates the max packet size that an EP can send and receive. */
-#define MAX_PACKET_MASK	0xffff0000
+#define MAX_PACKET_MASK		0xffff0000
 
 /* tx_info bitmasks */
 /* bits 15:0 - Average TRB Length for EP. */
-#define EP_AVG_TRB_LENGTH		0xffff
+#define EP_AVG_TRB_LENGTH	0xffff
 /* bits 31:16 - Max Endpoint Service Time Interval Payload Low. */
-#define EP_MAX_ESIT_PAYLOAD_LO		0xffff0000
+#define EP_MAX_ESIT_PAYLOAD_LO	0xffff0000
 
 /* deq bitmasks */
 /* bit 0 - Dequeue Cycle State */
-#define EP_CTX_CYCLE_MASK		BIT(0)
+#define EP_CTX_CYCLE_MASK	BIT(0)
 /* bits 3:1 - RsvdZ */
 /* bits 63:4 - TR Dequeue Pointer */
-#define TR_DEQ_PTR_MASK			GENMASK_ULL(63, 4)
+#define TR_DEQ_PTR_MASK		GENMASK_ULL(63, 4)
 
 /*
  * Force Event - generate transfer events for all TRBs for this endpoint
