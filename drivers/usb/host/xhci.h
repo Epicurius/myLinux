@@ -353,7 +353,7 @@ struct xhci_slot_ctx {
 
 /* dev_info - bitmasks */
 /* bits 19:0 - Route String */
-#define ROUTE_STRING_MASK	(0xfffff)
+#define ROUTE_STRING_MASK	GENMASK(19, 0)
 /* bits 23:20 - Rsvd, prior to xHCI 1.2 was Device speed */
 /* bit 24 - RsvdZ */
 /* bit 25 - Multi-TT, is this LS/FS device connected through a HS hub? */
@@ -367,7 +367,7 @@ struct xhci_slot_ctx {
 
 /* dev_info2 - bitmasks */
 /* bits 15:0 - Max Exit Latency (ms), worst case time to wake up all links in dev path */
-#define MAX_EXIT	(0xffff)
+#define MAX_EXIT	GENMASK(15, 0)
 /* bits 23:16 - Root Hub Port Number, used to access the USB device */
 #define ROOT_HUB_PORT		GENMASK(23, 16)
 /* bits 31:24 - Number of Ports, maximum number of ports under a hub device */
@@ -379,7 +379,7 @@ struct xhci_slot_ctx {
  * The Slot ID of the hub that isolates the high speed signaling from
  * this low or full-speed device.  '0' if attached to root hub port.
  */
-#define TT_SLOT		(0xff)
+#define TT_SLOT		GENMASK(7, 0)
 /*
  * bits 15:8 - Parent Port Number, number of the downstream facing port of the high-speed hub
  * '0' if the device is not low or full speed.
@@ -396,10 +396,10 @@ struct xhci_slot_ctx {
 
 /* dev_state - bitmasks */
 /* bits 7:0 - USB device address, assigned by the HC */
-#define DEV_ADDR_MASK	(0xff)
+#define DEV_ADDR_MASK	GENMASK(7, 0)
 /* bits 26:8 - RsvdZ */
 /* bits 31:27 - Slot state */
-#define SLOT_STATE	(0x1f << 27)
+#define SLOT_STATE	GENMASK(31, 27)
 #define GET_SLOT_STATE(p)	(((p) & (0x1f << 27)) >> 27)
 #define SLOT_STATE_DISABLED	0
 #define SLOT_STATE_ENABLED	SLOT_STATE_DISABLED
@@ -2312,7 +2312,7 @@ static inline const char *xhci_decode_slot_context(char *str,
 	hub = info & DEV_HUB;
 	mtt = info & DEV_MTT;
 
-	ret = sprintf(str, "RS %05x %s%s Ctx Entries %ld MEL %d us Port# %ld/%ld",
+	ret = sprintf(str, "RS %05lx %s%s Ctx Entries %ld MEL %ld us Port# %d/%d",
 			info & ROUTE_STRING_MASK,
 			mtt ? " multi-TT" : "",
 			hub ? " Hub" : "",
