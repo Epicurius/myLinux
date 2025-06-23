@@ -305,10 +305,8 @@ static void setup_sch_info(struct xhci_ep_ctx *ep_ctx,
 	maxpkt = MAX_PACKET_DECODED(le32_to_cpu(ep_ctx->ep_info2));
 	max_burst = CTX_TO_MAX_BURST(le32_to_cpu(ep_ctx->ep_info2));
 	mult = FIELD_GET(EP_MULT, le32_to_cpu(ep_ctx->ep_info));
-	max_esit_payload =
-		(CTX_TO_MAX_ESIT_PAYLOAD_HI(
-			le32_to_cpu(ep_ctx->ep_info)) << 16) |
-		 CTX_TO_MAX_ESIT_PAYLOAD(le32_to_cpu(ep_ctx->tx_info));
+	max_esit_payload = FIELD_GET(EP_MAX_ESIT_PAYLOAD_HI, le32_to_cpu(ep_ctx->ep_info)) << 16 |
+			   FIELD_GET(EP_MAX_ESIT_PAYLOAD_LO, le32_to_cpu(ep_ctx->tx_info));
 
 	sch_ep->esit = get_esit(ep_ctx);
 	sch_ep->num_esit = XHCI_MTK_MAX_ESIT / sch_ep->esit;
