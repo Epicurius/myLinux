@@ -486,6 +486,7 @@ struct xhci_ep_ctx {
 #define INT_IN_EP	7
 /* bit 6 reserved */
 /* bit 7 is Host Initiate Disable - for disabling stream selection */
+#define	EP_HID		0x80
 #define MAX_BURST(p)	(((p)&0xff) << 8)
 #define CTX_TO_MAX_BURST(p)	(((p) >> 8) & 0xff)
 #define MAX_PACKET(p)	(((p)&0xffff) << 16)
@@ -2567,7 +2568,7 @@ static inline const char *xhci_decode_ep_context(char *str, u32 info,
 
 	cerr = (info2 & (3 << 1)) >> 1;
 	ep_type = CTX_TO_EP_TYPE(info2);
-	hid = !!(info2 & (1 << 7));
+	hid = !!(info2 & EP_HID);
 	burst = CTX_TO_MAX_BURST(info2);
 	maxp = MAX_PACKET_DECODED(info2);
 
