@@ -177,7 +177,7 @@ struct dbc_request {
 #define dbc_bulkin_enq(d)		\
 	xhci_trb_virt_to_dma((d)->ring_in->enq_seg, (d)->ring_in->enqueue)
 #define dbc_epctx_info2(t, p, b)	\
-	cpu_to_le32(FIELD_PREP(EP_TYPE, t) | MAX_PACKET(p) | MAX_BURST(b))
+	cpu_to_le32(FIELD_PREP(EP_TYPE, t) | MAX_PACKET(p) | FIELD_PREP(EP_MAX_BURST, b))
 #define dbc_ep_dma_direction(d)		\
 	((d)->direction ? DMA_FROM_DEVICE : DMA_TO_DEVICE)
 
