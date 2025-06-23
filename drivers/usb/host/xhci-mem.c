@@ -736,8 +736,8 @@ void xhci_setup_streams_ep_input_ctx(struct xhci_hcd *xhci,
 			"Setting number of stream ctx array entries to %u",
 			1 << (max_primary_streams + 1));
 	ep_ctx->ep_info &= cpu_to_le32(~EP_MAXPSTREAMS_MASK);
-	ep_ctx->ep_info |= cpu_to_le32(EP_MAXPSTREAMS(max_primary_streams)
-				       | EP_HAS_LSA);
+	ep_ctx->ep_info |= cpu_to_le32(FIELD_PREP(EP_MAXPSTREAMS_MASK, max_primary_streams) |
+				       EP_HAS_LSA);
 	ep_ctx->deq  = cpu_to_le64(stream_info->ctx_array_dma);
 }
 
