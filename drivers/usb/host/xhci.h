@@ -357,9 +357,9 @@ struct xhci_slot_ctx {
 /* bits 23:20 - Rsvd, prior to xHCI 1.2 was Device speed */
 /* bit 24 - RsvdZ */
 /* bit 25 - Multi-TT, is this LS/FS device connected through a HS hub? */
-#define DEV_MTT		(0x1 << 25)
+#define DEV_MTT		BIT(25)
 /* bit 26 - Hub, set if the device is a hub */
-#define DEV_HUB		(0x1 << 26)
+#define DEV_HUB		BIT(26)
 /* bits 31:27 - Context Entries, last valid endpoint context in this device context */
 #define LAST_CTX	GENMASK(31, 17)
 #define SLOT_FLAG	BIT(0)
