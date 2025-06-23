@@ -356,9 +356,9 @@ struct xhci_slot_ctx {
 #define DEV_SPEED	(0xf << 20)
 /* bit 24 - reserved */
 /* bit 25 - Multi-TT, is this LS/FS device connected through a HS hub? */
-#define DEV_MTT		(0x1 << 25)
+#define DEV_MTT		BIT(25)
 /* bit 26 - Set if the device is a hub */
-#define DEV_HUB		(0x1 << 26)
+#define DEV_HUB		BIT(26)
 /* bits 31:27 - Last valid endpoint context in this device context */
 #define LAST_CTX_MASK	(0x1f << 27)
 #define LAST_CTX(p)	((p) << 27)
