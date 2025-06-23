@@ -454,7 +454,7 @@ struct xhci_ep_ctx {
 /* bits 23:16 - Interval period between requests to an endpoint - 125u increments. */
 #define EP_INTERVAL		0xff0000
 /* bits 31:24 - Max Endpoint Service Time Interval Payload High. LEC=1 use bits as ESIT high bits */
-#define CTX_TO_MAX_ESIT_PAYLOAD_HI(p)	(((p) >> 24) & 0xff)
+#define EP_MAX_ESIT_PAYLOAD_HI		0xff000000
 
 /* ep_info2 bitmasks */
 /* bit 0 - RsvdZ */
@@ -485,9 +485,7 @@ struct xhci_ep_ctx {
 /* bits 15:0 - Average TRB Length for EP. */
 #define EP_AVG_TRB_LENGTH(p)		((p) & 0xffff)
 /* bits 31:16 - Max Endpoint Service Time Interval Payload Low. */
-#define EP_MAX_ESIT_PAYLOAD_LO(p)	(((p) & 0xffff) << 16)
-#define EP_MAX_ESIT_PAYLOAD_HI(p)	((((p) >> 16) & 0xff) << 24)
-#define CTX_TO_MAX_ESIT_PAYLOAD(p)	(((p) >> 16) & 0xffff)
+#define EP_MAX_ESIT_PAYLOAD_LO		0xffff0000
 
 /* deq bitmasks */
 /* bit 0 - Dequeue Cycle State */
@@ -2555,8 +2553,8 @@ static inline const char *xhci_decode_ep_context(char *str, u32 info,
 	bool lsa;
 	bool hid;
 
-	esit = CTX_TO_MAX_ESIT_PAYLOAD_HI(info) << 16 |
-		CTX_TO_MAX_ESIT_PAYLOAD(tx_info);
+	esit = FIELD_GET(EP_MAX_ESIT_PAYLOAD_HI, info) << 16 |
+	       FIELD_GET(EP_MAX_ESIT_PAYLOAD_LO, tx_info);
 
 	ep_state = info & EP_STATE_MASK;
 	max_pstr = FIELD_GET(EP_MAXPSTREAMS_MASK, info);
