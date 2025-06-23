@@ -474,8 +474,7 @@ struct xhci_ep_ctx {
 /* bit 7 - Host Initiate Disable, for disabling stream selection */
 #define	EP_HID		BIT(7)
 /* bits 15:8 - Max Burst Size, max number of consecutive USB transactions executed. */
-#define MAX_BURST(p)	(((p)&0xff) << 8)
-#define CTX_TO_MAX_BURST(p)	(((p) >> 8) & 0xff)
+#define EP_MAX_BURST	GENMASK(15, 8)
 /* bits 31:16 - Max Packet Size indicates the max packet size that an EP can send and receive. */
 #define MAX_PACKET(p)	(((p)&0xffff) << 16)
 #define MAX_PACKET_MASK		GENMASK(31, 16)
@@ -2564,7 +2563,7 @@ static inline const char *xhci_decode_ep_context(char *str, u32 info,
 	cerr = FIELD_GET(EP_ERROR_COUNT, info2);
 	ep_type = FIELD_GET(EP_TYPE, info2);
 	hid = !!(info2 & EP_HID);
-	burst = CTX_TO_MAX_BURST(info2);
+	burst = FIELD_GET(EP_MAX_BURST, info2);
 	maxp = MAX_PACKET_DECODED(info2);
 
 	avg = EP_AVG_TRB_LENGTH(tx_info);

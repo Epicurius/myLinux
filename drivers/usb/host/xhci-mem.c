@@ -1189,7 +1189,8 @@ int xhci_setup_addressable_virt_dev(struct xhci_hcd *xhci, struct usb_device *ud
 	ep0_ctx->ep_info2 = cpu_to_le32(FIELD_PREP(EP_TYPE, CTRL_EP));
 
 	/* EP 0 can handle "burst" sizes of 1, so Max Burst Size field is 0 */
-	ep0_ctx->ep_info2 |= cpu_to_le32(MAX_BURST(0) | FIELD_PREP(EP_ERROR_COUNT, 3) |
+	ep0_ctx->ep_info2 |= cpu_to_le32(FIELD_PREP(EP_MAX_BURST, 0) |
+					 FIELD_PREP(EP_ERROR_COUNT, 3) |
 					 max_packets);
 
 	ep0_ctx->deq = cpu_to_le64(dev->eps[0].ring->first_seg->dma |
@@ -1501,7 +1502,7 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 				      FIELD_PREP(EP_MULT, mult));
 	ep_ctx->ep_info2 = cpu_to_le32(FIELD_PREP(EP_TYPE, endpoint_type) |
 				       MAX_PACKET(max_packet) |
-				       MAX_BURST(max_burst) |
+				       FIELD_PREP(EP_MAX_BURST, max_burst) |
 				       FIELD_PREP(EP_ERROR_COUNT, err_count));
 	ep_ctx->deq = cpu_to_le64(ep_ring->first_seg->dma |
 				  ep_ring->cycle_state);
@@ -1584,7 +1585,7 @@ void xhci_update_bw_info(struct xhci_hcd *xhci,
 			 */
 			bw_info->mult = FIELD_GET(EP_MULT,
 					le32_to_cpu(ep_ctx->ep_info)) + 1;
-			bw_info->num_packets = CTX_TO_MAX_BURST(
+			bw_info->num_packets = FIELD_GET(EP_MAX_BURST,
 					le32_to_cpu(ep_ctx->ep_info2)) + 1;
 			bw_info->max_packet_size = MAX_PACKET_DECODED(
 					le32_to_cpu(ep_ctx->ep_info2));
