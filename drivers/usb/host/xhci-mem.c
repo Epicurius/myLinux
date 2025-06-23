@@ -1110,24 +1110,24 @@ int xhci_setup_addressable_virt_dev(struct xhci_hcd *xhci, struct usb_device *ud
 	switch (udev->speed) {
 	case USB_SPEED_SUPER_PLUS:
 		slot_ctx->dev_info |= cpu_to_le32(SLOT_SPEED_SSP);
-		max_packets = MAX_PACKET(512);
+		max_packets = FIELD_PREP(MAX_PACKET_MASK, 512);
 		break;
 	case USB_SPEED_SUPER:
 		slot_ctx->dev_info |= cpu_to_le32(SLOT_SPEED_SS);
-		max_packets = MAX_PACKET(512);
+		max_packets = FIELD_PREP(MAX_PACKET_MASK, 512);
 		break;
 	case USB_SPEED_HIGH:
 		slot_ctx->dev_info |= cpu_to_le32(SLOT_SPEED_HS);
-		max_packets = MAX_PACKET(64);
+		max_packets = FIELD_PREP(MAX_PACKET_MASK, 64);
 		break;
 	/* USB core guesses at a 64-byte max packet first for FS devices */
 	case USB_SPEED_FULL:
 		slot_ctx->dev_info |= cpu_to_le32(SLOT_SPEED_FS);
-		max_packets = MAX_PACKET(64);
+		max_packets = FIELD_PREP(MAX_PACKET_MASK, 64);
 		break;
 	case USB_SPEED_LOW:
 		slot_ctx->dev_info |= cpu_to_le32(SLOT_SPEED_LS);
-		max_packets = MAX_PACKET(8);
+		max_packets = FIELD_PREP(MAX_PACKET_MASK, 8);
 		break;
 	default:
 		/* Speed was set earlier, this shouldn't happen. */
@@ -1501,7 +1501,7 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 				      FIELD_PREP(EP_INTERVAL, interval) |
 				      FIELD_PREP(EP_MULT, mult));
 	ep_ctx->ep_info2 = cpu_to_le32(FIELD_PREP(EP_TYPE, endpoint_type) |
-				       MAX_PACKET(max_packet) |
+				       FIELD_PREP(MAX_PACKET_MASK, max_packet) |
 				       FIELD_PREP(EP_MAX_BURST, max_burst) |
 				       FIELD_PREP(EP_ERROR_COUNT, err_count));
 	ep_ctx->deq = cpu_to_le64(ep_ring->first_seg->dma |
@@ -1587,7 +1587,7 @@ void xhci_update_bw_info(struct xhci_hcd *xhci,
 					le32_to_cpu(ep_ctx->ep_info)) + 1;
 			bw_info->num_packets = FIELD_GET(EP_MAX_BURST,
 					le32_to_cpu(ep_ctx->ep_info2)) + 1;
-			bw_info->max_packet_size = MAX_PACKET_DECODED(
+			bw_info->max_packet_size = FIELD_GET(MAX_PACKET_MASK,
 					le32_to_cpu(ep_ctx->ep_info2));
 			bw_info->type = ep_type;
 			bw_info->max_esit_payload = 

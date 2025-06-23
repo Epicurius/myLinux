@@ -476,9 +476,7 @@ struct xhci_ep_ctx {
 /* bits 15:8 - Max Burst Size, max number of consecutive USB transactions executed. */
 #define EP_MAX_BURST	GENMASK(15, 8)
 /* bits 31:16 - Max Packet Size indicates the max packet size that an EP can send and receive. */
-#define MAX_PACKET(p)	(((p)&0xffff) << 16)
 #define MAX_PACKET_MASK		GENMASK(31, 16)
-#define MAX_PACKET_DECODED(p)	(((p) >> 16) & 0xffff)
 
 /* tx_info bitmasks */
 /* bits 15:0 - Average TRB Length for EP. */
@@ -2564,7 +2562,7 @@ static inline const char *xhci_decode_ep_context(char *str, u32 info,
 	ep_type = FIELD_GET(EP_TYPE, info2);
 	hid = !!(info2 & EP_HID);
 	burst = FIELD_GET(EP_MAX_BURST, info2);
-	maxp = MAX_PACKET_DECODED(info2);
+	maxp = FIELD_GET(MAX_PACKET_MASK, info2);
 
 	avg = EP_AVG_TRB_LENGTH(tx_info);
 

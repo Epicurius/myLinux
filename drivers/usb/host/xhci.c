@@ -1545,7 +1545,7 @@ static int xhci_check_ep0_maxpacket(struct xhci_hcd *xhci, struct xhci_virt_devi
 	int ret = 0;
 
 	ep_ctx = xhci_get_ep_ctx(xhci, vdev->out_ctx, 0);
-	hw_max_packet_size = MAX_PACKET_DECODED(le32_to_cpu(ep_ctx->ep_info2));
+	hw_max_packet_size = FIELD_GET(MAX_PACKET_MASK, le32_to_cpu(ep_ctx->ep_info2));
 	max_packet_size = usb_endpoint_maxp(&vdev->udev->ep0.desc);
 
 	if (hw_max_packet_size == max_packet_size)
@@ -1582,7 +1582,7 @@ static int xhci_check_ep0_maxpacket(struct xhci_hcd *xhci, struct xhci_virt_devi
 		ep_ctx = xhci_get_ep_ctx(xhci, command->in_ctx, 0);
 		ep_ctx->ep_info &= cpu_to_le32(~EP_STATE_MASK);/* must clear */
 		ep_ctx->ep_info2 &= cpu_to_le32(~MAX_PACKET_MASK);
-		ep_ctx->ep_info2 |= cpu_to_le32(MAX_PACKET(max_packet_size));
+		ep_ctx->ep_info2 |= cpu_to_le32(FIELD_PREP(MAX_PACKET_MASK, max_packet_size));
 
 		ctrl_ctx->add_flags = cpu_to_le32(EP0_FLAG);
 		ctrl_ctx->drop_flags = 0;
