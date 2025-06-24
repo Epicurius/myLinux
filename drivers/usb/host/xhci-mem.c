@@ -1589,8 +1589,9 @@ void xhci_update_bw_info(struct xhci_hcd *xhci,
 			bw_info->max_packet_size = MAX_PACKET_DECODED(
 					le32_to_cpu(ep_ctx->ep_info2));
 			bw_info->type = ep_type;
-			bw_info->max_esit_payload = CTX_TO_MAX_ESIT_PAYLOAD(
-					le32_to_cpu(ep_ctx->tx_info));
+			bw_info->max_esit_payload = (CTX_TO_MAX_ESIT_PAYLOAD_HI(
+					le32_to_cpu(ep_ctx->ep_info)) << 16) |
+					CTX_TO_MAX_ESIT_PAYLOAD(le32_to_cpu(ep_ctx->tx_info));
 		}
 	}
 }
