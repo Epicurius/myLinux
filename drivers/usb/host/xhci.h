@@ -453,7 +453,7 @@ struct xhci_ep_ctx {
 #define EP_MAXPSTREAMS(p)		(((p) << 10) & EP_MAXPSTREAMS_MASK)
 #define CTX_TO_EP_MAXPSTREAMS(p)	(((p) & EP_MAXPSTREAMS_MASK) >> 10)
 /* bit 15 - Linear Stream array identifies how a Stream ID shall be interpreted. */
-#define	EP_HAS_LSA		(1 << 15)
+#define	EP_HAS_LSA		BIT(15)
 /* bits 23:16 - Interval period between requests to an endpoint - 125u increments. */
 #define EP_INTERVAL(p)			(((p) & 0xff) << 16)
 #define EP_INTERVAL_TO_UFRAMES(p)	(1 << (((p) >> 16) & 0xff))
@@ -477,7 +477,7 @@ struct xhci_ep_ctx {
 #define INT_IN_EP	7
 /* bit 6 - RsvdZ */
 /* bit 7 - Host Initiate Disable, for disabling stream selection */
-#define	EP_HID		0x80
+#define	EP_HID		BIT(7)
 /* bits 15:8 - Max Burst Size, max number of consecutive USB transactions executed. */
 #define MAX_BURST(p)	(((p)&0xff) << 8)
 #define CTX_TO_MAX_BURST(p)	(((p) >> 8) & 0xff)
@@ -496,7 +496,7 @@ struct xhci_ep_ctx {
 
 /* deq bitmasks */
 /* bit 0 - Dequeue Cycle State */
-#define EP_CTX_CYCLE_MASK		(1 << 0)
+#define EP_CTX_CYCLE_MASK		BIT(0)
 /* bits 3:1 - RsvdZ */
 /* bits 63:4 - TR Dequeue Pointer */
 #define TR_DEQ_PTR_MASK			GENMASK_ULL(63, 4)
@@ -505,7 +505,7 @@ struct xhci_ep_ctx {
  * Force Event - generate transfer events for all TRBs for this endpoint
  * This will tell the HC to ignore the IOC and ISP flags (for debugging only).
  */
-#define	FORCE_EVENT	(1 << 1)
+#define	FORCE_EVENT	BIT(1)
 
 /**
  * struct xhci_input_control_context
