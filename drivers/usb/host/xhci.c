@@ -93,13 +93,13 @@ void xhci_quiesce(struct xhci_hcd *xhci)
 	u32 cmd;
 	u32 mask;
 
-	mask = ~(XHCI_IRQS);
+	mask = XHCI_IRQS;
 	halted = readl(&xhci->op_regs->status) & STS_HALT;
 	if (!halted)
-		mask &= ~CMD_RUN;
+		mask |= CMD_RUN;
 
 	cmd = readl(&xhci->op_regs->command);
-	cmd &= mask;
+	cmd &= ~mask;
 	writel(cmd, &xhci->op_regs->command);
 }
 
