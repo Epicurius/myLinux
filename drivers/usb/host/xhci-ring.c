@@ -1267,7 +1267,7 @@ reset_done:
 			fallthrough;
 		case EP_STATE_RUNNING:
 			/* Race, HW handled stop ep cmd before ep was running */
-			xhci_dbg(xhci, "Stop ep completion ctx error, ctx_state %d\n",
+			xhci_dbg(xhci, "Stop ep completion ctx error, ctx_state %ld\n",
 					GET_EP_CTX_STATE(ep_ctx));
 			/*
 			 * Don't retry forever if we guessed wrong or a defective HC never starts
