@@ -435,7 +435,7 @@ struct xhci_ep_ctx {
 
 /* ep_info bitmasks */
 /* bits 2:0 - Endpoint State */
-#define EP_STATE_MASK		(0x7)
+#define EP_STATE_MASK		GENMASK(2, 0)
 #define EP_STATE_DISABLED	0
 #define EP_STATE_RUNNING	1
 /* Halted due to halt condition - ok to manipulate endpoint ring */
@@ -449,7 +449,7 @@ struct xhci_ep_ctx {
 #define EP_MULT(p)		(((p) & 0x3) << 8)
 #define CTX_TO_EP_MULT(p)	(((p) >> 8) & 0x3)
 /* bits 14:10 - Max Primary Streams the endpoint supports. */
-#define EP_MAXPSTREAMS_MASK		(0x1f << 10)
+#define EP_MAXPSTREAMS_MASK		GENMASK(14, 10)
 #define EP_MAXPSTREAMS(p)		(((p) << 10) & EP_MAXPSTREAMS_MASK)
 #define CTX_TO_EP_MAXPSTREAMS(p)	(((p) & EP_MAXPSTREAMS_MASK) >> 10)
 /* bit 15 - Linear Stream array identifies how a Stream ID shall be interpreted. */
@@ -483,7 +483,7 @@ struct xhci_ep_ctx {
 #define CTX_TO_MAX_BURST(p)	(((p) >> 8) & 0xff)
 /* bits 31:16 - Max Packet Size indicates the max packet size that an EP can send and receive. */
 #define MAX_PACKET(p)	(((p)&0xffff) << 16)
-#define MAX_PACKET_MASK		(0xffff << 16)
+#define MAX_PACKET_MASK		GENMASK(31, 16)
 #define MAX_PACKET_DECODED(p)	(((p) >> 16) & 0xffff)
 
 /* tx_info bitmasks */
