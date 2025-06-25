@@ -354,7 +354,6 @@ struct xhci_slot_ctx {
 #define ROUTE_STRING_MASK	(0xfffff)
 /* Device speed - values defined by PORTSC Device Speed field - 20:23 */
 #define DEV_SPEED	(0xf << 20)
-#define GET_DEV_SPEED(n) (((n) & DEV_SPEED) >> 20)
 /* bit 24 reserved */
 /* Is this LS/FS device connected through a HS hub? - bit 25 */
 #define DEV_MTT		(0x1 << 25)
@@ -363,7 +362,6 @@ struct xhci_slot_ctx {
 /* Index of the last valid endpoint context in this device context - 27:31 */
 #define LAST_CTX_MASK	(0x1f << 27)
 #define LAST_CTX(p)	((p) << 27)
-#define LAST_CTX_TO_EP_NUM(p)	(((p) >> 27) - 1)
 #define SLOT_FLAG	(1 << 0)
 #define EP0_FLAG	(1 << 1)
 
@@ -541,11 +539,6 @@ struct xhci_command {
 	/* xHCI command response timeout in milliseconds */
 	unsigned int			timeout_ms;
 };
-
-/* drop context bitmasks */
-#define	DROP_EP(x)	(0x1 << x)
-/* add context bitmasks */
-#define	ADD_EP(x)	(0x1 << x)
 
 struct xhci_stream_ctx {
 	/* 64-bit stream ring address, cycle state, and stream type */
@@ -1243,7 +1236,6 @@ static inline const char *xhci_trb_type_string(u8 type)
 	}
 }
 
-#define TRB_TYPE_LINK(x)	(((x) & TRB_TYPE_BITMASK) == TRB_TYPE(TRB_LINK))
 /* Above, but for __le32 types -- can avoid work by swapping constants: */
 #define TRB_TYPE_LINK_LE32(x)	(((x) & cpu_to_le32(TRB_TYPE_BITMASK)) == \
 				 cpu_to_le32(TRB_TYPE(TRB_LINK)))
@@ -1636,7 +1628,7 @@ struct xhci_hcd {
 #define XHCI_SG_TRB_CACHE_SIZE_QUIRK	BIT_ULL(39)
 #define XHCI_NO_SOFT_RETRY	BIT_ULL(40)
 #define XHCI_BROKEN_D3COLD_S2I	BIT_ULL(41)
-#define XHCI_EP_CTX_BROKEN_DCS	BIT_ULL(42)
+#define XHCI_EP_CTX_BROKEN_DCS	BIT_ULL(42) /* Deprecated */
 #define XHCI_SUSPEND_RESUME_CLKS	BIT_ULL(43)
 #define XHCI_RESET_TO_DEFAULT	BIT_ULL(44)
 #define XHCI_TRB_OVERFETCH	BIT_ULL(45)
