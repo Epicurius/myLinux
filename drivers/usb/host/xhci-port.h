@@ -118,6 +118,42 @@
 #define PORT_WR		(1 << 31)
 #define PORT_CHANGE_MASK	(PORT_CSC | PORT_PEC | PORT_WRC | PORT_OCC | \
 				 PORT_RC | PORT_PLC | PORT_CEC)
+#define	PORT_WAKE_BITS	(PORT_WKOC_E | PORT_WKDISC_E | PORT_WKCONN_E)
+#define	PORT_RWC_BITS	(PORT_CSC | PORT_PEC | PORT_WRC | PORT_OCC | \
+			 PORT_RC | PORT_PLC | PORT_PE)
+/*
+ * These bits are Read Only (RO) and should be saved and written to the
+ * registers: 0, 3, 10:13, 30
+ * connect status, over-current status, port speed, and device removable.
+ * connect status and port speed are also sticky - meaning they're in
+ * the AUX well and they aren't changed by a hot, warm, or cold reset.
+ */
+#define	XHCI_PORT_RO	((1<<0) | (1<<3) | (0xf<<10) | (1<<30))
+/*
+ * These bits are RW; writing a 0 clears the bit, writing a 1 sets the bit:
+ * bits 5:8, 9, 14:15, 25:27
+ * link state, port power, port indicator state, "wake on" enable state
+ */
+#define XHCI_PORT_RWS	((0xf<<5) | (1<<9) | (0x3<<14) | (0x7<<25))
+/*
+ * These bits are RW; writing a 1 sets the bit, writing a 0 has no effect:
+ * bit 4 (port reset)
+ */
+#define	XHCI_PORT_RW1S	((1<<4))
+/*
+ * These bits are RW; writing a 1 clears the bit, writing a 0 has no effect:
+ * bits 1, 17, 18, 19, 20, 21, 22, 23
+ * port enable/disable, and
+ * change bits: connect, PED, warm port reset changed (reserved zero for USB 2.0 ports),
+ * over-current, reset, link state, and L1 change
+ */
+#define XHCI_PORT_RW1CS	((1<<1) | (0x7f<<17))
+/*
+ * Bit 16 is RW, and writing a '1' to it causes the link state control to be
+ * latched in
+ */
+#define	XHCI_PORT_RW	((1<<16))
+
 
 /* USB3 Port Power Management Status and Control (PORTPMSC) 5.4.9.1 */
 /*
