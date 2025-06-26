@@ -206,7 +206,7 @@ struct xhci_op_regs {
 
 /* CONFIG - Configure Register - config_reg bitmasks */
 /* bits 7:0 - MAX Device SLots Enabled */
-#define MAX_DEVS(p)    ((p) & 0xff)
+#define MAX_DEVS		GENMASK(7, 0)
 /* bit 8 -  U3 Entry Enabled, assert PLC when root port enters U3, xhci 1.1 */
 #define CONFIG_U3E		BIT(8)
 /* bit 9 - Configuration Information Enable, xhci 1.1 */
