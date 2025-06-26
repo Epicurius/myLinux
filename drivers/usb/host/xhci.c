@@ -1103,7 +1103,7 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 		 * for controller not ready bit to clear, just as in xHC init.
 		 */
 		retval = xhci_handshake(&xhci->op_regs->status,
-					STS_CNR, 0, 10 * 1000 * 1000);
+					STS_CNR, 0, XHCI_RESET_LONG_USEC);
 		if (retval) {
 			xhci_warn(xhci, "Controller not ready at resume %d\n",
 				  retval);
@@ -1215,7 +1215,7 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 	command |= CMD_RUN;
 	writel(command, &xhci->op_regs->command);
 	xhci_handshake(&xhci->op_regs->status, STS_HALT,
-		  0, 250 * 1000);
+		  0, XHCI_RESET_SHORT_USEC);
 
 	/* step 5: walk topology and initialize portsc,
 	 * portpmsc and portli
@@ -4890,7 +4890,7 @@ static unsigned long long xhci_calculate_intel_u2_timeout(
 	unsigned long long timeout_ns;
 	unsigned long long u2_del_ns;
 
-	timeout_ns = 10 * 1000 * 1000;
+	timeout_ns = XHCI_RESET_LONG_USEC;
 
 	if ((usb_endpoint_xfer_int(desc) || usb_endpoint_xfer_isoc(desc)) &&
 			(xhci_service_interval_to_ns(desc) > timeout_ns))
