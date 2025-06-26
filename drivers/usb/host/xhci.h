@@ -121,7 +121,7 @@ struct xhci_op_regs {
 
 /* USBCMD - USB command - command bitmasks */
 /* bit 0 - Run/Stop HC execution - do not write unless HC is halted */
-#define CMD_RUN		XHCI_CMD_RUN
+#define CMD_RUN		BIT(0)
 /*
  * bit 1 - HC Reset, resets internal HC state machine and all registers (except
  * PCI config regs).  HC does NOT drive a USB reset on the downstream ports.
@@ -129,9 +129,9 @@ struct xhci_op_regs {
  */
 #define CMD_RESET	BIT(1)
 /* bit 2 - Event Interrupt Enable, a '1' allows interrupts from the host controller */
-#define CMD_EIE		XHCI_CMD_EIE
+#define CMD_EIE		BIT(2)
 /* bit 3 - Host System Error Interrupt Enable, get out-of-band signal for HC errors */
-#define CMD_HSEIE	XHCI_CMD_HSEIE
+#define CMD_HSEIE	BIT(3)
 /* bits 6:4 - RsvdP */
 /* bit 7 - Light HC Reset, (port status stays unchanged) reset completed when this is 0 */
 #define CMD_LRESET	BIT(7)
@@ -140,7 +140,7 @@ struct xhci_op_regs {
 /* bit 9 - Controller restore state. */
 #define CMD_CRS		BIT(9)
 /* bit 10 - Enable Wrap Event, '1' means xHC generates an event when MFINDEX wraps. */
-#define CMD_EWE		XHCI_CMD_EWE
+#define CMD_EWE		BIT(10)
 /*
  * bit 11 - MFINDEX power management, '1' means xHC can stop MFINDEX counter if all root
  * hubs are in U3 (selective suspend), disconnect, disabled, or powered-off.
@@ -158,7 +158,7 @@ struct xhci_op_regs {
 
 /* USBSTS - USB status - status bitmasks */
 /* bit 0 - HC not running, set to 1 when run/stop bit is cleared. */
-#define STS_HALT	XHCI_STS_HALT
+#define STS_HALT	BIT(0)
 /* bit 1 - RsvdP */
 /* bit 2 - Host System Error, e.g. PCI parity error. The HC will clear the run/stop bit. */
 #define STS_FATAL	BIT(2)
@@ -174,7 +174,7 @@ struct xhci_op_regs {
 /* bit 10 - Save/Restore Error, '1' means save or restore error */
 #define STS_SRE		BIT(10)
 /* bit 11 - Controller Not Ready, '1' means not ready  to accept doorbell or op reg writes after reset */
-#define STS_CNR		XHCI_STS_CNR
+#define STS_CNR		BIT(11)
 /* bit 12 - Host Controller Error, '1' means internal Error, SW needs to reset and reinitialize */
 #define STS_HCE		BIT(12)
 /* bits 31:13 reserved and should be preserved */
