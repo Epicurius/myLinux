@@ -6,7 +6,7 @@
 
 /* hc_capbase - bitmasks */
 /* bits 7:0 - Capability Registers Length */
-#define HC_LENGTH(p)		XHCI_HC_LENGTH(p)
+#define HC_LENGTH(p)		((p) & 0xff)
 /* bits 15:8 - Rsvd */
 /* bits 31:16 - Host Controller Interface Version Number */
 #define HC_VERSION(p)		(((p) >> 16) & 0xffff)
@@ -77,7 +77,7 @@
 /* bits 15:12 - Max size for Primary Stream Arrays, 2^(n+1) section 5.3.6 */
 #define HCC_MAX_PSA(p)		BIT(((((p) >> 12) & 0xf) + 1))
 /* bits 31:16 - Max size for Primary Stream Arrays, 2^(n) section 5.3.6 */
-#define HCC_EXT_CAPS(p)		XHCI_HCC_EXT_CAPS(p)
+#define HCC_EXT_CAPS(p)		(((p) >> 16) & 0xffff)
 
 /* DBOFF - db_off - bitmasks */
 /* bits 1:0 - Rsvd */
