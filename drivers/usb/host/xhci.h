@@ -121,62 +121,62 @@ struct xhci_op_regs {
 
 /* USBCMD - USB command - command bitmasks */
 /* bit 0 - Run/Stop HC execution - do not write unless HC is halted */
-#define CMD_RUN		BIT(0)
+#define CMD_RUN			BIT(0)
 /*
  * bit 1 - HC Reset, resets internal HC state machine and all registers (except
  * PCI config regs).  HC does NOT drive a USB reset on the downstream ports.
  * The xHCI driver must reinitialize the xHC after setting this bit.
  */
-#define CMD_RESET	BIT(1)
+#define CMD_RESET		BIT(1)
 /* bit 2 - Event Interrupt Enable, a '1' allows interrupts from the host controller */
-#define CMD_EIE		BIT(2)
+#define CMD_EIE			BIT(2)
 /* bit 3 - Host System Error Interrupt Enable, get out-of-band signal for HC errors */
-#define CMD_HSEIE	BIT(3)
+#define CMD_HSEIE		BIT(3)
 /* bits 6:4 - RsvdP */
 /* bit 7 - Light HC Reset, (port status stays unchanged) reset completed when this is 0 */
-#define CMD_LRESET	BIT(7)
+#define CMD_LRESET		BIT(7)
 /* bit 8 - Controller save state. */
-#define CMD_CSS		BIT(8)
+#define CMD_CSS			BIT(8)
 /* bit 9 - Controller restore state. */
-#define CMD_CRS		BIT(9)
+#define CMD_CRS			BIT(9)
 /* bit 10 - Enable Wrap Event, '1' means xHC generates an event when MFINDEX wraps. */
-#define CMD_EWE		BIT(10)
+#define CMD_EWE			BIT(10)
 /*
  * bit 11 - MFINDEX power management, '1' means xHC can stop MFINDEX counter if all root
  * hubs are in U3 (selective suspend), disconnect, disabled, or powered-off.
  * '0' means the xHC can power it off if all ports are in the disconnect,
  * disabled, or powered-off state.
  */
-#define CMD_PM_INDEX	BIT(11)
+#define CMD_PM_INDEX		BIT(11)
 /* bit 12 - RsvdP */
 /* bit 14 - Extended TBC Enable, changes Isoc TRB fields to support larger TBC */
-#define CMD_ETE		BIT(14)
+#define CMD_ETE			BIT(14)
 /* bits 17:31 - RsvdP */
 
-#define XHCI_RESET_LONG_USEC		(10 * 1000 * 1000)
-#define XHCI_RESET_SHORT_USEC		(250 * 1000)
+#define XHCI_RESET_LONG_USEC	(10 * 1000 * 1000)
+#define XHCI_RESET_SHORT_USEC	(250 * 1000)
 
 /* USBSTS - USB status - status bitmasks */
 /* bit 0 - HC not running, set to 1 when run/stop bit is cleared. */
-#define STS_HALT	BIT(0)
+#define STS_HALT		BIT(0)
 /* bit 1 - RsvdP */
 /* bit 2 - Host System Error, e.g. PCI parity error. The HC will clear the run/stop bit. */
-#define STS_FATAL	BIT(2)
+#define STS_FATAL		BIT(2)
 /* bit 3 - Event Interrupt, clear this prior to clearing any IP flags in IR set*/
-#define STS_EINT	BIT(3)
+#define STS_EINT		BIT(3)
 /* bit 4 - Port Change Detect */
-#define STS_PORT	BIT(4)
+#define STS_PORT		BIT(4)
 /* bits 7:5 - RsvdZ */
 /* bit 8 - Save State Status, '1' means xHC is saving state */
-#define STS_SAVE	BIT(8)
+#define STS_SAVE		BIT(8)
 /* bit 9 - Restore State Status, '1' means xHC is restoring state */
-#define STS_RESTORE	BIT(9)
+#define STS_RESTORE		BIT(9)
 /* bit 10 - Save/Restore Error, '1' means save or restore error */
-#define STS_SRE		BIT(10)
+#define STS_SRE			BIT(10)
 /* bit 11 - Controller Not Ready, '1' means not ready  to accept doorbell or op reg writes after reset */
-#define STS_CNR		BIT(11)
+#define STS_CNR			BIT(11)
 /* bit 12 - Host Controller Error, '1' means internal Error, SW needs to reset and reinitialize */
-#define STS_HCE		BIT(12)
+#define STS_HCE			BIT(12)
 /* bits 31:13 reserved and should be preserved */
 
 /* DNCTRL - Device Notification Control Register - dev_notification bitmasks */
