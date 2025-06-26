@@ -31,9 +31,11 @@
 #define HCS_ERST_MAX(p)		(((p) >> 4) & 0xf)
 /* bits 20:8 - Rsvd */
 /* bits 25:21 - Max Scratchpad Buffers (Hi) */
+#define HCS_MAX_SP_HI(p)	(((p) >> 16) & 0x1f)
 /* bit 26 - Scratchpad restore (SPR), for save/restore HW state - not used yet */
 /* bits 31:27 - Max Scratchpad Buffers (Low) */
-#define HCS_MAX_SCRATCHPAD(p)   ((((p) >> 16) & 0x3e0) | (((p) >> 27) & 0x1f))
+#define HCS_MAX_SP_LO(p)	(((p) >> 27) & 0x1f)
+#define HCS_MAX_SCRATCHPAD(p)   (HCS_MAX_SP_HI(p) << 5 | HCS_MAX_SP_LO(p))
 
 /* HCSPARAMS3 - hcs_params3 - bitmasks */
 /* bits 7:0 - U1 Device Exit Latency, Max U1 to U0 latency for the roothub ports */
