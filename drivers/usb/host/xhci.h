@@ -184,7 +184,7 @@ struct xhci_op_regs {
  * bits 15:0 - Generate a device notification event when the HC sees a transaction with a
  * notification type that matches a bit set in this bit field.
  */
-#define	DEV_NOTE_MASK		(0xffff)
+#define	DEV_NOTE_MASK		GENMASK(15, 0)
 /*
  * Most of the device notification types should only be used for debug.
  * SW does need to pay attention to function wake notifications.
@@ -215,7 +215,7 @@ struct xhci_op_regs {
 
 /* PAGESIZE - page_size bitmasks */
 /* bits 15:0 - HCD page shift bit */
-#define XHCI_PAGE_SIZE_MASK     0xffff
+#define XHCI_PAGE_SIZE_MASK     GENMASK(15, 0)
 /* bits 31:16 - Rsvd, read only. */
 
 /**
