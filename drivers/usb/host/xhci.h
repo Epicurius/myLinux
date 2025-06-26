@@ -236,9 +236,9 @@ struct xhci_intr_reg {
 
 /* iman bitmasks */
 /* bit 0 - Interrupt Pending (IP), whether there is an interrupt pending. Write-1-to-clear. */
-#define	IMAN_IP			(1 << 0)
+#define	IMAN_IP			BIT(0)
 /* bit 1 - Interrupt Enable (IE), whether the interrupter is capable of generating an interrupt */
-#define	IMAN_IE			(1 << 1)
+#define	IMAN_IE			BIT(1)
 
 /* imod bitmasks */
 /*
@@ -246,13 +246,13 @@ struct xhci_intr_reg {
  * (in 250ns intervals). The interval between interrupts will be longer if there are no
  * events on the event ring. Default is 4000 (1 ms).
  */
-#define IMODI_MASK		(0xffff)
+#define IMODI_MASK		GENMASK(15, 0)
 /* bits 31:16 - Interrupt Moderation Counter, used to count down the time to the next interrupt */
-#define IMODC_MASK		(0xffff << 16)
+#define IMODC_MASK		GENMASK(31, 16)
 
 /* erst_size bitmasks */
 /* bits 15:0 - Event Ring Segment Table Size, number of ERST entries */
-#define	ERST_SIZE_MASK		(0xffff)
+#define	ERST_SIZE_MASK		GENMASK(15, 0)
 
 /* erst_base bitmasks */
 /* bits 63:6 - Event Ring Segment Table Base Address Register */
@@ -263,12 +263,12 @@ struct xhci_intr_reg {
  * bits 2:0 - Dequeue ERST Segment Index (DESI), is the segment number (or alias) where the
  * current dequeue pointer lies. This is an optional HW hint.
  */
-#define ERST_DESI_MASK		(0x7)
+#define ERST_DESI_MASK		GENMASK(2, 0)
 /*
  * bit 3 - Event Handler Busy (EHB), whether the event ring is scheduled to be serviced by
  * a work queue (or delayed service routine)?
  */
-#define ERST_EHB		(1 << 3)
+#define ERST_EHB		BIT(3)
 /* bits 63:4 - Event Ring Dequeue Pointer */
 #define ERST_PTR_MASK		GENMASK_ULL(63, 4)
 
