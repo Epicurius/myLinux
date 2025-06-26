@@ -120,94 +120,103 @@ struct xhci_op_regs {
 };
 
 /* USBCMD - USB command - command bitmasks */
-/* start/stop HC execution - do not write unless HC is halted*/
+/* bit 0 - Run/Stop HC execution - do not write unless HC is halted */
 #define CMD_RUN		XHCI_CMD_RUN
-/* Reset HC - resets internal HC state machine and all registers (except
+/*
+ * bit 1 - HC Reset, resets internal HC state machine and all registers (except
  * PCI config regs).  HC does NOT drive a USB reset on the downstream ports.
  * The xHCI driver must reinitialize the xHC after setting this bit.
  */
 #define CMD_RESET	(1 << 1)
-/* Event Interrupt Enable - a '1' allows interrupts from the host controller */
+/* bit 2 - Event Interrupt Enable, a '1' allows interrupts from the host controller */
 #define CMD_EIE		XHCI_CMD_EIE
-/* Host System Error Interrupt Enable - get out-of-band signal for HC errors */
+/* bit 3 - Host System Error Interrupt Enable, get out-of-band signal for HC errors */
 #define CMD_HSEIE	XHCI_CMD_HSEIE
-/* bits 4:6 are reserved (and should be preserved on writes). */
-/* light reset (port status stays unchanged) - reset completed when this is 0 */
+/* bits 6:4 - RsvdP */
+/* bit 7 - Light HC Reset, (port status stays unchanged) reset completed when this is 0 */
 #define CMD_LRESET	(1 << 7)
-/* host controller save/restore state. */
+/* bit 8 - Controller save state. */
 #define CMD_CSS		(1 << 8)
+/* bit 9 - Controller restore state. */
 #define CMD_CRS		(1 << 9)
-/* Enable Wrap Event - '1' means xHC generates an event when MFINDEX wraps. */
+/* bit 10 - Enable Wrap Event, '1' means xHC generates an event when MFINDEX wraps. */
 #define CMD_EWE		XHCI_CMD_EWE
-/* MFINDEX power management - '1' means xHC can stop MFINDEX counter if all root
+/*
+ * bit 11 - MFINDEX power management, '1' means xHC can stop MFINDEX counter if all root
  * hubs are in U3 (selective suspend), disconnect, disabled, or powered-off.
  * '0' means the xHC can power it off if all ports are in the disconnect,
  * disabled, or powered-off state.
  */
 #define CMD_PM_INDEX	(1 << 11)
-/* bit 14 Extended TBC Enable, changes Isoc TRB fields to support larger TBC */
+/* bit 12 - RsvdP */
+/* bit 14 - Extended TBC Enable, changes Isoc TRB fields to support larger TBC */
 #define CMD_ETE		(1 << 14)
-/* bits 15:31 are reserved (and should be preserved on writes). */
+/* bits 17:31 - RsvdP */
 
 #define XHCI_RESET_LONG_USEC		(10 * 1000 * 1000)
 #define XHCI_RESET_SHORT_USEC		(250 * 1000)
 
 /* USBSTS - USB status - status bitmasks */
-/* HC not running - set to 1 when run/stop bit is cleared. */
+/* bit 0 - HC not running, set to 1 when run/stop bit is cleared. */
 #define STS_HALT	XHCI_STS_HALT
-/* serious error, e.g. PCI parity error.  The HC will clear the run/stop bit. */
+/* bit 1 - RsvdP */
+/* bit 2 - Host System Error, e.g. PCI parity error. The HC will clear the run/stop bit. */
 #define STS_FATAL	(1 << 2)
-/* event interrupt - clear this prior to clearing any IP flags in IR set*/
+/* bit 3 - Event Interrupt, clear this prior to clearing any IP flags in IR set*/
 #define STS_EINT	(1 << 3)
-/* port change detect */
+/* bit 4 - Port Change Detect */
 #define STS_PORT	(1 << 4)
-/* bits 5:7 reserved and zeroed */
-/* save state status - '1' means xHC is saving state */
+/* bits 7:5 - RsvdZ */
+/* bit 8 - Save State Status, '1' means xHC is saving state */
 #define STS_SAVE	(1 << 8)
-/* restore state status - '1' means xHC is restoring state */
+/* bit 9 - Restore State Status, '1' means xHC is restoring state */
 #define STS_RESTORE	(1 << 9)
-/* true: save or restore error */
+/* bit 10 - Save/Restore Error, '1' means save or restore error */
 #define STS_SRE		(1 << 10)
-/* true: Controller Not Ready to accept doorbell or op reg writes after reset */
+/* bit 11 - Controller Not Ready, '1' means not ready  to accept doorbell or op reg writes after reset */
 #define STS_CNR		XHCI_STS_CNR
-/* true: internal Host Controller Error - SW needs to reset and reinitialize */
+/* bit 12 - Host Controller Error, '1' means internal Error, SW needs to reset and reinitialize */
 #define STS_HCE		(1 << 12)
-/* bits 13:31 reserved and should be preserved */
+/* bits 31:13 reserved and should be preserved */
 
+/* DNCTRL - Device Notification Control Register - dev_notification bitmasks */
 /*
- * DNCTRL - Device Notification Control Register - dev_notification bitmasks
- * Generate a device notification event when the HC sees a transaction with a
+ * bits 15:0 - Generate a device notification event when the HC sees a transaction with a
  * notification type that matches a bit set in this bit field.
  */
 #define	DEV_NOTE_MASK		(0xffff)
-/* Most of the device notification types should only be used for debug.
+/*
+ * Most of the device notification types should only be used for debug.
  * SW does need to pay attention to function wake notifications.
  */
 #define	DEV_NOTE_FWAKE		(1 << 1)
 
 /* CRCR - Command Ring Control Register - cmd_ring bitmasks */
-/* bit 0 - Cycle bit indicates the ownership of the command ring */
+/* bit 0 - Ring Cycle State, indicates the ownership of the command ring */
 #define CMD_RING_CYCLE		(1 << 0)
-/* stop ring operation after completion of the currently executing command */
+/* bit 1 - Command Stop, stop ring operation after completion of the currently executing command */
 #define CMD_RING_PAUSE		(1 << 1)
-/* stop ring immediately - abort the currently executing command */
+/* bit 2 - Command Abort, stop ring immediately, abort the currently executing command */
 #define CMD_RING_ABORT		(1 << 2)
-/* true: command ring is running */
+/* bit 3 - Command Ring Running, '1' command ring is running */
 #define CMD_RING_RUNNING	(1 << 3)
 /* bits 63:6 - Command Ring pointer */
 #define CMD_RING_PTR_MASK	GENMASK_ULL(63, 6)
 
-/* CONFIG - Configure Register - config_reg bitmasks */
-/* bits 0:7 - maximum number of device slots enabled (NumSlotsEn) */
-#define MAX_DEVS(p)	((p) & 0xff)
-/* bit 8: U3 Entry Enabled, assert PLC when root port enters U3, xhci 1.1 */
-#define CONFIG_U3E		(1 << 8)
-/* bit 9: Configuration Information Enable, xhci 1.1 */
-#define CONFIG_CIE		(1 << 9)
-/* bits 10:31 - reserved and should be preserved */
 
+/* CONFIG - Configure Register - config_reg bitmasks */
+/* bits 7:0 - MAX Device SLots Enabled */
+#define MAX_DEVS(p)    ((p) & 0xff)
+/* bit 8 -  U3 Entry Enabled, assert PLC when root port enters U3, xhci 1.1 */
+#define CONFIG_U3E		(1 << 8)
+/* bit 9 - Configuration Information Enable, xhci 1.1 */
+#define CONFIG_CIE		(1 << 9)
+/* bits 31:10 - RsvdP */
+
+/* PAGESIZE - page_size bitmasks */
 /* bits 15:0 - HCD page shift bit */
 #define XHCI_PAGE_SIZE_MASK     0xffff
+/* bits 31:16 - Rsvd, read only. */
 
 /**
  * struct xhci_intr_reg - Interrupt Register Set, v1.2 section 5.5.2.
