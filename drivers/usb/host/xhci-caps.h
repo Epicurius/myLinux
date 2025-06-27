@@ -27,8 +27,8 @@
  * needs to queue transactions ahead of the HW to meet periodic deadlines.
  */
 #define HCS_IST(p)		(((p) >> 0) & 0xf)
-/* bits 7:4 - Event Ring Segment Table Max */
-#define HCS_ERST_MAX(p)		(((p) >> 4) & 0xf)
+/* bits 7:4 - Event Ring Segment Table Max, 2^ERST_MAX */
+#define HCS_ERST_MAX(p)		BIT(((p) >> 4) & 0xf)
 /* bits 20:8 - Rsvd */
 /* bits 25:21 - Max Scratchpad Buffers (Hi) */
 #define HCS_MAX_SP_HI(p)	(((p) >> 16) & 0x1f)
