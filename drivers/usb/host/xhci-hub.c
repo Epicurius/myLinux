@@ -115,8 +115,8 @@ static int xhci_create_usb3x_bos_desc(struct xhci_hcd *xhci, char *buf,
 
 	if ((xhci->quirks & XHCI_LPM_SUPPORT)) {
 		reg = readl(&xhci->cap_regs->hcs_params3);
-		ss_cap->bU1devExitLat = HCS_U1_LATENCY(reg);
-		ss_cap->bU2DevExitLat = cpu_to_le16(HCS_U2_LATENCY(reg));
+		ss_cap->bU1devExitLat = FIELD_GET(HCS_U1_LATENCY, reg);
+		ss_cap->bU2DevExitLat = cpu_to_le16(FIELD_GET(HCS_U2_LATENCY, reg));
 	}
 
 	if (wLength < le16_to_cpu(bos->wTotalLength))
@@ -700,7 +700,7 @@ static int xhci_enter_test_mode(struct xhci_hcd *xhci,
 	/* Disable all Device Slots */
 	xhci_dbg(xhci, "Disable all slots\n");
 	spin_unlock_irqrestore(&xhci->lock, *flags);
-	for (i = 1; i <= HCS_MAX_SLOTS(xhci->hcs_params1); i++) {
+	for (i = 1; i <= FIELD_GET(HCS_SLOTS_MASK, xhci->hcs_params1); i++) {
 		if (!xhci->devs[i])
 			continue;
 

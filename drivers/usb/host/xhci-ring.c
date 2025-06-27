@@ -57,6 +57,8 @@
 #include <linux/slab.h>
 #include <linux/string_choices.h>
 #include <linux/dma-mapping.h>
+#include <linux/bitfield.h>
+
 #include "xhci.h"
 #include "xhci-trace.h"
 
@@ -1388,7 +1390,7 @@ void xhci_hc_died(struct xhci_hcd *xhci)
 	xhci_cleanup_command_queue(xhci);
 
 	/* return any pending urbs, remove may be waiting for them */
-	for (i = 0; i <= HCS_MAX_SLOTS(xhci->hcs_params1); i++) {
+	for (i = 0; i <= FIELD_GET(HCS_SLOTS_MASK, xhci->hcs_params1); i++) {
 		if (!xhci->devs[i])
 			continue;
 		for (j = 0; j < 31; j++)
@@ -2000,7 +2002,7 @@ static void handle_port_status(struct xhci_hcd *xhci, union xhci_trb *event)
 			  "WARN: xHC returned failed port status event\n");
 
 	port_id = GET_PORT_ID(le32_to_cpu(event->generic.field[0]));
-	max_ports = HCS_MAX_PORTS(xhci->hcs_params1);
+	max_ports = FIELD_GET(HCS_MAX_PORTS, xhci->hcs_params1);
 
 	if ((port_id <= 0) || (port_id > max_ports)) {
 		xhci_warn(xhci, "Port change event with invalid port ID %d\n",
@@ -3988,7 +3990,7 @@ static unsigned int xhci_get_last_burst_packet_count(struct xhci_hcd *xhci,
 /* Returns the Isochronous Scheduling Threshold in Microframes. 1 Frame is 8 Microframes. */
 static int xhci_ist_in_microseconds(u32 hcs_params2)
 {
-	int ist = HCS_IST_VALUE(hcs_params2);
+	int ist = FIELD_GET(HCS_IST_VALUE, hcs_params2);
 
 	if (hcs_params2 & HCS_IST_UNIT)
 		ist *= 8;
