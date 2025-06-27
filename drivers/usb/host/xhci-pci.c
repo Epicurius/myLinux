@@ -629,7 +629,7 @@ int xhci_pci_common_probe(struct pci_dev *dev, const struct pci_device_id *id)
 	/* Roothub already marked as USB 3.0 speed */
 
 	if (!(xhci->quirks & XHCI_BROKEN_STREAMS) &&
-			HCC_MAX_PSA(xhci->hcc_params) >= 4)
+			GET_MAX_PSA_SIZE(xhci->hcc_params) >= 4)
 		xhci->shared_hcd->can_do_streams = 1;
 
 	/* USB-2 and USB-3 roothubs initialized, allow runtime pm suspend */

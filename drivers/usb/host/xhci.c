@@ -3491,7 +3491,7 @@ static void xhci_calculate_streams_entries(struct xhci_hcd *xhci,
 	 * level page entries), but that's an optional feature for xHCI host
 	 * controllers. xHCs must support at least 4 stream IDs.
 	 */
-	max_streams = HCC_MAX_PSA(xhci->hcc_params);
+	max_streams = GET_MAX_PSA_SIZE(xhci->hcc_params);
 	if (*num_stream_ctxs > max_streams) {
 		xhci_dbg(xhci, "xHCI HW only supports %u stream ctx entries.\n",
 				max_streams);
@@ -3621,7 +3621,7 @@ static int xhci_alloc_streams(struct usb_hcd *hcd, struct usb_device *udev,
 
 	/* MaxPSASize value 0 (2 streams) means streams are not supported */
 	if ((xhci->quirks & XHCI_BROKEN_STREAMS) ||
-			HCC_MAX_PSA(xhci->hcc_params) < 4) {
+			GET_MAX_PSA_SIZE(xhci->hcc_params) < 4) {
 		xhci_dbg(xhci, "xHCI controller does not support streams.\n");
 		return -ENOSYS;
 	}

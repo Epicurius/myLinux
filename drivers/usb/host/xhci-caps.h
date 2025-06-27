@@ -75,7 +75,8 @@
 #define HCC_CFC(p)		((p) & BIT(11))
 /* bit 11 - Contiguous Frame ID Capability */
 /* bits 15:12 - Max size for Primary Stream Arrays, 2^(n+1) section 5.3.6 */
-#define HCC_MAX_PSA(p)		BIT(((((p) >> 12) & 0xf) + 1))
+#define HCC_MAX_PSA		GENMASK(15, 12)
+#define GET_MAX_PSA_SIZE(p)	BIT(FIELD_GET(HCC_MAX_PSA, (p)) + 1)
 /* bits 31:16 - Max size for Primary Stream Arrays, 2^(n) section 5.3.6 */
 #define HCC_EXT_CAPS(p)		(((p) >> 16) & 0xffff)
 
