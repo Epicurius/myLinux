@@ -3999,17 +3999,7 @@ static int xhci_get_isoc_frame_id(struct xhci_hcd *xhci,
 	else
 		start_frame = (urb->start_frame + index * urb->interval) >> 3;
 
-	/* Isochronous Scheduling Threshold (IST, bits 0~3 in HCSPARAMS2):
-	 *
-	 * If bit [3] of IST is cleared to '0', software can add a TRB no
-	 * later than IST[2:0] Microframes before that TRB is scheduled to
-	 * be executed.
-	 * If bit [3] of IST is set to '1', software can add a TRB no later
-	 * than IST[2:0] Frames before that TRB is scheduled to be executed.
-	 */
-	ist = HCS_IST(xhci->hcs_params2) & 0x7;
-	if (HCS_IST(xhci->hcs_params2) & (1 << 3))
-		ist <<= 3;
+	ist = IST_UFRAMES(xhci->hcs_params2);
 
 	/* Software shall not schedule an Isoch TD with a Frame ID value that
 	 * is less than the Start Frame ID or greater than the End Frame ID,
@@ -4330,9 +4320,7 @@ int xhci_queue_isoc_tx_prepare(struct xhci_hcd *xhci, gfp_t mem_flags,
 	 * Round up to the next frame and consider the time before trb really
 	 * gets scheduled by hardare.
 	 */
-	ist = HCS_IST(xhci->hcs_params2) & 0x7;
-	if (HCS_IST(xhci->hcs_params2) & (1 << 3))
-		ist <<= 3;
+	ist = IST_UFRAMES(xhci->hcs_params2);
 	start_frame += ist + XHCI_CFC_DELAY;
 	start_frame = roundup(start_frame, 8);
 
