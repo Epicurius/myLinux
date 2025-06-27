@@ -618,7 +618,7 @@ static void xhci_debugfs_create_ports(struct xhci_hcd *xhci,
 	struct xhci_port	*port;
 	struct dentry		*dir;
 
-	num_ports = HCS_MAX_PORTS(xhci->hcs_params1);
+	num_ports = FIELD_GET(HCS_MAX_PORTS, xhci->hcs_params1);
 
 	parent = debugfs_create_dir("ports", parent);
 
@@ -645,7 +645,7 @@ static int xhci_port_bw_show(struct xhci_hcd *xhci, u8 dev_speed,
 	if (ret < 0)
 		return ret;
 
-	num_ports = HCS_MAX_PORTS(xhci->hcs_params1);
+	num_ports = FIELD_GET(HCS_MAX_PORTS, xhci->hcs_params1);
 
 	ctx = xhci_alloc_port_bw_ctx(xhci, 0);
 	if (!ctx) {
@@ -752,7 +752,7 @@ void xhci_debugfs_init(struct xhci_hcd *xhci)
 			    xhci->debugfs_root, "reg-cap");
 
 	xhci_debugfs_regset(xhci,
-			    HC_LENGTH(readl(&xhci->cap_regs->hc_capbase)),
+			    readl(&xhci->cap_regs->hc_capbase) & HC_LENGTH,
 			    xhci_op_regs, ARRAY_SIZE(xhci_op_regs),
 			    xhci->debugfs_root, "reg-op");
 

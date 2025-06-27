@@ -1388,7 +1388,7 @@ void xhci_hc_died(struct xhci_hcd *xhci)
 	xhci_cleanup_command_queue(xhci);
 
 	/* return any pending urbs, remove may be waiting for them */
-	for (i = 0; i <= HCS_MAX_SLOTS(xhci->hcs_params1); i++) {
+	for (i = 0; i <= FIELD_GET(HCS_SLOTS_MASK, xhci->hcs_params1); i++) {
 		if (!xhci->devs[i])
 			continue;
 		for (j = 0; j < 31; j++)
@@ -1995,7 +1995,7 @@ static void handle_port_status(struct xhci_hcd *xhci, union xhci_trb *event)
 			  "WARN: xHC returned failed port status event\n");
 
 	port_id = GET_PORT_ID(le32_to_cpu(event->generic.field[0]));
-	max_ports = HCS_MAX_PORTS(xhci->hcs_params1);
+	max_ports = FIELD_GET(HCS_MAX_PORTS, xhci->hcs_params1);
 
 	if ((port_id <= 0) || (port_id > max_ports)) {
 		xhci_warn(xhci, "Port change event with invalid port ID %d\n",
@@ -4007,8 +4007,8 @@ static int xhci_get_isoc_frame_id(struct xhci_hcd *xhci,
 	 * If bit [3] of IST is set to '1', software can add a TRB no later
 	 * than IST[2:0] Frames before that TRB is scheduled to be executed.
 	 */
-	ist = HCS_IST(xhci->hcs_params2) & 0x7;
-	if (HCS_IST(xhci->hcs_params2) & (1 << 3))
+	ist = FIELD_GET(HCS_IST, xhci->hcs_params2) & 0x7;
+	if (FIELD_GET(HCS_IST, xhci->hcs_params2) & (1 << 3))
 		ist <<= 3;
 
 	/* Software shall not schedule an Isoch TD with a Frame ID value that
@@ -4330,8 +4330,8 @@ int xhci_queue_isoc_tx_prepare(struct xhci_hcd *xhci, gfp_t mem_flags,
 	 * Round up to the next frame and consider the time before trb really
 	 * gets scheduled by hardare.
 	 */
-	ist = HCS_IST(xhci->hcs_params2) & 0x7;
-	if (HCS_IST(xhci->hcs_params2) & (1 << 3))
+	ist = FIELD_GET(HCS_IST, xhci->hcs_params2) & 0x7;
+	if (FIELD_GET(HCS_IST, xhci->hcs_params2) & (1 << 3))
 		ist <<= 3;
 	start_frame += ist + XHCI_CFC_DELAY;
 	start_frame = roundup(start_frame, 8);
