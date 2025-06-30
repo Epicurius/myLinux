@@ -34,8 +34,6 @@
 
 /* Max number of USB devices for any host controller - limit in section 6.1 */
 #define MAX_HC_SLOTS		256
-/* Section 5.3.3 - MaxPorts */
-#define MAX_HC_PORTS		127
 
 /*
  * xHCI register interface.
