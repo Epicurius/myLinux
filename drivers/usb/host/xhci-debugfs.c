@@ -522,6 +522,7 @@ static int xhci_stream_context_array_show(struct seq_file *s, void *unused)
 	struct xhci_stream_ctx	*stream_ctx;
 	dma_addr_t		dma;
 	int			id;
+	char			str[XHCI_MSG_MAX];
 
 	if (!epriv->stream_info)
 		return -EPERM;
@@ -533,12 +534,13 @@ static int xhci_stream_context_array_show(struct seq_file *s, void *unused)
 	for (id = 0; id < epriv->stream_info->num_stream_ctxs; id++) {
 		stream_ctx = epriv->stream_info->stream_ctx_array + id;
 		dma = epriv->stream_info->ctx_array_dma + id * 16;
+
+		xhci_decode_stream_context(str, XHCI_MSG_MAX, le64_to_cpu(stream_ctx->stream_ring));
+
 		if (id < epriv->stream_info->num_streams)
-			seq_printf(s, "%pad stream id %d deq %016llx\n", &dma,
-				   id, le64_to_cpu(stream_ctx->stream_ring));
+			seq_printf(s, "@%pad stream %u: %s\n", &dma, id, str);
 		else
-			seq_printf(s, "%pad stream context entry not used deq %016llx\n",
-				   &dma, le64_to_cpu(stream_ctx->stream_ring));
+			seq_printf(s, "@%pad stream context entry not used: %s\n", &dma, str);
 	}
 
 	return 0;

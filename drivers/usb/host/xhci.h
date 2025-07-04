@@ -2589,4 +2589,21 @@ static inline const char *xhci_decode_ep_context(char *str, u32 info,
 	return str;
 }
 
+static inline const char *xhci_decode_stream_context(char *str, size_t size, u64 stream_ring)
+{
+	dma_addr_t dma;
+	int ret;
+	u8 sct;
+
+	dma = stream_ring & SCTX_DEQ_MASK;
+	sct = CTX_TO_SCT(stream_ring);
+	ret = snprintf(str, size, "cycle %llu sct %s %s Deq ptr @%pad",
+		      stream_ring & EP_CTX_CYCLE_MASK,
+		      SCT_SEC_TR ? "Primary" : "Secondary",
+		      sct < 2 ? "Tranfer Ring" : "SSA",
+		      &dma);
+
+	return str;
+}
+
 #endif /* __LINUX_XHCI_HCD_H */
