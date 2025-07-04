@@ -2556,6 +2556,10 @@ static inline const char *xhci_decode_ep_context(char *str, u32 info,
 	bool lsa;
 	bool hid;
 
+	dma_addr_t dma;
+
+	dma = deq & GENMASK(3, 0);
+
 	esit = CTX_TO_MAX_ESIT_PAYLOAD_HI(info) << 16 |
 		CTX_TO_MAX_ESIT_PAYLOAD(tx_info);
 
