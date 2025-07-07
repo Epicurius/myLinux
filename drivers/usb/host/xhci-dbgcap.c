@@ -720,6 +720,7 @@ static void dbc_handle_xfer_event(struct xhci_dbc *dbc, union xhci_trb *event)
 	u32			comp_code;
 	size_t			remain_length;
 	struct dbc_request	*req = NULL, *r;
+	dma_addr_t		ep_trb_dma, deq;
 
 	comp_code	= GET_COMP_CODE(le32_to_cpu(event->generic.field[2]));
 	remain_length	= EVENT_TRB_LEN(le32_to_cpu(event->generic.field[2]));
@@ -729,10 +730,11 @@ static void dbc_handle_xfer_event(struct xhci_dbc *dbc, union xhci_trb *event)
 	ep_ctx		= (ep_id == EPID_OUT) ?
 				dbc_bulkout_ctx(dbc) : dbc_bulkin_ctx(dbc);
 	ring		= dep->ring;
+	ep_trb_dma	= le64_to_cpu(event->trans_event.buffer);
 
 	/* Match the pending request: */
 	list_for_each_entry(r, &dep->list_pending, list_pending) {
-		if (r->trb_dma == event->trans_event.buffer) {
+		if (r->trb_dma == ep_trb_dma) {
 			req = r;
 			break;
 		}
@@ -764,8 +766,9 @@ static void dbc_handle_xfer_event(struct xhci_dbc *dbc, union xhci_trb *event)
 		status = -comp_code;
 		break;
 	case COMP_STALL_ERROR:
-		dev_warn(dbc->dev, "Stall error at bulk TRB %llx, remaining %zu, ep deq %llx\n",
-			 event->trans_event.buffer, remain_length, ep_ctx->deq);
+		deq = le64_to_cpu(ep_ctx->deq) & TR_DEQ_PTR_MASK;
+		dev_warn(dbc->dev, "Stall error at bulk TRB %pad, remaining %zu, ep deq %pad\n",
+			 &ep_trb_dma, remain_length, &deq);
 		status = 0;
 		dep->halted = 1;
 
@@ -784,7 +787,7 @@ static void dbc_handle_xfer_event(struct xhci_dbc *dbc, union xhci_trb *event)
 		 * TRB again.
 		 */
 
-		if ((ep_ctx->deq & ~TRB_CYCLE) == event->trans_event.buffer) {
+		if (deq == ep_trb_dma) {
 			dev_dbg(dbc->dev, "Ep stopped on Stalled TRB\n");
 			if (remain_length == req->length) {
 				dev_dbg(dbc->dev, "Spurious stall event, keep req\n");
