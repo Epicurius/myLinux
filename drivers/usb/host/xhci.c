@@ -499,7 +499,8 @@ static void xhci_set_cmd_ring_deq(struct xhci_hcd *xhci)
 	crcr &= ~CMD_RING_CYCLE;
 	crcr |= xhci->cmd_ring->cycle_state;
 
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Setting command ring address to 0x%llx", crcr);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Command ring deq %pad running %u cycle %u",
+		       &deq_dma, crcr & CMD_RING_RUNNING, xhci->cmd_ring->cycle_state);
 	xhci_write_64(xhci, crcr, &xhci->op_regs->cmd_ring);
 }
 
