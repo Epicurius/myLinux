@@ -808,7 +808,7 @@ struct xhci_device_context_array {
 
 struct xhci_transfer_event {
 	/* 64-bit buffer address, or immediate data */
-	__le64	buffer;
+	__le64	trb_ptr;
 	__le32	transfer_len;
 	/* This field is interpreted differently based on the type of TRB */
 	__le32	flags;

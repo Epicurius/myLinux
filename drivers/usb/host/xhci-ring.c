@@ -2659,7 +2659,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	slot_id = TRB_TO_SLOT_ID(le32_to_cpu(event->flags));
 	ep_index = TRB_TO_EP_ID(le32_to_cpu(event->flags)) - 1;
 	trb_comp_code = GET_COMP_CODE(le32_to_cpu(event->transfer_len));
-	ep_trb_dma = le64_to_cpu(event->buffer);
+	ep_trb_dma = le64_to_cpu(event->trb_ptr);
 
 	ep = xhci_get_virt_ep(xhci, slot_id, ep_index);
 	if (!ep) {
@@ -2982,8 +2982,8 @@ err_out:
 		 (unsigned long long) xhci_trb_virt_to_dma(
 			 ir->event_ring->deq_seg,
 			 ir->event_ring->dequeue),
-		 lower_32_bits(le64_to_cpu(event->buffer)),
-		 upper_32_bits(le64_to_cpu(event->buffer)),
+		 lower_32_bits(le64_to_cpu(event->trb_ptr)),
+		 upper_32_bits(le64_to_cpu(event->trb_ptr)),
 		 le32_to_cpu(event->transfer_len),
 		 le32_to_cpu(event->flags));
 	return -ENODEV;
