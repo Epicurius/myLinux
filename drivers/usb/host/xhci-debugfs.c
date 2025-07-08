@@ -521,6 +521,7 @@ static int xhci_stream_context_array_show(struct seq_file *s, void *unused)
 	struct xhci_ep_priv	*epriv = s->private;
 	struct xhci_stream_ctx	*stream_ctx;
 	dma_addr_t		dma;
+	u64			ctx;
 	int			id;
 
 	if (!epriv->stream_info)
@@ -533,12 +534,15 @@ static int xhci_stream_context_array_show(struct seq_file *s, void *unused)
 	for (id = 0; id < epriv->stream_info->num_stream_ctxs; id++) {
 		stream_ctx = epriv->stream_info->stream_ctx_array + id;
 		dma = epriv->stream_info->ctx_array_dma + id * 16;
-		if (id < epriv->stream_info->num_streams)
-			seq_printf(s, "%pad stream id %d deq %016llx\n", &dma,
-				   id, le64_to_cpu(stream_ctx->stream_ring));
-		else
-			seq_printf(s, "%pad stream context entry not used deq %016llx\n",
-				   &dma, le64_to_cpu(stream_ctx->stream_ring));
+
+		if (id < epriv->stream_info->num_streams) {
+			ctx = le64_to_cpu(stream_ctx->stream_ring);
+			seq_printf(s, "%pad stream %d: deq %016llx SCT %llu cycle %llu\n",
+				   &dma, id, ctx & TR_DEQ_PTR_MASK, CTX_TO_SCT(ctx),
+				   ctx & EP_CTX_CYCLE_MASK);
+		} else {
+			seq_printf(s, "%pad stream %d: entry not used\n", &dma, id);
+		}
 	}
 
 	return 0;
