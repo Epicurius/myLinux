@@ -321,17 +321,19 @@ DECLARE_EVENT_CLASS(xhci_log_stream_ctx,
 		__field(unsigned int, stream_id)
 		__field(u64, stream_ring)
 		__field(dma_addr_t, ctx_array_dma)
+		__field(dma_addr_t, deq_dma)
 
 	),
 	TP_fast_assign(
 		__entry->stream_id = stream_id;
 		__entry->stream_ring = le64_to_cpu(info->stream_ctx_array[stream_id].stream_ring);
 		__entry->ctx_array_dma = info->ctx_array_dma + stream_id * 16;
+		__entry->deq_dma = __entry->stream_ring & TR_DEQ_PTR_MASK;
 
 	),
-	TP_printk("stream %u ctx @%pad: SCT %llu deq %llx", __entry->stream_id,
+	TP_printk("stream %u ctx @%pad: SCT %llu deq %pad", __entry->stream_id,
 		&__entry->ctx_array_dma, CTX_TO_SCT(__entry->stream_ring),
-		__entry->stream_ring
+		&__entry->deq_dma
 	)
 );
 
