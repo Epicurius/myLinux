@@ -359,8 +359,8 @@ struct xhci_slot_ctx {
  * bits 23:20 - Device speed, values defined by PORTSC Device Speed field
  * xHCI version 1.2 onwards these bits are Reserved
  */
-#define DEV_SPEED	(0xf << 20)
-#define GET_DEV_SPEED(n) (((n) & DEV_SPEED) >> 20)
+#define DEV_SPEED		(0xf << 20)
+#define GET_DEV_SPEED(n)	(((n) & DEV_SPEED) >> 20)
 #define	SLOT_SPEED_FS		(PORT_SPEED_FS << 20)
 #define	SLOT_SPEED_LS		(PORT_SPEED_LS << 20)
 #define	SLOT_SPEED_HS		(PORT_SPEED_HS << 20)
