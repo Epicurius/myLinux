@@ -352,9 +352,7 @@ struct xhci_slot_ctx {
 /* dev_info bitmasks */
 /* Route String - 0:19 */
 #define ROUTE_STRING_MASK	(0xfffff)
-/* Device speed - values defined by PORTSC Device Speed field - 20:23 */
-#define DEV_SPEED	(0xf << 20)
-#define GET_DEV_SPEED(n) (((n) & DEV_SPEED) >> 20)
+/* bits 23:20 - Rsvd, prior to xHCI 1.2 was Device speed */
 /* bit 24 reserved */
 /* Is this LS/FS device connected through a HS hub? - bit 25 */
 #define DEV_MTT		(0x1 << 25)
@@ -2303,37 +2301,15 @@ static inline const char *xhci_decode_ctrl_ctx(char *str,
 static inline const char *xhci_decode_slot_context(char *str,
 		u32 info, u32 info2, u32 tt_info, u32 state)
 {
-	u32 speed;
 	u32 hub;
 	u32 mtt;
 	int ret = 0;
 
-	speed = info & DEV_SPEED;
 	hub = info & DEV_HUB;
 	mtt = info & DEV_MTT;
 
-	ret = sprintf(str, "RS %05x %s%s%s Ctx Entries %d MEL %d us Port# %d/%d",
+	ret = sprintf(str, "RS %05x %s%s Ctx Entries %d MEL %d us Port# %d/%d",
 			info & ROUTE_STRING_MASK,
-			({ char *s;
-			switch (speed) {
-			case SLOT_SPEED_FS:
-				s = "full-speed";
-				break;
-			case SLOT_SPEED_LS:
-				s = "low-speed";
-				break;
-			case SLOT_SPEED_HS:
-				s = "high-speed";
-				break;
-			case SLOT_SPEED_SS:
-				s = "super-speed";
-				break;
-			case SLOT_SPEED_SSP:
-				s = "super-speed plus";
-				break;
-			default:
-				s = "UNKNOWN speed";
-			} s; }),
 			mtt ? " multi-TT" : "",
 			hub ? " Hub" : "",
 			(info & LAST_CTX_MASK) >> 27,
