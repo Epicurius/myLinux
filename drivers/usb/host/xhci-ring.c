@@ -2091,7 +2091,7 @@ static void handle_port_status(struct xhci_hcd *xhci, union xhci_trb *event)
 			goto cleanup;
 		}
 
-		if (DEV_SUPERSPEED_ANY(portsc)) {
+		if (FIELD_GET(DEV_SPEED_MASK, portsc) >= XDEV_SS) {
 			xhci_dbg(xhci, "remote wake SS port %d\n", port_id);
 			/* Set a flag to say the port signaled remote wakeup,
 			 * so we can tell the difference between the end of
@@ -2124,7 +2124,7 @@ static void handle_port_status(struct xhci_hcd *xhci, union xhci_trb *event)
 	}
 
 	if ((portsc & PORT_PLC) &&
-	    DEV_SUPERSPEED_ANY(portsc) &&
+	    FIELD_GET(DEV_SPEED_MASK, portsc) >= XDEV_SS &&
 	    ((portsc & PORT_PLS_MASK) == XDEV_U0 ||
 	     (portsc & PORT_PLS_MASK) == XDEV_U1 ||
 	     (portsc & PORT_PLS_MASK) == XDEV_U2)) {
