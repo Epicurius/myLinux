@@ -362,8 +362,6 @@ struct xhci_slot_ctx {
 #define LAST_CTX_MASK	(0x1f << 27)
 #define LAST_CTX(p)	((p) << 27)
 #define LAST_CTX_TO_EP_NUM(p)	(((p) >> 27) - 1)
-#define SLOT_FLAG	(1 << 0)
-#define EP0_FLAG	(1 << 1)
 
 /* dev_info2 bitmasks */
 /* Max Exit Latency (ms) - worst case time to wake up all links in dev path */
@@ -513,7 +511,8 @@ struct xhci_input_control_ctx {
 	__le32	add_flags;
 	__le32	rsvd2[6];
 };
-
+#define SLOT_FLAG	(1 << 0)
+#define EP0_FLAG	(1 << 1)
 #define	EP_IS_ADDED(ctrl_ctx, i) \
 	(le32_to_cpu(ctrl_ctx->add_flags) & (1 << (i + 1)))
 #define	EP_IS_DROPPED(ctrl_ctx, i)       \
@@ -538,11 +537,6 @@ struct xhci_command {
 	/* xHCI command response timeout in milliseconds */
 	unsigned int			timeout_ms;
 };
-
-/* drop context bitmasks */
-#define	DROP_EP(x)	(0x1 << x)
-/* add context bitmasks */
-#define	ADD_EP(x)	(0x1 << x)
 
 struct xhci_stream_ctx {
 	/* 64-bit stream ring address, cycle state, and stream type */
