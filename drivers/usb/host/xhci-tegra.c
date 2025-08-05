@@ -31,6 +31,7 @@
 #include <linux/usb/phy.h>
 #include <linux/usb/role.h>
 #include <soc/tegra/pmc.h>
+#include <linux/bitfield.h>
 
 #include "xhci.h"
 
@@ -2192,7 +2193,7 @@ static int tegra_xusb_enter_elpg(struct tegra_xusb *tegra, bool is_auto_resume)
 			continue;
 		portsc = readl(xhci->usb2_rhub.ports[i]->addr->portsc);
 		tegra->lp0_utmi_pad_mask &= ~BIT(i);
-		if (((portsc & PORT_PLS_MASK) == XDEV_U3) || ((portsc & DEV_SPEED_MASK) == XDEV_FS))
+		if (((portsc & PORT_PLS_MASK) == XDEV_U3) || (FIELD_GET(PORT_SPEED_MASK, portsc) == XDEV_FS))
 			tegra->lp0_utmi_pad_mask |= BIT(i);
 	}
 

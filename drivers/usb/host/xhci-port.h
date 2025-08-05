@@ -4,6 +4,8 @@
  * xHCI Specification Section 5.4, Revision 1.2.
  */
 
+#include <linux/bitfield.h>
+
 /* Port Status and Control (PORTSC) 5.4.8 */
 /* bit 0 - Current Connect Status (CCS) */
 #define PORT_CONNECT	(1 << 0)
@@ -38,27 +40,23 @@
 #define PORT_POWER	(1 << 9)
 /*
  * bits 13:10 - Port Speed
+ * Values defined in xHCI specification 7.2.2.1.1:
  * 0 - undefined speed - port hasn't be initialized by a reset yet
- * 1 - full speed
- * 2 - low speed
- * 3 - high speed
- * 4 - super speed
- * 5-15 reserved
+ * 1 - Full-speed
+ * 2 - Low-speed
+ * 3 - High-speed
+ * 4 - SuperSpeed Gen1 x1
+ * 5 - SuperSpeed Gen2 x1
+ * 6 - SuperSpeed Gen1 x2
+ * 7 - SuperSpeed Gen2 x2
+ * 8-15 Reserved
  */
-#define DEV_SPEED_MASK		(0xf << 10)
-#define	XDEV_FS			(0x1 << 10)
-#define	XDEV_LS			(0x2 << 10)
-#define	XDEV_HS			(0x3 << 10)
-#define	XDEV_SS			(0x4 << 10)
-#define	XDEV_SSP		(0x5 << 10)
-#define DEV_UNDEFSPEED(p)	(((p) & DEV_SPEED_MASK) == (0x0<<10))
-#define DEV_FULLSPEED(p)	(((p) & DEV_SPEED_MASK) == XDEV_FS)
-#define DEV_LOWSPEED(p)		(((p) & DEV_SPEED_MASK) == XDEV_LS)
-#define DEV_HIGHSPEED(p)	(((p) & DEV_SPEED_MASK) == XDEV_HS)
-#define DEV_SUPERSPEED(p)	(((p) & DEV_SPEED_MASK) == XDEV_SS)
-#define DEV_SUPERSPEEDPLUS(p)	(((p) & DEV_SPEED_MASK) == XDEV_SSP)
-#define DEV_SUPERSPEED_ANY(p)	(((p) & DEV_SPEED_MASK) >= XDEV_SS)
-#define DEV_PORT_SPEED(p)	(((p) >> 10) & 0x0f)
+#define PORT_SPEED_MASK		GENMASK(13, 10)
+#define	XDEV_FS			1
+#define	XDEV_LS			2
+#define	XDEV_HS			3
+#define	XDEV_SS			4
+#define	XDEV_SSP		5
 /* bits 15:14 - Port Indicator Control */
 #define PORT_LED_OFF	(0 << 14)
 #define PORT_LED_AMBER	(1 << 14)
@@ -119,7 +117,7 @@
 
 #define	PORT_WAKE_BITS	(PORT_WKOC_E | PORT_WKDISC_E | PORT_WKCONN_E)
 /* These bits are RO; should be saved and written to the registers. */
-#define	PORTSC_RO_BITS	(PORT_CONNECT | PORT_OC | DEV_SPEED_MASK | PORT_DEV_REMOVE)
+#define	PORTSC_RO_BITS	(PORT_CONNECT | PORT_OC | PORT_SPEED_MASK | PORT_DEV_REMOVE)
 /* These bits are RW; writing a 0 clears the bit, writing a 1 sets the bit. */
 #define PORTSC_RWS_BITS	(PORT_PLS_MASK | PORT_POWER | PORT_LED_MASK | PORT_WKCONN_E | \
 			 PORT_WKDISC_E | PORT_WKOC_E)

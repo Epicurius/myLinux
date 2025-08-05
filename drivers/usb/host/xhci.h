@@ -16,6 +16,7 @@
 #include <linux/timer.h>
 #include <linux/kernel.h>
 #include <linux/usb/hcd.h>
+#include <linux/bitfield.h>
 #include <linux/io-64-nonatomic-lo-hi.h>
 #include <linux/io-64-nonatomic-hi-lo.h>
 
@@ -2390,12 +2391,12 @@ static inline const char *xhci_decode_portsc(char *str, u32 portsc)
 	if (portsc == ~(u32)0)
 		return str;
 
-	ret += sprintf(str + ret, "%s %s %s Link:%s PortSpeed:%d ",
+	ret += sprintf(str + ret, "%s %s %s Link:%s PortSpeed:%ld ",
 		      portsc & PORT_POWER	? "Powered" : "Powered-off",
 		      portsc & PORT_CONNECT	? "Connected" : "Not-connected",
 		      portsc & PORT_PE		? "Enabled" : "Disabled",
 		      xhci_portsc_link_state_string(portsc),
-		      DEV_PORT_SPEED(portsc));
+		      FIELD_GET(PORT_SPEED_MASK, portsc));
 
 	if (portsc & PORT_OC)
 		ret += sprintf(str + ret, "OverCurrent ");
