@@ -368,7 +368,7 @@ static void compliance_mode_recovery(struct timer_list *t)
 
 	for (i = 0; i < rhub->num_ports; i++) {
 		temp = readl(&rhub->ports[i]->addr->portsc);
-		if ((temp & PORT_PLS_MASK) == USB_SS_PORT_LS_COMP_MOD) {
+		if ((temp & PORT_PLS_MASK) == XDEV_COMP_MODE) {
 			/*
 			 * Compliance Mode Detected. Letting USB Core
 			 * handle the Warm Reset

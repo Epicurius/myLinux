@@ -828,9 +828,9 @@ static void xhci_hub_report_usb3_link_state(struct xhci_hcd *xhci,
 		 * unless we're already in compliance
 		 * or the inactive state.
 		 */
-		if (pls != USB_SS_PORT_LS_COMP_MOD &&
-		    pls != USB_SS_PORT_LS_SS_INACTIVE) {
-			pls = USB_SS_PORT_LS_COMP_MOD;
+		if (pls != XDEV_COMP_MODE &&
+		    pls != XDEV_INACTIVE) {
+			pls = XDEV_COMP_MODE;
 		}
 		/* Return also connection bit -
 		 * hub state machine resets port
@@ -844,7 +844,7 @@ static void xhci_hub_report_usb3_link_state(struct xhci_hcd *xhci,
 		 * it's not ready for transfer.
 		 */
 		if (pls == XDEV_RESUME) {
-			*status |= USB_SS_PORT_LS_U3;
+			*status |= XDEV_U3;
 			return;
 		}
 
@@ -857,7 +857,7 @@ static void xhci_hub_report_usb3_link_state(struct xhci_hcd *xhci,
 		 * caused by a delay on the host-device negotiation.
 		 */
 		if ((xhci->quirks & XHCI_COMP_MODE_QUIRK) &&
-				(pls == USB_SS_PORT_LS_COMP_MOD))
+				(pls == XDEV_COMP_MODE))
 			pls |= USB_PORT_STAT_CONNECTION;
 	}
 
@@ -1319,7 +1319,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 		case USB_PORT_FEAT_LINK_STATE:
 			portsc = readl(&port->addr->portsc);
 			/* Disable port */
-			if (link_state == USB_SS_PORT_LS_SS_DISABLED) {
+			if (link_state == XDEV_DISABLED) {
 				xhci_dbg(xhci, "Disable port %d-%d\n",
 					 hcd->self.busnum, portnum1);
 				portsc = xhci_port_state_to_neutral(portsc);
@@ -1334,7 +1334,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 			}
 
 			/* Put link in RxDetect (enable port) */
-			if (link_state == USB_SS_PORT_LS_RX_DETECT) {
+			if (link_state == XDEV_RXDETECT) {
 				xhci_dbg(xhci, "Enable port %d-%d\n",
 					 hcd->self.busnum, portnum1);
 				xhci_set_link_state(xhci, port,	link_state);
@@ -1356,7 +1356,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 			 * flag is set, otherwise, the compliance substate is
 			 * automatically entered as on 1.0 and prior.
 			 */
-			if (link_state == USB_SS_PORT_LS_COMP_MOD) {
+			if (link_state == XDEV_COMP_MODE) {
 				if (!HCC2_CTC(xhci->hcc_params2)) {
 					xhci_dbg(xhci, "CTC flag is 0, port already supports entering compliance mode\n");
 					break;
@@ -1380,7 +1380,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 				break;
 			}
 			/* Can't set port link state above '3' (U3) */
-			if (link_state > USB_SS_PORT_LS_U3) {
+			if (link_state > XDEV_U3) {
 				xhci_warn(xhci, "Cannot set port %d-%d link state %d\n",
 					  hcd->self.busnum, portnum1, link_state);
 				goto error;
@@ -1393,7 +1393,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 			 * Resume/Recovery: device initiated U0, only wait for
 			 * completion
 			 */
-			if (link_state == USB_SS_PORT_LS_U0) {
+			if (link_state == XDEV_U0) {
 				u32 pls = portsc & PORT_PLS_MASK;
 				bool wait_u0 = false;
 
@@ -1407,7 +1407,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 					reinit_completion(&port->u3exit_done);
 				}
 				if (pls <= XDEV_U3) /* U1, U2, U3 */
-					xhci_set_link_state(xhci, port, USB_SS_PORT_LS_U0);
+					xhci_set_link_state(xhci, port, XDEV_U0);
 				if (!wait_u0) {
 					if (pls > XDEV_U3)
 						goto error;
@@ -1423,7 +1423,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 				break;
 			}
 
-			if (link_state == USB_SS_PORT_LS_U3) {
+			if (link_state == XDEV_U3) {
 				int retries = 16;
 				if (port->slot_id) {
 					/* unlock to execute stop endpoint
@@ -1433,7 +1433,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 					xhci_stop_device(xhci, port->slot_id, 1);
 					spin_lock_irqsave(&xhci->lock, flags);
 				}
-				xhci_set_link_state(xhci, port, USB_SS_PORT_LS_U3);
+				xhci_set_link_state(xhci, port, XDEV_U3);
 				spin_unlock_irqrestore(&xhci->lock, flags);
 				while (retries--) {
 					usleep_range(4000, 8000);
