@@ -643,7 +643,7 @@ static void xhci_port_set_test_mode(struct xhci_hcd *xhci,
 	/* xhci only supports test mode for usb2 ports */
 	port = xhci->usb2_rhub.ports[wIndex];
 	portpmsc = readl(&port->addr->portpmsc);
-	portpmsc |= test_mode << PORT_TEST_MODE_SHIFT;
+	portpmsc |= FIELD_PREP(PORT_TEST_MODE, test_mode);
 	writel(portpmsc, &port->addr->portpmsc);
 	xhci->test_mode = test_mode;
 	if (test_mode == USB_TEST_FORCE_ENABLE)
@@ -992,8 +992,8 @@ static u32 xhci_get_ext_port_status(u32 raw_port_status, u32 port_li)
 	ext_stat |= speed_id;		/* bits 3:0, RX speed id */
 	ext_stat |= speed_id << 4;	/* bits 7:4, TX speed id */
 
-	ext_stat |= PORT_RX_LANES(port_li) << 8;  /* bits 11:8 Rx lane count */
-	ext_stat |= PORT_TX_LANES(port_li) << 12; /* bits 15:12 Tx lane count */
+	ext_stat |= FIELD_PREP(PORT_RX_LANES, port_li) << 8;  /* bits 11:8 Rx lane count */
+	ext_stat |= FIELD_PREP(PORT_TX_LANES, port_li) << 12; /* bits 15:12 Tx lane count */
 
 	return ext_stat;
 }
@@ -1479,16 +1479,14 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 			if (hcd->speed < HCD_USB3)
 				goto error;
 			portpmsc = readl(&port->addr->portpmsc);
-			portpmsc &= ~PORT_U1_TIMEOUT_MASK;
-			portpmsc |= PORT_U1_TIMEOUT(timeout);
+			FIELD_MODIFY(PORT_U1_TIMEOUT_MASK, &portpmsc, timeout);
 			writel(portpmsc, &port->addr->portpmsc);
 			break;
 		case USB_PORT_FEAT_U2_TIMEOUT:
 			if (hcd->speed < HCD_USB3)
 				goto error;
 			portpmsc = readl(&port->addr->portpmsc);
-			portpmsc &= ~PORT_U2_TIMEOUT_MASK;
-			portpmsc |= PORT_U2_TIMEOUT(timeout);
+			FIELD_MODIFY(PORT_U2_TIMEOUT_MASK, &portpmsc, timeout);
 			writel(portpmsc, &port->addr->portpmsc);
 			break;
 		case USB_PORT_FEAT_TEST:

@@ -4,18 +4,19 @@
  * xHCI Specification Section 5.4, Revision 1.2.
  */
 
+#include <linux/bits.h>
 #include <linux/bitfield.h>
 
 /* Port Status and Control (PORTSC) 5.4.8 */
 /* bit 0 - Current Connect Status (CCS) */
-#define PORT_CONNECT	(1 << 0)
+#define PORT_CONNECT	BIT(0)
 /* bit 1 - Port Enabled/Disabled (PED) */
-#define PORT_PE		(1 << 1)
+#define PORT_PE		BIT(1)
 /* bit 2 - Rsvd */
 /* bit 3 - Over-current Active (OCA) */
-#define PORT_OC		(1 << 3)
+#define PORT_OC		BIT(3)
 /* bit 4 - Port Reset (PR) */
-#define PORT_RESET	(1 << 4)
+#define PORT_RESET	BIT(4)
 /*
  * bits 8:5 - Port Link State (PLS), by default '5'.
  * Reading gives the current link PM state of the port.
@@ -37,7 +38,7 @@
 /* Values 12-14 are Reserved */
 #define XDEV_RESUME	(0xf << 5)
 /* bit 9 - Port Power (PP) */
-#define PORT_POWER	(1 << 9)
+#define PORT_POWER	BIT(9)
 /*
  * bits 13:10 - Port Speed
  * Values defined in xHCI specification 7.2.2.1.1:
@@ -63,11 +64,11 @@
 #define PORT_LED_GREEN	(2 << 14)
 #define PORT_LED_MASK	(3 << 14)
 /* bit 16 - Port Link State Write Strobe, set this when changing link state */
-#define PORT_LINK_STROBE	(1 << 16)
+#define PORT_LINK_STROBE	BIT(16)
 /* bit 17 - Connect Status Change (CSC) */
-#define PORT_CSC	(1 << 17)
+#define PORT_CSC	BIT(17)
 /* bit 18 - Port Enabled/Disabled Change (PEC) */
-#define PORT_PEC	(1 << 18)
+#define PORT_PEC	BIT(18)
 /*
  * bit 19 - Warm Port Reset Change (WRC)
  * Warm reset for a USB 3.0 device is done.  A "hot" reset puts the port
@@ -75,11 +76,11 @@
  * also resets the link, forcing the device through the link training sequence.
  * SW can also look at the Port Reset register to see when warm reset is done.
  */
-#define PORT_WRC	(1 << 19)
+#define PORT_WRC	BIT(19)
 /* bit 20 - Over-current Change (OCC) */
-#define PORT_OCC	(1 << 20)
+#define PORT_OCC	BIT(20)
 /* bit 21 - Port Reset Change (PRC) */
-#define PORT_RC		(1 << 21)
+#define PORT_RC		BIT(21)
 /*
  * bit 22 - Port Link State Change (PLC), set on some port link state transitions:
  *  Transition				Reason
@@ -94,26 +95,26 @@
  *  - U0 to disabled			L1 entry error with USB 2.1 device
  *  - Any state to inactive		Error on USB 3.0 port
  */
-#define PORT_PLC	(1 << 22)
+#define PORT_PLC	BIT(22)
 /* bit 23 - Port Config Error Change (CEC), port failed to configure its link partner */
-#define PORT_CEC	(1 << 23)
+#define PORT_CEC	BIT(23)
 /*
  * bit 24 - Cold Attach Status
  * xHC can set this bit to report device attached during Sx state.
  * Warm port reset should be perfomed to clear this bit and move port to connected state.
  */
-#define PORT_CAS	(1 << 24)
+#define PORT_CAS	BIT(24)
 /* bit 25 - Wake on Connect Enable (WCE) */
-#define PORT_WKCONN_E	(1 << 25)
+#define PORT_WKCONN_E	BIT(25)
 /* bit 26 - Wake on Disconnect Enable (WDE) */
-#define PORT_WKDISC_E	(1 << 26)
+#define PORT_WKDISC_E	BIT(26)
 /* bit 27 - Wake on Over-current Enable (WOE) */
-#define PORT_WKOC_E	(1 << 27)
+#define PORT_WKOC_E	BIT(27)
 /* bits 29:28 - RsvdZ */
 /* bit 30 - Device Removable (DR) , for USB 3.0 roothub emulation */
-#define PORT_DEV_REMOVE	(1 << 30)
+#define PORT_DEV_REMOVE	BIT(30)
 /* bit 31 - Warm Port Reset (WPR) , complete when PORT_WRC is '1' */
-#define PORT_WR		(1 << 31)
+#define PORT_WR		BIT(31)
 
 #define	PORT_WAKE_BITS	(PORT_WKOC_E | PORT_WKDISC_E | PORT_WKCONN_E)
 /* These bits are RO; should be saved and written to the registers. */
@@ -131,42 +132,39 @@
  * Timeout can be 0us to 127us (0x7f), in 1us increments.
  * Value 0xff means an infinite timeout.
  */
-#define PORT_U1_TIMEOUT(p)	((p) & 0xff)
-#define PORT_U1_TIMEOUT_MASK	0xff
+
+#define PORT_U1_TIMEOUT_MASK	GENMASK(7, 0)
 /*
  * bits 15:8 - U2 Timeout, inactivity timer value for transitions into U2.
  * Timeout can be 0us to 65024ms (0xfe), in 256us increments.
  * Value 0xff means an infinite timeout.
  */
-#define PORT_U2_TIMEOUT(p)	(((p) & 0xff) << 8)
-#define PORT_U2_TIMEOUT_MASK	(0xff << 8)
+#define PORT_U2_TIMEOUT_MASK	GENMASK(15, 8)
 /* bit 16 - Force Link PM Accept (FLA) */
 /* bits 31:17 - RsvdP */
 
 /* USB2 Port Power Management Status and Control (PORTPMSC) 5.4.9.2 */
 /* bits 2:0 - L1 Status (L1S) */
-#define	PORT_L1S_MASK		7
+#define	PORT_L1S_MASK		GENMASK(2, 0)
 #define	PORT_L1S_SUCCESS	1
 /* bit 3 - Remote Wake Enable (RWE) */
-#define	PORT_RWE		(1 << 3)
+#define	PORT_RWE		BIT(3)
 /* bits 7:4 - Best Effort Service Latency (BESL) */
-#define	PORT_HIRD(p)		(((p) & 0xf) << 4)
-#define	PORT_HIRD_MASK		(0xf << 4)
+#define	PORT_HIRD_MASK		GENMASK(7, 4)
 /* bits 15:8 - L1 Device Slot */
-#define	PORT_L1DS_MASK		(0xff << 8)
-#define	PORT_L1DS(p)		(((p) & 0xff) << 8)
+#define	PORT_L1DS_MASK		GENMASK(15, 8)
 /* bit 16 - Hardware LPM Enable (HLE) */
-#define	PORT_HLE		(1 << 16)
+#define	PORT_HLE		BIT(16)
 /* bits 27:17 - RsvdP */
 /* bits 31:28 - Port Test Control (Test Mode) */
-#define PORT_TEST_MODE_SHIFT	28
+#define PORT_TEST_MODE		GENMASK(31, 28)
 
 /* USB3 Port Link Info Register (PORTLI) 5.4.10.1 */
 /* bits 15:0 - Link Error Count */
 /* bits 19:16 - Rx Lane Count (RLC) */
-#define PORT_RX_LANES(p)	(((p) >> 16) & 0xf)
+#define PORT_RX_LANES		GENMASK(19, 16)
 /* bits 23:20 - Tx Lane Count (TLC) */
-#define PORT_TX_LANES(p)	(((p) >> 20) & 0xf)
+#define PORT_TX_LANES		GENMASK(23, 20)
 /* bits 31:24 - RsvdP */
 
 /* USB2 Port Link Info Register (PORTLI) 5.4.10.2 */
@@ -178,15 +176,15 @@
 
 /* USB2 Port Hardware LPM Control Register (PORTHLPMC) 5.4.11.2 */
 /* bits 1:0 - Host Initiated Resume Duration Mode (HIRDM) */
-#define PORT_HIRDM(p)((p) & 3)
+#define PORT_HIRDM		GENMASK(1, 0)
 /*
  * bits 9:2 - L1 Timeout, can be 128us to 65280us (0xff), in 128us increments.
  * The default timeout is 128us.
  */
-#define PORT_L1_TIMEOUT(p)(((p) & 0xff) << 2)
+#define PORT_L1_TIMEOUT		GENMASK(9, 2)
 #define XHCI_L1_TIMEOUT		512
 /* bits 13:10 - Best Effort Service Latency Deep (BESLD) */
-#define PORT_BESLD(p)(((p) & 0xf) << 10)
+#define PORT_BESLD		GENMASK(13, 10)
 /* bits 31:14 - RsvdP */
 
 /*

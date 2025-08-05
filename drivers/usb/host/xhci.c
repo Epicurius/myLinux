@@ -4602,7 +4602,9 @@ static int xhci_calculate_usb2_hw_lpm_params(struct usb_device *udev)
 		hirdm = 1;
 	}
 
-	return PORT_BESLD(besld) | PORT_L1_TIMEOUT(l1) | PORT_HIRDM(hirdm);
+	return FIELD_PREP(PORT_BESLD, besld) |
+	       FIELD_PREP(PORT_L1_TIMEOUT, l1) |
+	       FIELD_PREP(PORT_HIRDM, hirdm);
 }
 
 static int xhci_set_usb2_hardware_lpm(struct usb_hcd *hcd,
@@ -4672,8 +4674,9 @@ static int xhci_set_usb2_hardware_lpm(struct usb_hcd *hcd,
 			hird = xhci_calculate_hird_besl(xhci, udev);
 		}
 
-		pmsc &= ~PORT_HIRD_MASK;
-		pmsc |= PORT_HIRD(hird) | PORT_RWE | PORT_L1DS(udev->slot_id);
+		FIELD_MODIFY(PORT_HIRD_MASK, &pmsc, hird);
+		FIELD_MODIFY(PORT_L1DS_MASK, &pmsc, udev->slot_id);
+		pmsc |= PORT_RWE;
 		writel(pmsc, &port_regs->portpmsc);
 		pmsc = readl(&port_regs->portpmsc);
 		pmsc |= PORT_HLE;
