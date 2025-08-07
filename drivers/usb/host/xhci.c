@@ -917,6 +917,7 @@ static bool xhci_pending_portevent(struct xhci_hcd *xhci)
 	int			port_index;
 	u32			status;
 	u32			portsc;
+	u32			mask;
 
 	status = readl(&xhci->op_regs->status);
 	if (status & STS_EINT)
@@ -929,18 +930,19 @@ static bool xhci_pending_portevent(struct xhci_hcd *xhci)
 
 	port_index = xhci->usb2_rhub.num_ports;
 	ports = xhci->usb2_rhub.ports;
+	/* Check all Write-1-to-clear status bits, except for the Port Enadled bit. */
+	mask = PORTSC_RW1CS_BITS & ~PORT_PE;
 	while (port_index--) {
 		portsc = readl(ports[port_index]->addr);
-		if (portsc & PORT_CHANGE_MASK ||
-		    (portsc & PORT_PLS_MASK) == XDEV_RESUME)
+		if (portsc & mask || (portsc & PORT_PLS_MASK) == XDEV_RESUME)
 			return true;
 	}
 	port_index = xhci->usb3_rhub.num_ports;
 	ports = xhci->usb3_rhub.ports;
+	mask |= PORT_CAS;
 	while (port_index--) {
 		portsc = readl(ports[port_index]->addr);
-		if (portsc & (PORT_CHANGE_MASK | PORT_CAS) ||
-		    (portsc & PORT_PLS_MASK) == XDEV_RESUME)
+		if (portsc & mask || (portsc & PORT_PLS_MASK) == XDEV_RESUME)
 			return true;
 	}
 	return false;
