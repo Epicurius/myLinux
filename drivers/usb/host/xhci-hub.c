@@ -815,40 +815,40 @@ void xhci_set_link_state(struct xhci_hcd *xhci, struct xhci_port *port,
 static void xhci_set_remote_wake_mask(struct xhci_hcd *xhci,
 				      struct xhci_port *port, u16 wake_mask)
 {
-	u32 temp;
+	u32 portsc;
 
-	temp = xhci_portsc_readl(port);
-	temp = xhci_port_state_to_neutral(temp);
+	portsc = xhci_portsc_readl(port);
+	portsc = xhci_port_state_to_neutral(portsc);
 
 	if (wake_mask & USB_PORT_FEAT_REMOTE_WAKE_CONNECT)
-		temp |= PORT_WKCONN_E;
+		portsc |= PORT_WKCONN_E;
 	else
-		temp &= ~PORT_WKCONN_E;
+		portsc &= ~PORT_WKCONN_E;
 
 	if (wake_mask & USB_PORT_FEAT_REMOTE_WAKE_DISCONNECT)
-		temp |= PORT_WKDISC_E;
+		portsc |= PORT_WKDISC_E;
 	else
-		temp &= ~PORT_WKDISC_E;
+		portsc &= ~PORT_WKDISC_E;
 
 	if (wake_mask & USB_PORT_FEAT_REMOTE_WAKE_OVER_CURRENT)
-		temp |= PORT_WKOC_E;
+		portsc |= PORT_WKOC_E;
 	else
-		temp &= ~PORT_WKOC_E;
+		portsc &= ~PORT_WKOC_E;
 
-	xhci_portsc_writel(port, temp);
+	xhci_portsc_writel(port, portsc);
 }
 
 /* Test and clear port RWC bit */
 void xhci_test_and_clear_bit(struct xhci_hcd *xhci, struct xhci_port *port,
 			     u32 port_bit)
 {
-	u32 temp;
+	u32 portsc;
 
-	temp = xhci_portsc_readl(port);
-	if (temp & port_bit) {
-		temp = xhci_port_state_to_neutral(temp);
-		temp |= port_bit;
-		xhci_portsc_writel(port, temp);
+	portsc = xhci_portsc_readl(port);
+	if (portsc & port_bit) {
+		portsc = xhci_port_state_to_neutral(portsc);
+		portsc |= port_bit;
+		xhci_portsc_writel(port, portsc);
 	}
 }
 
@@ -1208,7 +1208,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 	struct xhci_hcd	*xhci = hcd_to_xhci(hcd);
 	int max_ports;
 	unsigned long flags;
-	u32 portpmsc, temp, status;
+	u32 portpmsc, portsc, status;
 	int retval = 0;
 	struct xhci_bus_state *bus_state;
 	u16 link_state = 0;
@@ -1263,20 +1263,20 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 
 		wIndex--;
 		port = ports[portnum1 - 1];
-		temp = xhci_portsc_readl(port);
-		if (temp == ~(u32)0) {
+		portsc = xhci_portsc_readl(port);
+		if (portsc == ~(u32)0) {
 			xhci_hc_died(xhci);
 			retval = -ENODEV;
 			break;
 		}
-		trace_xhci_get_port_status(port, temp);
-		status = xhci_get_port_status(hcd, bus_state, wIndex, temp,
+		trace_xhci_get_port_status(port, portsc);
+		status = xhci_get_port_status(hcd, bus_state, wIndex, portsc,
 					      &flags);
 		if (status == 0xffffffff)
 			goto error;
 
 		xhci_dbg(xhci, "Get port status %d-%d read: 0x%x, return 0x%x",
-			 hcd->self.busnum, portnum1, temp, status);
+			 hcd->self.busnum, portnum1, portsc, status);
 
 		put_unaligned(cpu_to_le32(status), (__le32 *) buf);
 		/* if USB 3.1 extended port status return additional 4 bytes */
@@ -1289,7 +1289,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 				break;
 			}
 			port_li = readl(&port->port_reg->portli);
-			status = xhci_get_ext_port_status(temp, port_li);
+			status = xhci_get_ext_port_status(portsc, port_li);
 			put_unaligned_le32(status, &buf[4]);
 		}
 		break;
@@ -1309,18 +1309,18 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 
 		port = ports[portnum1 - 1];
 		wIndex--;
-		temp = xhci_portsc_readl(port);
-		if (temp == ~(u32)0) {
+		portsc = xhci_portsc_readl(port);
+		if (portsc == ~(u32)0) {
 			xhci_hc_died(xhci);
 			retval = -ENODEV;
 			break;
 		}
-		temp = xhci_port_state_to_neutral(temp);
+		portsc = xhci_port_state_to_neutral(portsc);
 		/* FIXME: What new port features do we need to support? */
 		switch (wValue) {
 		case USB_PORT_FEAT_SUSPEND:
-			temp = xhci_portsc_readl(port);
-			if ((temp & PORT_PLS_MASK) != XDEV_U0) {
+			portsc = xhci_portsc_readl(port);
+			if ((portsc & PORT_PLS_MASK) != XDEV_U0) {
 				/* Resume the port to U0 first */
 				xhci_set_link_state(xhci, port, XDEV_U0);
 				spin_unlock_irqrestore(&xhci->lock, flags);
@@ -1331,9 +1331,9 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 			 * a port unless the port reports that it is in the
 			 * enabled (PED = ‘1’,PLS < ‘3’) state.
 			 */
-			temp = xhci_portsc_readl(port);
-			if ((temp & PORT_PE) == 0 || (temp & PORT_RESET)
-				|| (temp & PORT_PLS_MASK) >= XDEV_U3) {
+			portsc = xhci_portsc_readl(port);
+			if ((portsc & PORT_PE) == 0 || (portsc & PORT_RESET)
+				|| (portsc & PORT_PLS_MASK) >= XDEV_U3) {
 				xhci_warn(xhci, "USB core suspending port %d-%d not in U0/U1/U2\n",
 					  hcd->self.busnum, portnum1);
 				goto error;
@@ -1354,25 +1354,25 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 			msleep(10); /* wait device to enter */
 			spin_lock_irqsave(&xhci->lock, flags);
 
-			temp = xhci_portsc_readl(port);
+			portsc = xhci_portsc_readl(port);
 			bus_state->suspended_ports |= 1 << wIndex;
 			break;
 		case USB_PORT_FEAT_LINK_STATE:
-			temp = xhci_portsc_readl(port);
+			portsc = xhci_portsc_readl(port);
 			/* Disable port */
 			if (link_state == USB_SS_PORT_LS_SS_DISABLED) {
 				xhci_dbg(xhci, "Disable port %d-%d\n",
 					 hcd->self.busnum, portnum1);
-				temp = xhci_port_state_to_neutral(temp);
+				portsc = xhci_port_state_to_neutral(portsc);
 				/*
 				 * Clear all change bits, so that we get a new
 				 * connection event.
 				 */
-				temp |= PORT_CSC | PORT_PEC | PORT_WRC |
-					PORT_OCC | PORT_RC | PORT_PLC |
-					PORT_CEC;
-				xhci_portsc_writel(port, temp | PORT_PE);
-				temp = xhci_portsc_readl(port);
+				portsc |= PORT_CSC | PORT_PEC | PORT_WRC |
+					  PORT_OCC | PORT_RC | PORT_PLC |
+					  PORT_CEC;
+				xhci_portsc_writel(port, portsc | PORT_PE);
+				portsc = xhci_portsc_readl(port);
 				break;
 			}
 
@@ -1381,7 +1381,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 				xhci_dbg(xhci, "Enable port %d-%d\n",
 					 hcd->self.busnum, portnum1);
 				xhci_set_link_state(xhci, port,	link_state);
-				temp = xhci_portsc_readl(port);
+				portsc = xhci_portsc_readl(port);
 				break;
 			}
 
@@ -1405,7 +1405,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 					break;
 				}
 
-				if ((temp & PORT_CONNECT)) {
+				if ((portsc & PORT_CONNECT)) {
 					xhci_warn(xhci, "Can't set compliance mode when port is connected\n");
 					goto error;
 				}
@@ -1414,11 +1414,11 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 					 hcd->self.busnum, portnum1);
 				xhci_set_link_state(xhci, port, link_state);
 
-				temp = xhci_portsc_readl(port);
+				portsc = xhci_portsc_readl(port);
 				break;
 			}
 			/* Port must be enabled */
-			if (!(temp & PORT_PE)) {
+			if (!(portsc & PORT_PE)) {
 				retval = -ENODEV;
 				break;
 			}
@@ -1437,7 +1437,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 			 * completion
 			 */
 			if (link_state == USB_SS_PORT_LS_U0) {
-				u32 pls = temp & PORT_PLS_MASK;
+				u32 pls = portsc & PORT_PLS_MASK;
 				bool wait_u0 = false;
 
 				/* already in U0 */
@@ -1462,7 +1462,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 					xhci_dbg(xhci, "missing U0 port change event for port %d-%d\n",
 						 hcd->self.busnum, portnum1);
 				spin_lock_irqsave(&xhci->lock, flags);
-				temp = xhci_portsc_readl(port);
+				portsc = xhci_portsc_readl(port);
 				break;
 			}
 
@@ -1480,12 +1480,12 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 				spin_unlock_irqrestore(&xhci->lock, flags);
 				while (retries--) {
 					usleep_range(4000, 8000);
-					temp = xhci_portsc_readl(port);
-					if ((temp & PORT_PLS_MASK) == XDEV_U3)
+					portsc = xhci_portsc_readl(port);
+					if ((portsc & PORT_PLS_MASK) == XDEV_U3)
 						break;
 				}
 				spin_lock_irqsave(&xhci->lock, flags);
-				temp = xhci_portsc_readl(port);
+				portsc = xhci_portsc_readl(port);
 				bus_state->suspended_ports |= 1 << wIndex;
 			}
 			break;
@@ -1499,23 +1499,23 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 			xhci_set_port_power(xhci, port, true, &flags);
 			break;
 		case USB_PORT_FEAT_RESET:
-			temp = (temp | PORT_RESET);
-			xhci_portsc_writel(port, temp);
+			portsc = (portsc | PORT_RESET);
+			xhci_portsc_writel(port, portsc);
 
-			temp = xhci_portsc_readl(port);
+			portsc = xhci_portsc_readl(port);
 			xhci_dbg(xhci, "set port reset, actual port %d-%d status  = 0x%x\n",
-				 hcd->self.busnum, portnum1, temp);
+				 hcd->self.busnum, portnum1, portsc);
 			break;
 		case USB_PORT_FEAT_REMOTE_WAKE_MASK:
 			xhci_set_remote_wake_mask(xhci, port, wake_mask);
-			temp = xhci_portsc_readl(port);
+			portsc = xhci_portsc_readl(port);
 			xhci_dbg(xhci, "set port remote wake mask, actual port %d-%d status  = 0x%x\n",
-				 hcd->self.busnum, portnum1, temp);
+				 hcd->self.busnum, portnum1, portsc);
 			break;
 		case USB_PORT_FEAT_BH_PORT_RESET:
-			temp |= PORT_WR;
-			xhci_portsc_writel(port, temp);
-			temp = xhci_portsc_readl(port);
+			portsc |= PORT_WR;
+			xhci_portsc_writel(port, portsc);
+			portsc = xhci_portsc_readl(port);
 			break;
 		case USB_PORT_FEAT_U1_TIMEOUT:
 			if (hcd->speed < HCD_USB3)
@@ -1547,7 +1547,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 			goto error;
 		}
 		/* unblock any posted writes */
-		temp = xhci_portsc_readl(port);
+		portsc = xhci_portsc_readl(port);
 		break;
 	case ClearPortFeature:
 		if (!portnum1 || portnum1 > max_ports)
@@ -1556,23 +1556,23 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 		port = ports[portnum1 - 1];
 
 		wIndex--;
-		temp = xhci_portsc_readl(port);
-		if (temp == ~(u32)0) {
+		portsc = xhci_portsc_readl(port);
+		if (portsc == ~(u32)0) {
 			xhci_hc_died(xhci);
 			retval = -ENODEV;
 			break;
 		}
 		/* FIXME: What new port features do we need to support? */
-		temp = xhci_port_state_to_neutral(temp);
+		portsc = xhci_port_state_to_neutral(portsc);
 		switch (wValue) {
 		case USB_PORT_FEAT_SUSPEND:
-			temp = xhci_portsc_readl(port);
+			portsc = xhci_portsc_readl(port);
 			xhci_dbg(xhci, "clear USB_PORT_FEAT_SUSPEND\n");
-			xhci_dbg(xhci, "PORTSC %04x\n", temp);
-			if (temp & PORT_RESET)
+			xhci_dbg(xhci, "PORTSC %04x\n", portsc);
+			if (portsc & PORT_RESET)
 				goto error;
-			if ((temp & PORT_PLS_MASK) == XDEV_U3) {
-				if ((temp & PORT_PE) == 0)
+			if ((portsc & PORT_PLS_MASK) == XDEV_U3) {
+				if ((portsc & PORT_PE) == 0)
 					goto error;
 
 				set_bit(wIndex, &bus_state->resuming_ports);
@@ -1603,7 +1603,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 		case USB_PORT_FEAT_C_ENABLE:
 		case USB_PORT_FEAT_C_PORT_LINK_STATE:
 		case USB_PORT_FEAT_C_PORT_CONFIG_ERROR:
-			xhci_clear_port_change_bit(xhci, wValue, wIndex, port, temp);
+			xhci_clear_port_change_bit(xhci, wValue, wIndex, port, portsc);
 			break;
 		case USB_PORT_FEAT_ENABLE:
 			xhci_disable_port(xhci, port);
@@ -1639,7 +1639,7 @@ EXPORT_SYMBOL_GPL(xhci_hub_control);
 int xhci_hub_status_data(struct usb_hcd *hcd, char *buf)
 {
 	unsigned long flags;
-	u32 temp, status;
+	u32 portsc, status;
 	u32 mask;
 	int i, retval;
 	struct xhci_hcd	*xhci = hcd_to_xhci(hcd);
@@ -1681,24 +1681,24 @@ int xhci_hub_status_data(struct usb_hcd *hcd, char *buf)
 
 	/* For each port, did anything change?  If so, set that bit in buf. */
 	for (i = 0; i < max_ports; i++) {
-		temp = xhci_portsc_readl(ports[i]);
-		if (temp == ~(u32)0) {
+		portsc = xhci_portsc_readl(ports[i]);
+		if (portsc == ~(u32)0) {
 			xhci_hc_died(xhci);
 			retval = -ENODEV;
 			break;
 		}
-		trace_xhci_hub_status_data(ports[i], temp);
+		trace_xhci_hub_status_data(ports[i], portsc);
 
-		if ((temp & mask) != 0 ||
+		if ((portsc & mask) != 0 ||
 			(bus_state->port_c_suspend & 1 << i) ||
 			(ports[i]->resume_timestamp && time_after_eq(
 			    jiffies, ports[i]->resume_timestamp))) {
 			buf[(i + 1) / 8] |= 1 << (i + 1) % 8;
 			status = 1;
 		}
-		if ((temp & PORT_RC))
+		if ((portsc & PORT_RC))
 			reset_change = true;
-		if (temp & PORT_OC)
+		if (portsc & PORT_OC)
 			status = 1;
 	}
 	if (!status && !reset_change) {
