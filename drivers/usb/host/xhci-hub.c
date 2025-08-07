@@ -403,7 +403,7 @@ static unsigned int xhci_port_speed(unsigned int port_status)
 u32 xhci_port_state_to_neutral(u32 state)
 {
 	/* Save read-only status and port state */
-	return (state & XHCI_PORT_RO) | (state & XHCI_PORT_RWS);
+	return (state & PORTSC_RO_BITS) | (state & PORTSC_RWS_BITS);
 }
 EXPORT_SYMBOL_GPL(xhci_port_state_to_neutral);
 
@@ -1327,10 +1327,8 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 				 * Clear all change bits, so that we get a new
 				 * connection event.
 				 */
-				temp |= PORT_CSC | PORT_PEC | PORT_WRC |
-					PORT_OCC | PORT_RC | PORT_PLC |
-					PORT_CEC;
-				writel(temp | PORT_PE, port->addr);
+				temp |= PORTSC_RW1CS_BITS;
+				writel(temp, port->addr);
 				temp = readl(port->addr);
 				break;
 			}
@@ -1820,7 +1818,7 @@ static bool xhci_port_missing_cas_quirk(struct xhci_port *port)
 		return false;
 
 	/* clear wakeup/change bits, and do a warm port reset */
-	portsc &= ~(PORT_RWC_BITS | PORT_CEC | PORT_WAKE_BITS);
+	portsc &= ~(PORTSC_RW1CS_BITS | PORT_WAKE_BITS);
 	portsc |= PORT_WR;
 	writel(portsc, port->addr);
 	/* flush write */
@@ -1900,7 +1898,7 @@ int xhci_bus_resume(struct usb_hcd *hcd)
 				break;
 			}
 		/* disable wake for all ports, write new link state if needed */
-		portsc &= ~(PORT_RWC_BITS | PORT_CEC | PORT_WAKE_BITS);
+		portsc &= ~(PORTSC_RW1CS_BITS | PORT_WAKE_BITS);
 		writel(portsc, ports[port_index]->addr);
 	}
 
