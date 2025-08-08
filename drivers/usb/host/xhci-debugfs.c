@@ -360,13 +360,13 @@ static ssize_t xhci_port_write(struct file *file,  const char __user *ubuf,
 		spin_lock_irqsave(&xhci->lock, flags);
 		/* compliance mode can only be enabled on ports in RxDetect */
 		portsc = readl(&port->addr->portsc);
-		if ((portsc & PORT_PLS_MASK) != XDEV_RXDETECT) {
+		if ((portsc & PORT_PLS_MASK) != USB_SS_PORT_LS_RX_DETECT) {
 			spin_unlock_irqrestore(&xhci->lock, flags);
 			return -EPERM;
 		}
 		portsc = xhci_port_state_to_neutral(portsc);
 		portsc &= ~PORT_PLS_MASK;
-		portsc |= PORT_LINK_STROBE | XDEV_COMP_MODE;
+		portsc |= PORT_LINK_STROBE | USB_SS_PORT_LS_COMP_MOD;
 		writel(portsc, &port->addr->portsc);
 		spin_unlock_irqrestore(&xhci->lock, flags);
 	} else {

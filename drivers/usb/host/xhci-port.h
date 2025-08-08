@@ -21,21 +21,10 @@
  * Reading gives the current link PM state of the port.
  * Writing sets the link state, Port Link State Write Strobe (LWS) must be set.
  */
-#define PORT_PLS_MASK	(0xf << 5)
-#define XDEV_U0		(0x0 << 5)
-#define XDEV_U1		(0x1 << 5)
-#define XDEV_U2		(0x2 << 5)
-#define XDEV_U3		(0x3 << 5)
-#define XDEV_DISABLED	(0x4 << 5)
-#define XDEV_RXDETECT	(0x5 << 5)
-#define XDEV_INACTIVE	(0x6 << 5)
-#define XDEV_POLLING	(0x7 << 5)
-#define XDEV_RECOVERY	(0x8 << 5)
-#define XDEV_HOT_RESET	(0x9 << 5)
-#define XDEV_COMP_MODE	(0xa << 5)
-#define XDEV_TEST_MODE	(0xb << 5)
-/* Values 12-14 are Reserved */
-#define XDEV_RESUME	(0xf << 5)
+#define PORT_PLS_MASK	GENMASK(8, 5)
+/* PLS values 0-11 are defined in USB specifications. Thus, ch11.h macros are used. */
+/* Valus 12-15 are not used by USB spec, but are used by xHCI. */
+#define XHCI_PLS_RESUME	0x1e0
 /* bit 9 - Port Power (PP) */
 #define PORT_POWER	(1 << 9)
 /*
