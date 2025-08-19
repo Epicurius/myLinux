@@ -299,7 +299,7 @@ static void xhci_zero_64b_regs(struct xhci_hcd *xhci)
 		xhci_info(xhci, "Fault detected\n");
 }
 
-int xhci_enable_interrupter(struct xhci_interrupter *ir)
+int xhci_enable_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
 {
 	u32 iman;
 
@@ -307,6 +307,8 @@ int xhci_enable_interrupter(struct xhci_interrupter *ir)
 		return -EINVAL;
 
 	iman = readl(&ir->ir_set->iman);
+	//xhci_dbg(xhci, "%s: iman: %x\n", __func__, iman);
+	iman &= ~IMAN_IP;
 	iman |= IMAN_IE;
 	writel(iman, &ir->ir_set->iman);
 
@@ -323,6 +325,8 @@ int xhci_disable_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
 		return -EINVAL;
 
 	iman = readl(&ir->ir_set->iman);
+	//xhci_dbg(xhci, "%s: iman: %x\n", __func__, iman);
+	iman &= ~IMAN_IP;
 	iman &= ~IMAN_IE;
 	writel(iman, &ir->ir_set->iman);
 
@@ -599,7 +603,7 @@ static int xhci_run_finished(struct xhci_hcd *xhci)
 	writel(temp, &xhci->op_regs->command);
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Enable primary interrupter");
-	xhci_enable_interrupter(ir);
+	xhci_enable_interrupter(xhci, ir);
 
 	if (xhci_start(xhci)) {
 		xhci_halt(xhci);

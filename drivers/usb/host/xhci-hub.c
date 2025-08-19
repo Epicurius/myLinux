@@ -1980,7 +1980,7 @@ int xhci_bus_resume(struct usb_hcd *hcd)
 	bus_state->next_statechange = jiffies + msecs_to_jiffies(5);
 	/* re-enable interrupter */
 	if (disabled_irq)
-		xhci_enable_interrupter(xhci->interrupters[0]);
+		xhci_enable_interrupter(xhci, xhci->interrupters[0]);
 
 	spin_unlock_irqrestore(&xhci->lock, flags);
 	return 0;
