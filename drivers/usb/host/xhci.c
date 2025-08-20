@@ -371,7 +371,7 @@ static void compliance_mode_recovery(struct timer_list *t)
 		return;
 
 	for (i = 0; i < rhub->num_ports; i++) {
-		temp = readl(&rhub->ports[i]->addr->portsc);
+		temp = readl(&rhub->ports[i]->port_regs->portsc);
 		if ((temp & PORT_PLS_MASK) == USB_SS_PORT_LS_COMP_MOD) {
 			/*
 			 * Compliance Mode Detected. Letting USB Core
@@ -894,7 +894,7 @@ static void xhci_disable_hub_port_wake(struct xhci_hcd *xhci,
 	spin_lock_irqsave(&xhci->lock, flags);
 
 	for (i = 0; i < rhub->num_ports; i++) {
-		portsc = readl(&rhub->ports[i]->addr->portsc);
+		portsc = readl(&rhub->ports[i]->port_regs->portsc);
 		t1 = xhci_port_state_to_neutral(portsc);
 		t2 = t1;
 
@@ -907,7 +907,7 @@ static void xhci_disable_hub_port_wake(struct xhci_hcd *xhci,
 			t2 |= PORT_CSC;
 
 		if (t1 != t2) {
-			writel(t2, &rhub->ports[i]->addr->portsc);
+			writel(t2, &rhub->ports[i]->port_regs->portsc);
 			xhci_dbg(xhci, "config port %d-%d wake bits, portsc: 0x%x, write: 0x%x\n",
 				 rhub->hcd->self.busnum, i + 1, portsc, t2);
 		}
@@ -934,7 +934,7 @@ static bool xhci_pending_portevent(struct xhci_hcd *xhci)
 	port_index = xhci->usb2_rhub.num_ports;
 	ports = xhci->usb2_rhub.ports;
 	while (port_index--) {
-		portsc = readl(&ports[port_index]->addr->portsc);
+		portsc = readl(&ports[port_index]->port_regs->portsc);
 		if (portsc & PORT_CHANGE_MASK ||
 		    (portsc & PORT_PLS_MASK) == XDEV_RESUME)
 			return true;
@@ -942,7 +942,7 @@ static bool xhci_pending_portevent(struct xhci_hcd *xhci)
 	port_index = xhci->usb3_rhub.num_ports;
 	ports = xhci->usb3_rhub.ports;
 	while (port_index--) {
-		portsc = readl(&ports[port_index]->addr->portsc);
+		portsc = readl(&ports[port_index]->port_regs->portsc);
 		if (portsc & (PORT_CHANGE_MASK | PORT_CAS) ||
 		    (portsc & PORT_PLS_MASK) == XDEV_RESUME)
 			return true;
@@ -4638,7 +4638,7 @@ static int xhci_set_usb2_hardware_lpm(struct usb_hcd *hcd,
 
 	ports = xhci->usb2_rhub.ports;
 	port_num = udev->portnum - 1;
-	port_regs = ports[port_num]->addr;
+	port_regs = ports[port_num]->port_regs;
 	pm_val = readl(&port_regs->portpmsc);
 
 	xhci_dbg(xhci, "%s port %d USB2 hardware LPM\n",
@@ -4691,7 +4691,7 @@ static int xhci_set_usb2_hardware_lpm(struct usb_hcd *hcd,
 		if (udev->usb2_hw_lpm_besl_capable) {
 			spin_unlock_irqrestore(&xhci->lock, flags);
 			xhci_change_max_exit_latency(xhci, udev, 0);
-			readl_poll_timeout(&ports[port_num]->addr->portsc, pm_val,
+			readl_poll_timeout(&ports[port_num]->port_regs->portsc, pm_val,
 					   (pm_val & PORT_PLS_MASK) == XDEV_U0,
 					   100, 10000);
 			return 0;
