@@ -329,7 +329,7 @@ DECLARE_EVENT_CLASS(xhci_log_stream_ctx,
 		__entry->ctx_array_dma = info->ctx_array_dma + stream_id * 16;
 
 	),
-	TP_printk("stream %u ctx @%pad: SCT %llu deq %llx", __entry->stream_id,
+	TP_printk("stream %u ctx @%pad: SCT %llu deq 0x%llx", __entry->stream_id,
 		&__entry->ctx_array_dma, CTX_TO_SCT(__entry->stream_ring),
 		__entry->stream_ring
 	)

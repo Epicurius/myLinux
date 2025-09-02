@@ -534,10 +534,10 @@ static int xhci_stream_context_array_show(struct seq_file *s, void *unused)
 		stream_ctx = epriv->stream_info->stream_ctx_array + id;
 		dma = epriv->stream_info->ctx_array_dma + id * 16;
 		if (id < epriv->stream_info->num_streams)
-			seq_printf(s, "@%pad stream id %d deq %016llx\n", &dma,
+			seq_printf(s, "@%pad stream id %d deq 0x%llx\n", &dma,
 				   id, le64_to_cpu(stream_ctx->stream_ring));
 		else
-			seq_printf(s, "@%pad stream context entry not used deq %016llx\n",
+			seq_printf(s, "@%pad stream context entry not used deq 0x%llx\n",
 				   &dma, le64_to_cpu(stream_ctx->stream_ring));
 	}
 

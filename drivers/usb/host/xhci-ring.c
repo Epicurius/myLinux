@@ -1499,7 +1499,7 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 			deq = le64_to_cpu(ep_ctx->deq) & TR_DEQ_PTR_MASK;
 		}
 		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
-			"Successful Set TR Deq Ptr cmd, deq = %08llx", deq);
+			"Successful Set TR Deq Ptr cmd, deq = 0x%llx", deq);
 		if (xhci_trb_virt_to_dma(ep->queued_deq_seg,
 					 ep->queued_deq_ptr) == deq) {
 			/* Update the ring's dequeue segment and dequeue pointer

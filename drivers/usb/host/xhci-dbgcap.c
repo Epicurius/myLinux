@@ -768,7 +768,7 @@ static void dbc_handle_xfer_event(struct xhci_dbc *dbc, union xhci_trb *event)
 		status = -comp_code;
 		break;
 	case COMP_STALL_ERROR:
-		dev_warn(dbc->dev, "Stall error at bulk TRB %llx, remaining %zu, ep deq %llx\n",
+		dev_warn(dbc->dev, "Stall error at bulk TRB 0x%llx, remaining %zu, ep deq 0x%llx\n",
 			 event->trans_event.buffer, remain_length, ep_ctx->deq);
 		status = 0;
 		dep->halted = 1;

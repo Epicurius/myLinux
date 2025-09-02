@@ -652,7 +652,7 @@ int xhci_run(struct usb_hcd *hcd)
 
 	temp_64 = xhci_read_64(xhci, &ir->ir_set->erst_dequeue);
 	temp_64 &= ERST_PTR_MASK;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "ERST deq = %llx", temp_64);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "ERST deq = 0x%llx", temp_64);
 
 	xhci_set_interrupter_moderation(ir, xhci->imod_interval);
 
@@ -4412,7 +4412,7 @@ static int xhci_setup_device(struct usb_hcd *hcd, struct usb_device *udev,
 		goto out;
 	temp_64 = xhci_read_64(xhci, &xhci->op_regs->dcbaa_ptr);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_address,
-			"Op regs DCBAA ptr = %#016llx", temp_64);
+			"Op regs DCBAA ptr = 0x%llx", temp_64);
 	dma = le64_to_cpu(xhci->dcbaa->dev_context_ptrs[udev->slot_id]);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_address,
 		"Slot ID %d dcbaa entry %p = @%pad",
