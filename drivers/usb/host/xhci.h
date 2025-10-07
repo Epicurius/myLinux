@@ -32,8 +32,11 @@
 /* xHCI PCI Configuration Registers */
 #define XHCI_SBRN_OFFSET	(0x60)
 
-/* Max number of USB devices for any host controller - limit in section 6.1 */
-#define MAX_HC_SLOTS		256
+/*
+ * Max number of USB devices for any host controller, section 5.3.3.
+ * Valid values are in the range of 1 to 255. The value of '0' is reserved.
+ */
+#define MAX_HC_SLOTS		255
 /* Section 5.3.3 - MaxPorts */
 #define MAX_HC_PORTS		127
 
@@ -803,10 +806,6 @@ struct xhci_device_context_array {
 	__le64		*dev_context_ptrs;
 	dma_addr_t	dma;
 };
-/*
- * TODO: change this to be dynamically sized at HC mem init time since the HC
- * might not be able to handle the maximum number of devices possible.
- */
 
 
 struct xhci_transfer_event {
@@ -1522,6 +1521,7 @@ struct xhci_hcd {
 
 	/* packed release number */
 	u16		hci_version;
+	u16		max_slots;
 	u16		max_interrupters;
 	/* imod_interval in ns (I * 250ns) */
 	u32		imod_interval;

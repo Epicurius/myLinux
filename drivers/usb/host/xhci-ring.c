@@ -608,7 +608,7 @@ static struct xhci_virt_ep *xhci_get_virt_ep(struct xhci_hcd *xhci,
 					     unsigned int slot_id,
 					     unsigned int ep_index)
 {
-	if (slot_id == 0 || slot_id >= MAX_HC_SLOTS) {
+	if (slot_id == 0 || slot_id > xhci->max_slots) {
 		xhci_warn(xhci, "Invalid slot_id %u\n", slot_id);
 		return NULL;
 	}
@@ -1388,7 +1388,7 @@ void xhci_hc_died(struct xhci_hcd *xhci)
 	xhci_cleanup_command_queue(xhci);
 
 	/* return any pending urbs, remove may be waiting for them */
-	for (i = 0; i <= HCS_MAX_SLOTS(xhci->hcs_params1); i++) {
+	for (i = 0; i <= xhci->max_slots; i++) {
 		if (!xhci->devs[i])
 			continue;
 		for (j = 0; j < 31; j++)
@@ -1798,7 +1798,7 @@ static void handle_cmd_completion(struct xhci_hcd *xhci,
 	struct xhci_command *cmd;
 	u32 cmd_type;
 
-	if (slot_id >= MAX_HC_SLOTS) {
+	if (slot_id > xhci->max_slots) {
 		xhci_warn(xhci, "Invalid slot_id %u\n", slot_id);
 		return;
 	}

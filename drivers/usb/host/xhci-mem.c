@@ -951,7 +951,7 @@ static void xhci_free_virt_devices_depth_first(struct xhci_hcd *xhci, int slot_i
 		/* is this a hub device that added a tt_info to the tts list */
 		if (tt_info->slot_id == slot_id) {
 			/* are any devices using this tt_info? */
-			for (i = 1; i < HCS_MAX_SLOTS(xhci->hcs_params1); i++) {
+			for (i = 1; i < xhci->max_slots; i++) {
 				vdev = xhci->devs[i];
 				if (vdev && (vdev->tt_info == tt_info))
 					xhci_free_virt_devices_depth_first(
@@ -1928,7 +1928,7 @@ void xhci_mem_cleanup(struct xhci_hcd *xhci)
 		}
 	}
 
-	for (i = HCS_MAX_SLOTS(xhci->hcs_params1); i > 0; i--)
+	for (i = xhci->max_slots; i > 0; i--)
 		xhci_free_virt_devices_depth_first(xhci, i);
 
 	dma_pool_destroy(xhci->segment_pool);
@@ -1955,8 +1955,9 @@ void xhci_mem_cleanup(struct xhci_hcd *xhci)
 			"Freed medium stream array pool");
 
 	if (xhci->dcbaa.dev_context_ptrs) {
-		dma_free_coherent(dev, sizeof(*xhci->dcbaa.dev_context_ptrs) * MAX_HC_SLOTS,
-					      xhci->dcbaa.dev_context_ptrs, xhci->dcbaa.dma);
+		dma_free_coherent(dev, (xhci->max_slots + 1) *
+				  sizeof(*xhci->dcbaa.dev_context_ptrs),
+				  xhci->dcbaa.dev_context_ptrs, xhci->dcbaa.dma);
 		xhci->dcbaa.dev_context_ptrs = NULL;
 	}
 
@@ -2443,7 +2444,8 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 		goto fail;
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Allocating internal virtual device array");
-	xhci->devs = kcalloc_node(MAX_HC_SLOTS, sizeof(*xhci->devs), flags, dev_to_node(dev));
+	xhci->devs = kcalloc_node(xhci->max_slots + 1, sizeof(*xhci->devs), flags,
+				  dev_to_node(dev));
 	if (!xhci->devs)
 		goto fail;
 
