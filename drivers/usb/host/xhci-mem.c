@@ -1985,6 +1985,7 @@ no_bw:
 		kfree(xhci->port_caps[i].psi);
 	kfree(xhci->port_caps);
 	kfree(xhci->interrupters);
+	kfree(xhci->devs);
 	xhci->num_port_caps = 0;
 
 	xhci->usb2_rhub.ports = NULL;
@@ -1993,6 +1994,7 @@ no_bw:
 	xhci->rh_bw = NULL;
 	xhci->port_caps = NULL;
 	xhci->interrupters = NULL;
+	xhci->devs = NULL;
 
 	xhci->page_size = 0;
 	xhci->usb2_rhub.bus_state.bus_suspended = 0;
@@ -2438,6 +2440,11 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 		xhci->segment_pool = dma_pool_create("xHCI ring segments", dev,
 				TRB_SEGMENT_SIZE, TRB_SEGMENT_SIZE, xhci->page_size);
 	if (!xhci->segment_pool)
+		goto fail;
+
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Allocating internal virtual device array");
+	xhci->devs = kcalloc_node(MAX_HC_SLOTS, sizeof(*xhci->devs), flags, dev_to_node(dev));
+	if (!xhci->devs)
 		goto fail;
 
 	/* See Table 46 and Note on Figure 55 */

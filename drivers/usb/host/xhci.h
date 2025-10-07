@@ -1551,7 +1551,7 @@ struct xhci_hcd {
 	/* these are not thread safe so use mutex */
 	struct mutex mutex;
 	/* Internal mirror of the HW's dcbaa */
-	struct xhci_virt_device	*devs[MAX_HC_SLOTS];
+	struct xhci_virt_device	**devs;
 	/* For keeping track of bandwidth domains per roothub. */
 	struct xhci_root_port_bw_info	*rh_bw;
 

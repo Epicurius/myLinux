@@ -548,7 +548,6 @@ static int xhci_init(struct usb_hcd *hcd)
 	INIT_DELAYED_WORK(&xhci->cmd_timer, xhci_handle_command_timeout);
 	init_completion(&xhci->cmd_ring_stop_completion);
 	xhci_hcd_page_size(xhci);
-	memset(xhci->devs, 0, MAX_HC_SLOTS * sizeof(*xhci->devs));
 
 	retval = xhci_mem_init(xhci, GFP_KERNEL);
 	if (retval)
