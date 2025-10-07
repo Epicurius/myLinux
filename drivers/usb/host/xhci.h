@@ -792,12 +792,15 @@ struct xhci_tt_bw_info {
 
 /**
  * struct xhci_device_context_array
- * @dev_context_ptr	array of 64-bit DMA addresses for device contexts
+ * @dev_context_ptrs:	Array of 64-bit base addresses
+ * @dma:		Private DMA address to @dev_context_ptrs
+ *
+ * Device Context Base Address Array - Section 6.1.
+ * 'dev_context_ptrs[0]'   - Scratchpad Buffer Array Base Address
+ * 'dev_context_ptrs[1-n]' - Device Context Base Address
  */
 struct xhci_device_context_array {
-	/* 64-bit device addresses; we only write 32-bit addresses */
-	__le64			dev_context_ptrs[MAX_HC_SLOTS];
-	/* private xHCD pointers */
+	__le64		*dev_context_ptrs;
 	dma_addr_t	dma;
 };
 /*
@@ -1531,7 +1534,7 @@ struct xhci_hcd {
 	/* optional reset controller */
 	struct reset_control *reset;
 	/* data structures */
-	struct xhci_device_context_array *dcbaa;
+	struct xhci_device_context_array	dcbaa;
 	struct xhci_interrupter **interrupters;
 	struct xhci_ring	*cmd_ring;
 	unsigned int            cmd_ring_state;
