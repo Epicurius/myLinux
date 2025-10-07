@@ -1954,7 +1954,8 @@ void xhci_mem_cleanup(struct xhci_hcd *xhci)
 			"Freed medium stream array pool");
 
 	if (xhci->dcbaa.dev_context_ptrs) {
-		dma_free_coherent(dev, sizeof(*xhci->dcbaa.dev_context_ptrs) * MAX_HC_SLOTS,
+		dma_free_coherent(dev,
+				  sizeof(*xhci->dcbaa.dev_context_ptrs) * (xhci->max_slots + 1),
 				  xhci->dcbaa.dev_context_ptrs, xhci->dcbaa.dma);
 		xhci->dcbaa.dev_context_ptrs = NULL;
 	}
@@ -2410,7 +2411,8 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	 * "physically contiguous and 64-byte (cache line) aligned".
 	 */
 	xhci->dcbaa.dev_context_ptrs = dma_alloc_coherent(dev,
-		sizeof(*xhci->dcbaa.dev_context_ptrs) * MAX_HC_SLOTS, &xhci->dcbaa.dma, flags);
+		sizeof(*xhci->dcbaa.dev_context_ptrs) * (xhci->max_slots + 1),
+		&xhci->dcbaa.dma, flags);
 	if (!xhci->dcbaa.dev_context_ptrs)
 		goto fail;
 

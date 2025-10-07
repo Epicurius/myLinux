@@ -811,10 +811,6 @@ struct xhci_device_context_array {
 	__le64		*dev_context_ptrs;
 	dma_addr_t	dma;
 };
-/*
- * TODO: change this to be dynamically sized at HC mem init time since the HC
- * might not be able to handle the maximum number of devices possible.
- */
 
 
 struct xhci_transfer_event {
