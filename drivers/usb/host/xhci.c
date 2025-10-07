@@ -5438,6 +5438,7 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 		xhci->hcc_params2 = readl(&xhci->cap_regs->hcc_params2);
 
 	xhci->max_slots = min_t(u16, HCS_MAX_SLOTS(xhci->hcs_params1), MAX_HC_SLOTS);
+	xhci->max_ports = min_t(u16, HCS_MAX_PORTS(xhci->hcs_params1), MAX_HC_PORTS);
 
 	/* xhci-plat or xhci-pci might have set max_interrupters already */
 	if ((!xhci->max_interrupters) ||

@@ -37,7 +37,10 @@
  * Valid values are in the range of 1 to 255. The value of '0' is reserved.
  */
 #define MAX_HC_SLOTS		255
-/* Section 5.3.3 - MaxPorts */
+/*
+ * Max Number of Ports - limit in section 5.3.3
+ * Valid values are in the range of 1 to 255.
+ */
 #define MAX_HC_PORTS		127
 
 /*
@@ -1523,6 +1526,7 @@ struct xhci_hcd {
 	u16		hci_version;
 	u16		max_slots;
 	u16		max_interrupters;
+	u16		max_ports;
 	/* imod_interval in ns (I * 250ns) */
 	u32		imod_interval;
 	u32		page_size;
