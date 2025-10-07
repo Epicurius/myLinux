@@ -1927,8 +1927,11 @@ void xhci_mem_cleanup(struct xhci_hcd *xhci)
 		}
 	}
 
-	for (i = xhci->max_slots; i > 0; i--)
-		xhci_free_virt_devices_depth_first(xhci, i);
+	if (xhci->devs) {
+		for (i = xhci->max_slots; i > 0; i--)
+			xhci_free_virt_devices_depth_first(xhci, i);
+		kfree(xhci->devs);
+	}
 
 	dma_pool_destroy(xhci->segment_pool);
 	xhci->segment_pool = NULL;
@@ -1994,6 +1997,7 @@ no_bw:
 	xhci->rh_bw = NULL;
 	xhci->port_caps = NULL;
 	xhci->interrupters = NULL;
+	xhci->devs = NULL;
 
 	xhci->page_size = 0;
 	xhci->usb2_rhub.bus_state.bus_suspended = 0;
@@ -2405,6 +2409,12 @@ EXPORT_SYMBOL_GPL(xhci_create_secondary_interrupter);
 int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 {
 	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
+
+	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Allocating internal virtual device array");
+	xhci->devs = kcalloc_node(xhci->max_slots + 1, sizeof(*xhci->devs), flags,
+				  dev_to_node(dev));
+	if (!xhci->devs)
+		goto fail;
 
 	/*
 	 * xHCI section 5.4.6 - Device Context array must be
