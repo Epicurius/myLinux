@@ -5400,6 +5400,7 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 	 */
 	struct device		*dev = hcd->self.sysdev;
 	int			retval;
+	u32			hcs_params1;
 
 	/* Accept arbitrarily long scatter-gather lists */
 	hcd->self.sg_tablesize = ~0;
@@ -5424,18 +5425,19 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 		HC_LENGTH(readl(&xhci->cap_regs->hc_capbase));
 	xhci->run_regs = hcd->regs +
 		(readl(&xhci->cap_regs->run_regs_off) & RTSOFF_MASK);
-	/* Cache read-only capability registers */
-	xhci->hcs_params1 = readl(&xhci->cap_regs->hcs_params1);
+
+	/* Cache read-only capability data and registers */
+	hcs_params1 = readl(&xhci->cap_regs->hcs_params1);
+	xhci->max_slots = min_t(u16, HCS_MAX_SLOTS(hcs_params1), MAX_HC_SLOTS);
+	xhci->max_interrupters = min_t(u16, HCS_MAX_INTRS(hcs_params1), MAX_HC_INTRS);
+	xhci->max_ports = min_t(u16, HCS_MAX_PORTS(hcs_params1), MAX_HC_PORTS);
+
 	xhci->hcs_params2 = readl(&xhci->cap_regs->hcs_params2);
 	xhci->hcs_params3 = readl(&xhci->cap_regs->hcs_params3);
 	xhci->hci_version = HC_VERSION(readl(&xhci->cap_regs->hc_capbase));
 	xhci->hcc_params = readl(&xhci->cap_regs->hcc_params);
 	if (xhci->hci_version > 0x100)
 		xhci->hcc_params2 = readl(&xhci->cap_regs->hcc_params2);
-
-	xhci->max_slots = min_t(u16, HCS_MAX_SLOTS(xhci->hcs_params1), MAX_HC_SLOTS);
-	xhci->max_ports = min_t(u16, HCS_MAX_PORTS(xhci->hcs_params1), MAX_HC_PORTS);
-	xhci->max_interrupters = min_t(u16, HCS_MAX_INTRS(xhci->hcs_params1), MAX_HC_INTRS);
 
 	xhci->quirks |= quirks;
 
