@@ -160,7 +160,7 @@ static int xhci_try_enable_msi(struct usb_hcd *hcd)
 
 	/*
 	 * Calculate number of MSI/MSI-X vectors supported.
-	 * - max_interrupters: the max number of interrupts requested, capped to xhci HCSPARAMS1.
+	 * - max_interrupters: the max number of interrupts allocated.
 	 * - num_online_cpus: one vector per CPUs core, with at least one overall.
 	 */
 	xhci->nvecs = min(num_online_cpus() + 1, xhci->max_interrupters);
