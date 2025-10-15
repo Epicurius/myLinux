@@ -32,8 +32,11 @@
 /* xHCI PCI Configuration Registers */
 #define XHCI_SBRN_OFFSET	(0x60)
 
-/* Max number of USB devices for any host controller - limit in section 6.1 */
-#define MAX_HC_SLOTS		256
+/*
+ * Max number of USB devices for any host controller, section 5.3.3.
+ * Valid values are in the range of 1 to 255.
+ */
+#define MAX_HC_SLOTS		255
 /*
  * Max Number of Ports - limit in section 5.3.3
  * Valid values are in the range of 1 to 255.
