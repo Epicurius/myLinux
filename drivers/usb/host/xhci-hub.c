@@ -688,7 +688,7 @@ static void xhci_port_set_test_mode(struct xhci_hcd *xhci,
 	writel(temp, port->addr + PORTPMSC);
 	xhci->test_mode = test_mode;
 	if (test_mode == USB_TEST_FORCE_ENABLE)
-		xhci_start(xhci);
+		xhci_start(xhci, XHCI_MAX_HALT_USEC);
 }
 
 static int xhci_enter_test_mode(struct xhci_hcd *xhci,
