@@ -941,25 +941,34 @@ static void xhci_free_virt_devices_depth_first(struct xhci_hcd *xhci, int slot_i
 	if (!vdev)
 		return;
 
+	printk("NIK %d: START\n", slot_id);
+
 	if (!vdev->rhub_port) {
+		printk(" NIK %d: !vdev->rhub_port\n", slot_id);
 		xhci_dbg(xhci, "Bad rhub port.\n");
 		goto out;
 	}
 
+	printk(" NIK %d: hw_portnum %d\n", slot_id, vdev->rhub_port->hw_portnum);
 	tt_list_head = &(xhci->rh_bw[vdev->rhub_port->hw_portnum].tts);
 	list_for_each_entry_safe(tt_info, next, tt_list_head, tt_list) {
 		/* is this a hub device that added a tt_info to the tts list */
-		if (tt_info->slot_id == slot_id) {
-			/* are any devices using this tt_info? */
-			for (i = 1; i < HCS_MAX_SLOTS(xhci->hcs_params1); i++) {
-				vdev = xhci->devs[i];
-				if (vdev && (vdev->tt_info == tt_info))
-					xhci_free_virt_devices_depth_first(
-						xhci, i);
-			}
+		printk(" NIK %d: tt_info->slot_id %d\n", slot_id, tt_info->slot_id);
+		if (tt_info->slot_id != slot_id)
+			continue;
+
+		/* are any devices using this tt_info? */
+		for (i = 1; i < HCS_MAX_SLOTS(xhci->hcs_params1); i++) {
+			if (!xhci->devs[i])
+				continue;
+			printk("  NIK %d: i %d\n", slot_id, i);
+
+			if (xhci->devs[i]->tt_info == tt_info)
+				xhci_free_virt_devices_depth_first(xhci, i);
 		}
 	}
 out:
+	printk("NIK %d: END\n", slot_id);
 	/* we are now at a leaf device */
 	xhci_debugfs_remove_slot(xhci, slot_id);
 	xhci_free_virt_device(xhci, xhci->devs[slot_id], slot_id);
@@ -1931,6 +1940,7 @@ void xhci_mem_cleanup(struct xhci_hcd *xhci)
 		}
 	}
 
+	printk("NIK: xhci_free_virt_devices_depth_first()\n");
 	for (i = HCS_MAX_SLOTS(xhci->hcs_params1); i > 0; i--)
 		xhci_free_virt_devices_depth_first(xhci, i);
 
