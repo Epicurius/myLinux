@@ -1208,11 +1208,10 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 	}
 
 	/* step 4: set Run/Stop bit */
-	command = readl(&xhci->op_regs->command);
-	command |= CMD_RUN;
-	writel(command, &xhci->op_regs->command);
-	xhci_handshake(&xhci->op_regs->status, STS_HALT,
-		       0, 250 * 1000);
+	retval = xhci_start(xhci, XHCI_RESET_SHORT_USEC);
+	spin_unlock_irq(&xhci->lock);
+	if (retval)
+		return retval;
 
 	/* step 5: walk topology and initialize portsc,
 	 * portpmsc and portli
@@ -1222,8 +1221,6 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 	/* step 6: restart each of the previously
 	 * Running endpoints by ringing their doorbells
 	 */
-
-	spin_unlock_irq(&xhci->lock);
 
 	xhci_dbc_resume(xhci);
 
