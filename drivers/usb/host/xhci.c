@@ -951,7 +951,7 @@ static bool xhci_pending_portevent(struct xhci_hcd *xhci)
 	mask = XHCI_PORT_RW1CS & ~PORT_PE;
 	while (port_index--) {
 		portsc = xhci_portsc_readl(ports[port_index]);
-		if (portsc & mask || (portsc & PORT_PLS_MASK) == XDEV_RESUME)
+		if (portsc & mask || (portsc & PORT_PLS_MASK) == PLS_RESUME)
 			return true;
 	}
 	port_index = xhci->usb3_rhub.num_ports;
@@ -959,7 +959,7 @@ static bool xhci_pending_portevent(struct xhci_hcd *xhci)
 	mask |= PORT_CAS;
 	while (port_index--) {
 		portsc = xhci_portsc_readl(ports[port_index]);
-		if (portsc & mask || (portsc & PORT_PLS_MASK) == XDEV_RESUME)
+		if (portsc & mask || (portsc & PORT_PLS_MASK) == PLS_RESUME)
 			return true;
 	}
 	return false;
@@ -4728,7 +4728,7 @@ static int xhci_set_usb2_hardware_lpm(struct usb_hcd *hcd,
 			spin_unlock_irqrestore(&xhci->lock, flags);
 			xhci_change_max_exit_latency(xhci, udev, 0);
 			readl_poll_timeout(&ports[port_num]->port_reg->portsc, pm_val,
-					   (pm_val & PORT_PLS_MASK) == XDEV_U0,
+					   (pm_val & PORT_PLS_MASK) == PLS_U0,
 					   100, 10000);
 			return 0;
 		}
