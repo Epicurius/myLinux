@@ -678,14 +678,14 @@ static void xhci_set_port_power(struct xhci_hcd *xhci, struct xhci_port *port,
 static void xhci_port_set_test_mode(struct xhci_hcd *xhci,
 	u16 test_mode, u16 wIndex)
 {
-	u32 temp;
+	u32 portpmsc;
 	struct xhci_port *port;
 
 	/* xhci only supports test mode for usb2 ports */
 	port = xhci->usb2_rhub.ports[wIndex];
-	temp = readl(&port->port_reg->portpmsc);
-	temp |= test_mode << PORT_TEST_MODE_SHIFT;
-	writel(temp, &port->port_reg->portpmsc);
+	portpmsc = readl(&port->port_reg->portpmsc);
+	portpmsc |= test_mode << PORT_TEST_MODE_SHIFT;
+	writel(portpmsc, &port->port_reg->portpmsc);
 	xhci->test_mode = test_mode;
 	if (test_mode == USB_TEST_FORCE_ENABLE)
 		xhci_start(xhci);
@@ -1208,7 +1208,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 	struct xhci_hcd	*xhci = hcd_to_xhci(hcd);
 	int max_ports;
 	unsigned long flags;
-	u32 temp, status;
+	u32 portpmsc, temp, status;
 	int retval = 0;
 	struct xhci_bus_state *bus_state;
 	u16 link_state = 0;
@@ -1520,18 +1520,18 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 		case USB_PORT_FEAT_U1_TIMEOUT:
 			if (hcd->speed < HCD_USB3)
 				goto error;
-			temp = readl(&port->port_reg->portpmsc);
-			temp &= ~PORT_U1_TIMEOUT_MASK;
-			temp |= PORT_U1_TIMEOUT(timeout);
-			writel(temp, &port->port_reg->portpmsc);
+			portpmsc = readl(&port->port_reg->portpmsc);
+			portpmsc &= ~PORT_U1_TIMEOUT_MASK;
+			portpmsc |= PORT_U1_TIMEOUT(timeout);
+			writel(portpmsc, &port->port_reg->portpmsc);
 			break;
 		case USB_PORT_FEAT_U2_TIMEOUT:
 			if (hcd->speed < HCD_USB3)
 				goto error;
-			temp = readl(&port->port_reg->portpmsc);
-			temp &= ~PORT_U2_TIMEOUT_MASK;
-			temp |= PORT_U2_TIMEOUT(timeout);
-			writel(temp, &port->port_reg->portpmsc);
+			portpmsc = readl(&port->port_reg->portpmsc);
+			portpmsc &= ~PORT_U2_TIMEOUT_MASK;
+			portpmsc |= PORT_U2_TIMEOUT(timeout);
+			writel(portpmsc, &port->port_reg->portpmsc);
 			break;
 		case USB_PORT_FEAT_TEST:
 			/* 4.19.6 Port Test Modes (USB2 Test Mode) */
