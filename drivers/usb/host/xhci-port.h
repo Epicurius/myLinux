@@ -8,14 +8,14 @@
 
 /* Port Status and Control (PORTSC) 5.4.8 */
 /* bit 0 - Current Connect Status (CCS) */
-#define PORT_CONNECT	BIT(0)
+#define PORT_CCS	BIT(0)
 /* bit 1 - Port Enabled/Disabled (PED) */
-#define PORT_PE		BIT(1)
+#define PORT_PED	BIT(1)
 /* bit 2 - Rsvd */
 /* bit 3 - Over-current Active (OCA) */
-#define PORT_OC		BIT(3)
+#define PORT_OCA	BIT(3)
 /* bit 4 - Port Reset (PR) */
-#define PORT_RESET	BIT(4)
+#define PORT_PR		BIT(4)
 /*
  * bits 8:5 - Port Link State (PLS), by default '5'.
  * Reading gives the current link PM state of the port.
@@ -38,7 +38,7 @@
 /* Values 12-14 are Reserved */
 #define PLS_RESUME	0x1e0
 /* bit 9 - Port Power (PP) */
-#define PORT_POWER	BIT(9)
+#define PORT_PP		BIT(9)
 /*
  * bits 13:10 - Port Speed
  * Values defined in xHCI specification 7.2.2.1.1:
@@ -52,19 +52,19 @@
  * 7 - SuperSpeed Gen2 x2
  * 8-15 Reserved
  */
-#define PORT_SPEED_MASK		GENMASK(13, 10)
-#define	PORT_SPEED_FS		1
-#define	PORT_SPEED_LS		2
-#define	PORT_SPEED_HS		3
-#define	PORT_SPEED_SS		4
-#define	PORT_SPEED_SSP		5
+#define PORT_SPEED_MASK	GENMASK(13, 10)
+#define	PORT_SPEED_FS	1
+#define	PORT_SPEED_LS	2
+#define	PORT_SPEED_HS	3
+#define	PORT_SPEED_SS	4
+#define	PORT_SPEED_SSP	5
 /* bits 15:14 - Port Indicator Control (PIC) */
 #define PORT_PIC_MASK	GENMASK(15, 14)
 #define PIC_OFF		0
 #define PIC_AMBER	1
 #define PIC_GREEN	2
 /* bit 16 - Port Link State Write Strobe (LWS), set this when changing link state */
-#define PORT_LINK_STROBE	BIT(16)
+#define PORT_LWS	BIT(16)
 /* bit 17 - Connect Status Change (CSC) */
 #define PORT_CSC	BIT(17)
 /* bit 18 - Port Enabled/Disabled Change (PEC) */
@@ -80,7 +80,7 @@
 /* bit 20 - Over-current Change (OCC) */
 #define PORT_OCC	BIT(20)
 /* bit 21 - Port Reset Change (PRC) */
-#define PORT_RC		BIT(21)
+#define PORT_PRC	BIT(21)
 /*
  * bit 22 - Port Link State Change (PLC), set on some port link state transitions:
  *  Transition				Reason
@@ -105,50 +105,49 @@
  */
 #define PORT_CAS	BIT(24)
 /* bit 25 - Wake on Connect Enable (WCE) */
-#define PORT_WKCONN_E	BIT(25)
+#define PORT_WCE	BIT(25)
 /* bit 26 - Wake on Disconnect Enable (WDE) */
-#define PORT_WKDISC_E	BIT(26)
+#define PORT_WDE	BIT(26)
 /* bit 27 - Wake on Over-current Enable (WOE) */
-#define PORT_WKOC_E	BIT(27)
+#define PORT_WOE	BIT(27)
 /* bits 29:28 - RsvdZ */
 /* bit 30 - Device Removable (DR), for USB 3.0 roothub emulation */
-#define PORT_DEV_REMOVE	BIT(30)
+#define PORT_DR		BIT(30)
 /* bit 31 - Warm Port Reset (WPR), complete when PORT_WRC is '1' */
-#define PORT_WR		BIT(31)
+#define PORT_WPR	BIT(31)
 
 /* bits 25, 26, 27 */
-#define	PORT_WAKE_BITS	(PORT_WKOC_E | PORT_WKDISC_E | PORT_WKCONN_E)
+#define	PORT_WAKE_BITS	(PORT_WOE | PORT_WDE | PORT_WCE)
 /*
  * These bits are RO/ROS; can only be read.
  * bits 0, 3, 13:10, 24, 30
  *
- * PORT_CONNECT and PORT_SPEED_MASK are also Sticky - meaning they're in
+ * PORT_CCS and PORT_SPEED_MASK are also Sticky - meaning they're in
  * the AUX well and they aren't changed by a hot, warm, or cold reset.
  */
-#define	XHCI_PORT_RO	(PORT_CONNECT | PORT_OC | PORT_SPEED_MASK | PORT_CAS | PORT_DEV_REMOVE)
+#define	PORTSC_RO	(PORT_CCS | PORT_OCA | PORT_SPEED_MASK | PORT_CAS | PORT_DR)
 /*
  * These bits are RWS; writing 0 clears the bit, writing 1 sets the bit.
  * bits 8:5, 9, 15:14, 25, 26, 27
  * link state, port power, port indicator state, "wake on" enable state
  */
-#define XHCI_PORT_RWS	(PORT_PLS_MASK | PORT_POWER | PORT_PIC_MASK | PORT_WKCONN_E | \
-			 PORT_WKDISC_E | PORT_WKOC_E)
+#define PORTSC_RWS	(PORT_PLS_MASK | PORT_PP | PORT_PIC_MASK | PORT_WCE | PORT_WDE | PORT_WOE)
 /*
  * These bits are RW1S; writing 1 sets the bit, writing 0 has no effect.
  * bits 4, 31
  */
-#define	XHCI_PORT_RW1S	(PORT_RESET | PORT_WR)
+#define	PORTSC_RW1S	(PORT_PR | PORT_WPR)
 /*
  * These bits are RW1CS; writing 1 clears the bit, writing 0 has no effect.
  * bits 1, 17, 18, 19, 20, 21, 22, 23
  */
-#define XHCI_PORT_RW1CS	(PORT_PE | PORT_CSC | PORT_PEC | PORT_WRC | PORT_OCC | PORT_RC | \
+#define PORTSC_RW1CS	(PORT_PED | PORT_CSC | PORT_PEC | PORT_WRC | PORT_OCC | PORT_PRC | \
 			 PORT_PLC | PORT_CEC)
 /*
  * These bits are RW; writing 1 set the bit, writing 0 clears the bit
  * bit 16
  */
-#define	XHCI_PORT_RW	(PORT_LINK_STROBE)
+#define	PORTSC_RW	(PORT_LWS)
 
 
 /* USB3 Port Power Management Status and Control (PORTPMSC) 5.4.9.1 */

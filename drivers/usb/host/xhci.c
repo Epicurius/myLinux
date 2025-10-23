@@ -916,7 +916,7 @@ static void xhci_disable_hub_port_wake(struct xhci_hcd *xhci,
 			t2 &= ~PORT_WAKE_BITS;
 
 		/* Don't touch csc bit if connected or connect change is set */
-		if (!(portsc & (PORT_CSC | PORT_CONNECT)))
+		if (!(portsc & (PORT_CSC | PORT_CCS)))
 			t2 |= PORT_CSC;
 
 		if (t1 != t2) {
@@ -948,7 +948,7 @@ static bool xhci_pending_portevent(struct xhci_hcd *xhci)
 	port_index = xhci->usb2_rhub.num_ports;
 	ports = xhci->usb2_rhub.ports;
 	/* Check all Write-1-to-clear status bits, except for the Port Enadled bit. */
-	mask = XHCI_PORT_RW1CS & ~PORT_PE;
+	mask = PORTSC_RW1CS & ~PORT_PED;
 	while (port_index--) {
 		portsc = xhci_portsc_readl(ports[port_index]);
 		if (portsc & mask || (portsc & PORT_PLS_MASK) == PLS_RESUME)

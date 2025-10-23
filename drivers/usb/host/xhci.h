@@ -2404,32 +2404,32 @@ static inline const char *xhci_decode_portsc(char *str, u32 portsc)
 		return str;
 
 	ret += sprintf(str + ret, "%s %s Link:%s Speed:%ld ",
-		       portsc & PORT_POWER ? "Powered" : "Powered-off",
-		       portsc & PORT_CONNECT ? "Connected" : "Not-connected",
+		       portsc & PORT_PP ? "Powered" : "Powered-off",
+		       portsc & PORT_CCS ? "Connected" : "Not-connected",
 		       xhci_portsc_link_state_string(portsc),
 		       FIELD_GET(PORT_SPEED_MASK, portsc));
 
 	/* Read-Write 1 to Set */
-	if (portsc & PORT_RESET)
+	if (portsc & PORT_PR)
 		ret += sprintf(str + ret, "In-Reset ");
 
-	if (portsc & PORT_OC)
+	if (portsc & PORT_OCA)
 		ret += sprintf(str + ret, "OCA ");
-	if (portsc & PORT_LINK_STROBE)
+	if (portsc & PORT_LWS)
 		ret += sprintf(str + ret, "LWS ");
 	if (portsc & PORT_CAS)
 		ret += sprintf(str + ret, "CAS ");
-	if (portsc & PORT_WKCONN_E)
+	if (portsc & PORT_WCE)
 		ret += sprintf(str + ret, "WCE ");
-	if (portsc & PORT_WKDISC_E)
+	if (portsc & PORT_WDE)
 		ret += sprintf(str + ret, "WDE ");
-	if (portsc & PORT_WKOC_E)
+	if (portsc & PORT_WOE)
 		ret += sprintf(str + ret, "WOE ");
 
 	/* Read-Write 1 to Clear */
-	if (portsc & XHCI_PORT_RW1CS) {
+	if (portsc & PORTSC_RW1CS) {
 		ret += sprintf(str + ret, "RW1C: ");
-		if (portsc & PORT_PE)
+		if (portsc & PORT_PED)
 			ret += sprintf(str + ret, "PED ");
 		if (portsc & PORT_CSC)
 			ret += sprintf(str + ret, "CSC ");
@@ -2439,7 +2439,7 @@ static inline const char *xhci_decode_portsc(char *str, u32 portsc)
 			ret += sprintf(str + ret, "WRC ");
 		if (portsc & PORT_OCC)
 			ret += sprintf(str + ret, "OCC ");
-		if (portsc & PORT_RC)
+		if (portsc & PORT_PRC)
 			ret += sprintf(str + ret, "PRC ");
 		if (portsc & PORT_PLC)
 			ret += sprintf(str + ret, "PLC ");
