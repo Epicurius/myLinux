@@ -199,15 +199,15 @@
 
 /* USB2 Port Hardware LPM Control Register (PORTHLPMC) 5.4.11.2 */
 /* bits 1:0 - Host Initiated Resume Duration Mode (HIRDM) */
-#define PORT_HIRDM(p)((p) & 3)
+#define PORT_HIRDM_MASK		GENMASK(1, 0)
 /*
  * bits 9:2 - L1 Timeout, can be 128us to 65280us (0xff), in 128us increments.
  * The default timeout is 128us.
  */
-#define PORT_L1_TIMEOUT(p)(((p) & 0xff) << 2)
+#define PORT_L1_TIMEOUT_MASK	GENMASK(9, 2)
 #define XHCI_L1_TIMEOUT		512
 /* bits 13:10 - Best Effort Service Latency Deep (BESLD) */
-#define PORT_BESLD(p)(((p) & 0xf) << 10)
+#define PORT_BESLD_MASK		GENMASK(13, 10)
 /* bits 31:14 - RsvdP */
 
 /*
