@@ -16,6 +16,7 @@
 #include <linux/timer.h>
 #include <linux/kernel.h>
 #include <linux/usb/hcd.h>
+#include <linux/bitfield.h>
 #include <linux/io-64-nonatomic-lo-hi.h>
 #include <linux/io-64-nonatomic-hi-lo.h>
 
@@ -349,11 +350,11 @@ struct xhci_slot_ctx {
  */
 #define DEV_SPEED	(0xf << 20)
 #define GET_DEV_SPEED(n) (((n) & DEV_SPEED) >> 20)
-#define	SLOT_SPEED_FS		(XDEV_FS << 10)
-#define	SLOT_SPEED_LS		(XDEV_LS << 10)
-#define	SLOT_SPEED_HS		(XDEV_HS << 10)
-#define	SLOT_SPEED_SS		(XDEV_SS << 10)
-#define	SLOT_SPEED_SSP		(XDEV_SSP << 10)
+#define	SLOT_SPEED_FS		(PORT_SPEED_FS << 10)
+#define	SLOT_SPEED_LS		(PORT_SPEED_LS << 10)
+#define	SLOT_SPEED_HS		(PORT_SPEED_HS << 10)
+#define	SLOT_SPEED_SS		(PORT_SPEED_SS << 10)
+#define	SLOT_SPEED_SSP		(PORT_SPEED_SSP << 10)
 /* bit 24 reserved */
 /* Is this LS/FS device connected through a HS hub? - bit 25 */
 #define DEV_MTT		(0x1 << 25)
@@ -2402,11 +2403,11 @@ static inline const char *xhci_decode_portsc(char *str, u32 portsc)
 	if (portsc == ~(u32)0)
 		return str;
 
-	ret += sprintf(str + ret, "%s %s Link:%s Speed:%d ",
+	ret += sprintf(str + ret, "%s %s Link:%s Speed:%ld ",
 		       portsc & PORT_POWER ? "Powered" : "Powered-off",
 		       portsc & PORT_CONNECT ? "Connected" : "Not-connected",
 		       xhci_portsc_link_state_string(portsc),
-		       DEV_PORT_SPEED(portsc));
+		       FIELD_GET(PORT_SPEED_MASK, portsc));
 
 	/* Read-Write 1 to Set */
 	if (portsc & PORT_RESET)
