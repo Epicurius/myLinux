@@ -59,10 +59,10 @@
 #define	PORT_SPEED_SS		4
 #define	PORT_SPEED_SSP		5
 /* bits 15:14 - Port Indicator Control (PIC) */
-#define PORT_LED_OFF	(0 << 14)
-#define PORT_LED_AMBER	(1 << 14)
-#define PORT_LED_GREEN	(2 << 14)
-#define PORT_LED_MASK	(3 << 14)
+#define PORT_PIC_MASK	GENMASK(15, 14)
+#define PIC_OFF		0
+#define PIC_AMBER	1
+#define PIC_GREEN	2
 /* bit 16 - Port Link State Write Strobe (LWS), set this when changing link state */
 #define PORT_LINK_STROBE	(1 << 16)
 /* bit 17 - Connect Status Change (CSC) */
@@ -131,7 +131,7 @@
  * bits 8:5, 9, 15:14, 25, 26, 27
  * link state, port power, port indicator state, "wake on" enable state
  */
-#define XHCI_PORT_RWS	(PORT_PLS_MASK | PORT_POWER | PORT_LED_MASK | PORT_WKCONN_E | \
+#define XHCI_PORT_RWS	(PORT_PLS_MASK | PORT_POWER | PORT_PIC_MASK | PORT_WKCONN_E | \
 			 PORT_WKDISC_E | PORT_WKOC_E)
 /*
  * These bits are RW1S; writing 1 sets the bit, writing 0 has no effect.
