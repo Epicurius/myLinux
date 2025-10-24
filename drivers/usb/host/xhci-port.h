@@ -8,14 +8,14 @@
 
 /* Port Status and Control (PORTSC) 5.4.8 */
 /* bit 0 - Current Connect Status (CCS) */
-#define PORT_CONNECT	(1 << 0)
+#define PORT_CONNECT	BIT(0)
 /* bit 1 - Port Enabled/Disabled (PED) */
-#define PORT_PE		(1 << 1)
+#define PORT_PE		BIT(1)
 /* bit 2 - Rsvd */
 /* bit 3 - Over-current Active (OCA) */
-#define PORT_OC		(1 << 3)
+#define PORT_OC		BIT(3)
 /* bit 4 - Port Reset (PR) */
-#define PORT_RESET	(1 << 4)
+#define PORT_RESET	BIT(4)
 /*
  * bits 8:5 - Port Link State (PLS), by default '5'.
  * Reading gives the current link PM state of the port.
@@ -38,7 +38,7 @@
 /* Values 12-14 are Reserved */
 #define PLS_RESUME	0x1e0
 /* bit 9 - Port Power (PP) */
-#define PORT_POWER	(1 << 9)
+#define PORT_POWER	BIT(9)
 /*
  * bits 13:10 - Port Speed
  * Values defined in xHCI specification 7.2.2.1.1:
@@ -64,11 +64,11 @@
 #define PIC_AMBER	1
 #define PIC_GREEN	2
 /* bit 16 - Port Link State Write Strobe (LWS), set this when changing link state */
-#define PORT_LINK_STROBE	(1 << 16)
+#define PORT_LINK_STROBE	BIT(16)
 /* bit 17 - Connect Status Change (CSC) */
-#define PORT_CSC	(1 << 17)
+#define PORT_CSC	BIT(17)
 /* bit 18 - Port Enabled/Disabled Change (PEC) */
-#define PORT_PEC	(1 << 18)
+#define PORT_PEC	BIT(18)
 /*
  * bit 19 - Warm Port Reset Change (WRC)
  * Warm reset for a USB 3.0 device is done.  A "hot" reset puts the port
@@ -76,11 +76,11 @@
  * also resets the link, forcing the device through the link training sequence.
  * SW can also look at the Port Reset register to see when warm reset is done.
  */
-#define PORT_WRC	(1 << 19)
+#define PORT_WRC	BIT(19)
 /* bit 20 - Over-current Change (OCC) */
-#define PORT_OCC	(1 << 20)
+#define PORT_OCC	BIT(20)
 /* bit 21 - Port Reset Change (PRC) */
-#define PORT_RC		(1 << 21)
+#define PORT_RC		BIT(21)
 /*
  * bit 22 - Port Link State Change (PLC), set on some port link state transitions:
  *  Transition				Reason
@@ -95,26 +95,26 @@
  *  - U0 to disabled			L1 entry error with USB 2.1 device
  *  - Any state to inactive		Error on USB 3.0 port
  */
-#define PORT_PLC	(1 << 22)
+#define PORT_PLC	BIT(22)
 /* bit 23 - Port Config Error Change (CEC), port failed to configure its link partner */
-#define PORT_CEC	(1 << 23)
+#define PORT_CEC	BIT(23)
 /*
  * bit 24 - Cold Attach Status (CAS)
  * xHC can set this bit to report device attached during Sx state.
  * Warm port reset should be perfomed to clear this bit and move port to connected state.
  */
-#define PORT_CAS	(1 << 24)
+#define PORT_CAS	BIT(24)
 /* bit 25 - Wake on Connect Enable (WCE) */
-#define PORT_WKCONN_E	(1 << 25)
+#define PORT_WKCONN_E	BIT(25)
 /* bit 26 - Wake on Disconnect Enable (WDE) */
-#define PORT_WKDISC_E	(1 << 26)
+#define PORT_WKDISC_E	BIT(26)
 /* bit 27 - Wake on Over-current Enable (WOE) */
-#define PORT_WKOC_E	(1 << 27)
+#define PORT_WKOC_E	BIT(27)
 /* bits 29:28 - RsvdZ */
 /* bit 30 - Device Removable (DR), for USB 3.0 roothub emulation */
-#define PORT_DEV_REMOVE	(1 << 30)
+#define PORT_DEV_REMOVE	BIT(30)
 /* bit 31 - Warm Port Reset (WPR), complete when PORT_WRC is '1' */
-#define PORT_WR		(1 << 31)
+#define PORT_WR		BIT(31)
 
 /* bits 25, 26, 27 */
 #define	PORT_WAKE_BITS	(PORT_WKOC_E | PORT_WKDISC_E | PORT_WKCONN_E)
