@@ -185,9 +185,9 @@
 /* USB3 Port Link Info Register (PORTLI) 5.4.10.1 */
 /* bits 15:0 - Link Error Count */
 /* bits 19:16 - Rx Lane Count (RLC) */
-#define PORT_RX_LANES(p)	(((p) >> 16) & 0xf)
+#define PORT_RLC_MASK		GENMASK(19, 16)
 /* bits 23:20 - Tx Lane Count (TLC) */
-#define PORT_TX_LANES(p)	(((p) >> 20) & 0xf)
+#define PORT_TLC_MASK		GENMASK(23, 20)
 /* bits 31:24 - RsvdP */
 
 /* USB2 Port Link Info Register (PORTLI) 5.4.10.2 */
