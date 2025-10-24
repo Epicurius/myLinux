@@ -1323,13 +1323,11 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 					 hcd->self.busnum, portnum1);
 				portsc = xhci_port_state_to_neutral(portsc);
 				/*
-				 * Clear all change bits, so that we get a new
+				 * Clear all Write-1-to-clear bits, so that we get a new
 				 * connection event.
 				 */
-				portsc |= PORT_CSC | PORT_PEC | PORT_WRC |
-					  PORT_OCC | PORT_RC | PORT_PLC |
-					  PORT_CEC;
-				xhci_portsc_writel(port, portsc | PORT_PE);
+				portsc |= XHCI_PORT_RW1CS;
+				xhci_portsc_writel(port, portsc);
 				portsc = xhci_portsc_readl(port);
 				break;
 			}
@@ -1635,7 +1633,8 @@ int xhci_hub_status_data(struct usb_hcd *hcd, char *buf)
 			xhci->run_graceperiod = 0;
 	}
 
-	mask = PORT_CSC | PORT_PEC | PORT_OCC | PORT_PLC | PORT_WRC | PORT_CEC;
+	/* All RW1CS bits except for PORT_PE and PORT_RC */
+	mask = PORT_CSC | PORT_PEC | PORT_WRC | PORT_OCC | PORT_PLC | PORT_CEC;
 
 	/* For each port, did anything change?  If so, set that bit in buf. */
 	for (i = 0; i < max_ports; i++) {
