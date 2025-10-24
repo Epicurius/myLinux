@@ -169,21 +169,18 @@
 
 /* USB2 Port Power Management Status and Control (PORTPMSC) 5.4.9.2 */
 /* bits 2:0 - L1 Status (L1S) */
-#define	PORT_L1S_MASK		7
-#define	PORT_L1S_SUCCESS	1
+#define	PORT_L1S_MASK		GENMASK(2, 0)
 /* bit 3 - Remote Wake Enable (RWE) */
-#define	PORT_RWE		(1 << 3)
+#define	PORT_RWE		BIT(3)
 /* bits 7:4 - Best Effort Service Latency (BESL) */
-#define	PORT_HIRD(p)		(((p) & 0xf) << 4)
-#define	PORT_HIRD_MASK		(0xf << 4)
+#define	PORT_BESL_MASK		GENMASK(7, 4)
 /* bits 15:8 - L1 Device Slot */
-#define	PORT_L1DS_MASK		(0xff << 8)
-#define	PORT_L1DS(p)		(((p) & 0xff) << 8)
+#define	PORT_L1DS_MASK		GENMASK(15, 8)
 /* bit 16 - Hardware LPM Enable (HLE) */
-#define	PORT_HLE		(1 << 16)
+#define	PORT_HLE		BIT(16)
 /* bits 27:17 - RsvdP */
 /* bits 31:28 - Port Test Control (Test Mode) */
-#define PORT_TEST_MODE_SHIFT	28
+#define PORT_TEST_MODE_MASK	GENMASK(31, 28)
 
 /* USB3 Port Link Info Register (PORTLI) 5.4.10.1 */
 /* bits 15:0 - Link Error Count */

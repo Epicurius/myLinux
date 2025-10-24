@@ -644,7 +644,7 @@ static void xhci_port_set_test_mode(struct xhci_hcd *xhci,
 	/* xhci only supports test mode for usb2 ports */
 	port = xhci->usb2_rhub.ports[wIndex];
 	portpmsc = readl(&port->port_reg->portpmsc);
-	portpmsc |= test_mode << PORT_TEST_MODE_SHIFT;
+	portpmsc |= FIELD_PREP(PORT_TEST_MODE_MASK, test_mode);
 	writel(portpmsc, &port->port_reg->portpmsc);
 	xhci->test_mode = test_mode;
 	if (test_mode == USB_TEST_FORCE_ENABLE)
