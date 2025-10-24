@@ -122,9 +122,6 @@
 				 PORT_RC | PORT_PLC | PORT_CEC)
 /* bits 25, 26, 27 */
 #define	PORT_WAKE_BITS	(PORT_WKOC_E | PORT_WKDISC_E | PORT_WKCONN_E)
-/* bits 1, 17, 18, 19, 20, 21, 22 */
-#define	PORT_RWC_BITS	(PORT_PE | PORT_CSC | PORT_PEC | PORT_WRC | PORT_OCC | \
-			 PORT_RC | PORT_PLC)
 /*
  * These bits are RO/ROS; can only be read.
  * bits 0, 3, 13:10, 24, 30

@@ -1818,7 +1818,7 @@ static bool xhci_port_missing_cas_quirk(struct xhci_port *port)
 		return false;
 
 	/* clear wakeup/change bits, and do a warm port reset */
-	portsc &= ~(PORT_RWC_BITS | PORT_CEC | PORT_WAKE_BITS);
+	portsc &= ~(XHCI_PORT_RW1CS | PORT_WAKE_BITS);
 	portsc |= PORT_WR;
 	xhci_portsc_writel(port, portsc);
 	/* flush write */
@@ -1898,7 +1898,7 @@ int xhci_bus_resume(struct usb_hcd *hcd)
 				break;
 			}
 		/* disable wake for all ports, write new link state if needed */
-		portsc &= ~(PORT_RWC_BITS | PORT_CEC | PORT_WAKE_BITS);
+		portsc &= ~(XHCI_PORT_RW1CS | PORT_WAKE_BITS);
 		xhci_portsc_writel(ports[port_index], portsc);
 	}
 
