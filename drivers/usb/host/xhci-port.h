@@ -157,15 +157,13 @@
  * Timeout can be 0us to 127us (0x7f), in 1us increments.
  * Value 0xff means an infinite timeout.
  */
-#define PORT_U1_TIMEOUT(p)	((p) & 0xff)
-#define PORT_U1_TIMEOUT_MASK	0xff
+#define PORT_U1_TIMEOUT_MASK	GENMASK(7, 0)
 /*
  * bits 15:8 - U2 Timeout, inactivity timer value for transitions into U2.
  * Timeout can be 0us to 65024ms (0xfe), in 256us increments.
  * Value 0xff means an infinite timeout.
  */
-#define PORT_U2_TIMEOUT(p)	(((p) & 0xff) << 8)
-#define PORT_U2_TIMEOUT_MASK	(0xff << 8)
+#define PORT_U2_TIMEOUT_MASK	GENMASK(15, 8)
 /* bit 16 - Force Link PM Accept (FLA) */
 /* bits 31:17 - RsvdP */
 

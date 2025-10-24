@@ -1477,16 +1477,14 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 			if (hcd->speed < HCD_USB3)
 				goto error;
 			portpmsc = readl(&port->port_reg->portpmsc);
-			portpmsc &= ~PORT_U1_TIMEOUT_MASK;
-			portpmsc |= PORT_U1_TIMEOUT(timeout);
+			FIELD_MODIFY(PORT_U1_TIMEOUT_MASK, &portpmsc, timeout);
 			writel(portpmsc, &port->port_reg->portpmsc);
 			break;
 		case USB_PORT_FEAT_U2_TIMEOUT:
 			if (hcd->speed < HCD_USB3)
 				goto error;
 			portpmsc = readl(&port->port_reg->portpmsc);
-			portpmsc &= ~PORT_U2_TIMEOUT_MASK;
-			portpmsc |= PORT_U2_TIMEOUT(timeout);
+			FIELD_MODIFY(PORT_U2_TIMEOUT_MASK, &portpmsc, timeout);
 			writel(portpmsc, &port->port_reg->portpmsc);
 			break;
 		case USB_PORT_FEAT_TEST:
