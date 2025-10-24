@@ -117,9 +117,6 @@
 /* bit 31 - Warm Port Reset (WPR), complete when PORT_WRC is '1' */
 #define PORT_WR		(1 << 31)
 
-/* bits 17, 18, 19, 20, 21, 22, 23 */
-#define PORT_CHANGE_MASK	(PORT_CSC | PORT_PEC | PORT_WRC | PORT_OCC | \
-				 PORT_RC | PORT_PLC | PORT_CEC)
 /* bits 25, 26, 27 */
 #define	PORT_WAKE_BITS	(PORT_WKOC_E | PORT_WKDISC_E | PORT_WKCONN_E)
 /*

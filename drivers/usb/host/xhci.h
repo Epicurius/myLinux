@@ -2426,7 +2426,7 @@ static inline const char *xhci_decode_portsc(char *str, u32 portsc)
 		ret += sprintf(str + ret, "WOE ");
 
 	/* Read-Write 1 to Clear */
-	if (portsc & (PORT_PE | PORT_CHANGE_MASK)) {
+	if (portsc & XHCI_PORT_RW1CS) {
 		ret += sprintf(str + ret, "RW1C: ");
 		if (portsc & PORT_PE)
 			ret += sprintf(str + ret, "PED ");
