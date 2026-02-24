@@ -2045,7 +2045,7 @@ static void handle_port_status(struct xhci_hcd *xhci, union xhci_trb *event)
 	bus_state = &port->rhub->bus_state;
 	hcd_portnum = port->hcd_portnum;
 	portsc = xhci_portsc_readl(port);
-	pls = portsc & PORT_PLS_MASK;
+	pls = FIELD_GET(PORT_PLS_MASK, portsc);
 
 	xhci_dbg(xhci, "Port change event, %d-%d, id %d, portsc: 0x%x\n",
 		 hcd->self.busnum, hcd_portnum + 1, port_id, portsc);
@@ -2061,12 +2061,10 @@ static void handle_port_status(struct xhci_hcd *xhci, union xhci_trb *event)
 	 * Tag broken links to avoid retries while hub driver sorts it out.
 	 * Link status is not relible while port is in reset.
 	 */
-	if (!(portsc & PORT_RESET)) {
-		port->link_inactive = (pls == XDEV_INACTIVE);
-		port->connected = !!(portsc & PORT_CONNECT);
-	}
+	if (!(portsc & PORT_RESET))
+		port->link_inactive = (pls == PLS_INACTIVE);
 
-	if ((portsc & PORT_PLC) && (portsc & PORT_PLS_MASK) == XDEV_RESUME) {
+	if ((portsc & PORT_PLC) && FIELD_GET(PORT_PLS_MASK, portsc) == PLS_RESUME) {
 		xhci_dbg(xhci, "port resume event for port %d\n", port_id);
 
 		cmd_reg = readl(&xhci->op_regs->command);
@@ -2084,7 +2082,7 @@ static void handle_port_status(struct xhci_hcd *xhci, union xhci_trb *event)
 			bus_state->port_remote_wakeup |= 1 << hcd_portnum;
 			xhci_test_and_clear_bit(xhci, port, PORT_PLC);
 			usb_hcd_start_port_resume(&hcd->self, hcd_portnum);
-			xhci_set_link_state(xhci, port, XDEV_U0);
+			xhci_set_link_state(xhci, port, PLS_U0);
 			/* Need to wait until the next link state change
 			 * indicates the device is actually in U0.
 			 */
@@ -2107,10 +2105,9 @@ static void handle_port_status(struct xhci_hcd *xhci, union xhci_trb *event)
 		}
 	}
 
+	pls = FIELD_GET(PORT_PLS_MASK, portsc);
 	if ((portsc & PORT_PLC) && FIELD_GET(PORT_SPEED_MASK, portsc) >= PORT_SPEED_SS &&
-	    ((portsc & PORT_PLS_MASK) == XDEV_U0 ||
-	     (portsc & PORT_PLS_MASK) == XDEV_U1 ||
-	     (portsc & PORT_PLS_MASK) == XDEV_U2)) {
+	    (pls == PLS_U0 || pls == PLS_U1 || pls == PLS_U2)) {
 		xhci_dbg(xhci, "resume SS port %d finished\n", port_id);
 		complete(&port->u3exit_done);
 		/* We've just brought the device into U0/1/2 through either the
