@@ -516,18 +516,45 @@ struct xhci_ep_ctx {
  *
  * @drop_context:	set the bit of the endpoint context you want to disable
  * @add_context:	set the bit of the endpoint context you want to enable
+ * @config:		Configuration value, Interface number and Alternate setting
  */
 struct xhci_input_control_ctx {
 	__le32	drop_flags;
 	__le32	add_flags;
-	__le32	rsvd2[6];
+	__le32	rsvd[5];
+	__le32	config;
 };
-#define SLOT_FLAG	BIT(0)
-#define EP0_FLAG	BIT(1)
-#define	EP_IS_ADDED(ctrl_ctx, i) \
-	(le32_to_cpu(ctrl_ctx->add_flags) & (1 << (i + 1)))
+/*
+ * Device Context data:
+ * ICI 0 - Reserved (used for Scratchpad)
+ * ICI 1 - Slot Context
+ * ICI 2 - Endpoint 0 (Control)
+ * ICI 3 - Endpoint 1 OUT
+ * ICI 4 - Endpoint 1 IN
+ * ICI 5 - Endpoint 2 OUT
+ * ICI 6 - Endpoint 2 IN
+ * ...and so on
+ */
+
+/* drop_flags bitmasks */
+/* bits 1:0 - RsvdZ */
+/* bits 31:2 - Drop Context flags */
 #define	EP_IS_DROPPED(ctrl_ctx, i)       \
 	(le32_to_cpu(ctrl_ctx->drop_flags) & (1 << (i + 1)))
+
+/* add_flags bitmasks */
+/* bits 31:0 - Add Context flags, see  */
+#define SLOT_FLAG	BIT(0) // DCI
+#define EP0_FLAG	BIT(1) // DCI
+#define	EP_IS_ADDED(ctrl_ctx, i) \
+	(le32_to_cpu(ctrl_ctx->add_flags) & (1 << (i + 1)))
+
+/* config bitmasks */
+/* bits 7:0 - Configuration Value */
+/* bits 15:8 - Interface Number */
+/* bits 23:16 - Alternate Setting */
+/* bits 31:24 - RsvdZ */
+
 
 /* Represents everything that is needed to issue a command on the command ring.
  * It's useful to pre-allocate these for commands that cannot fail due to

@@ -1441,25 +1441,33 @@ static void xhci_unmap_urb_for_dma(struct usb_hcd *hcd, struct urb *urb)
 }
 
 /**
- * xhci_get_endpoint_index - Used for passing endpoint bitmasks between the core and
- * HCDs.  Find the index for an endpoint given its descriptor.  Use the return
- * value to right shift 1 for the bitmask.
+ * xhci_get_endpoint_index - Used for passing endpoint bitmasks between the core and HCDs.
  * @desc: USB endpoint descriptor to determine index for
  *
- * Index  = (epnum * 2) + direction - 1,
- * where direction = 0 for OUT, 1 for IN.
- * For control endpoints, the IN index is used (OUT index is unused), so
- * index = (epnum * 2) + direction - 1 = (epnum * 2) + 1 - 1 = (epnum * 2)
+ * Returns the 'ep_index', a internal zero-based endpoint number.
+ *
+ * Device Context Index (DCI) = (ep_index + 1)
+ * Input Context Index (ICI) = (ep_index + 2)
  */
 unsigned int xhci_get_endpoint_index(struct usb_endpoint_descriptor *desc)
 {
-	unsigned int index;
+	unsigned int epnum = usb_endpoint_num(desc);
+	unsigned int ep_index;
+
 	if (usb_endpoint_xfer_control(desc))
-		index = (unsigned int) (usb_endpoint_num(desc)*2);
+		// ICI = (Endpoint Number + 1) * 2,	ICI = 2E + 2
+		// DCI = (Endpoint Number * 2) + 1,	DCI = 2E + 1
+		ep_index = (epnum * 2);              // EI  = 2E
+	else if (usb_endpoint_dir_in(desc))
+		// ICI = (Endpoint Number * 2) + 1 + 1	ICI = 2E + 2
+		// DCI = (Endpoint Number * 2) + 1	DCI = 2E + 1
+		ep_index = (epnum * 2);              // EI  = 2E
 	else
-		index = (unsigned int) (usb_endpoint_num(desc)*2) +
-			(usb_endpoint_dir_in(desc) ? 1 : 0) - 1;
-	return index;
+		// ICI = (Endpoint Number * 2) + 1	ICI = 2E + 1
+		// DCI = (Endpoint Number * 2)		DCI = 2E + 0
+		ep_index = (epnum * 2) - 1;	     // EI  = 2E - 1
+
+	return ep_index;
 }
 EXPORT_SYMBOL_GPL(xhci_get_endpoint_index);
 
@@ -1918,6 +1926,7 @@ int xhci_drop_endpoint(struct usb_hcd *hcd, struct usb_device *udev,
 	xhci_dbg(xhci, "%s called for udev %p\n", __func__, udev);
 	drop_flag = xhci_get_endpoint_flag(&ep->desc);
 	if (drop_flag == SLOT_FLAG || drop_flag == EP0_FLAG) {
+		/* Bits 1:0 in Input Control Context are RsvdZ */
 		xhci_dbg(xhci, "xHCI %s - can't drop slot or ep 0 %#x\n",
 				__func__, drop_flag);
 		return 0;
