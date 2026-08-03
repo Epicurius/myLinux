@@ -355,9 +355,17 @@ struct xhci_slot_ctx {
 /* dev_info bitmasks */
 /* Route String - 0:19 */
 #define ROUTE_STRING_MASK	(0xfffff)
-/* Device speed - values defined by PORTSC Device Speed field - 20:23 */
+/*
+ * bits 23:20 - Device speed, values defined by PORTSC Device Speed field
+ * xHCI version 1.2 onwards these bits are Reserved
+ */
 #define DEV_SPEED	(0xf << 20)
 #define GET_DEV_SPEED(n) (((n) & DEV_SPEED) >> 20)
+#define	SLOT_SPEED_FS		(PORT_SPEED_FS << 20)
+#define	SLOT_SPEED_LS		(PORT_SPEED_LS << 20)
+#define	SLOT_SPEED_HS		(PORT_SPEED_HS << 20)
+#define	SLOT_SPEED_SS		(PORT_SPEED_SS << 20)
+#define	SLOT_SPEED_SSP		(PORT_SPEED_SSP << 20)
 /* bit 24 reserved */
 /* Is this LS/FS device connected through a HS hub? - bit 25 */
 #define DEV_MTT		BIT(25)
