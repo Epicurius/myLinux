@@ -4199,25 +4199,24 @@ int xhci_disable_and_free_slot(struct xhci_hcd *xhci, u32 slot_id)
 /*
  * Checks if we have enough host controller resources for the default control
  * endpoint.
- *
- * Must be called with xhci->lock held.
  */
 static int xhci_reserve_host_control_ep_resources(struct xhci_hcd *xhci)
 {
+	unsigned long flags;
+
+	spin_lock_irqsave(&xhci->lock, flags);
 	if (xhci->num_active_eps + 1 > xhci->limit_active_eps) {
-		xhci_dbg_trace(xhci, trace_xhci_dbg_quirks,
-				"Not enough ep ctxs: "
-				"%u active, need to add 1, limit is %u.",
-				xhci->num_active_eps, xhci->limit_active_eps);
+		xhci_dbg_trace(xhci, trace_xhci_dbg_quirks, "Not enough ep ctxs: %u active, need to add 1, limit is %u.",
+			       xhci->num_active_eps, xhci->limit_active_eps);
+		spin_unlock_irqrestore(&xhci->lock, flags);
 		return -ENOMEM;
 	}
+
 	xhci->num_active_eps += 1;
-	xhci_dbg_trace(xhci, trace_xhci_dbg_quirks,
-			"Adding 1 ep ctx, %u now active.",
-			xhci->num_active_eps);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_quirks, "Adding 1 ep ctx, %u now active.", xhci->num_active_eps);
+	spin_unlock_irqrestore(&xhci->lock, flags);
 	return 0;
 }
-
 
 /*
  * Returns 0 if the xHC ran out of device slots, the Enable Slot command
@@ -4232,9 +4231,15 @@ int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev)
 	int ret, slot_id;
 	struct xhci_command *command;
 
+	if (xhci->quirks & XHCI_EP_LIMIT_QUIRK) {
+		ret = xhci_reserve_host_control_ep_resources(xhci);
+		if (ret)
+			return 0;
+	}
+
 	command = xhci_alloc_command(xhci, true, GFP_KERNEL);
 	if (!command)
-		return 0;
+		goto fail;
 
 	spin_lock_irqsave(&xhci->lock, flags);
 	ret = xhci_queue_slot_control(xhci, command, TRB_ENABLE_SLOT, 0);
@@ -4242,7 +4247,7 @@ int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev)
 		spin_unlock_irqrestore(&xhci->lock, flags);
 		xhci_dbg(xhci, "FIXME: allocate a command ring segment\n");
 		xhci_free_command(xhci, command);
-		return 0;
+		goto fail;
 	}
 	xhci_ring_cmd_db(xhci);
 	spin_unlock_irqrestore(&xhci->lock, flags);
@@ -4256,23 +4261,11 @@ int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev)
 		xhci_err(xhci, "Max number of devices this xHCI host supports is %u.\n",
 			 xhci->max_slots);
 		xhci_free_command(xhci, command);
-		return 0;
+		goto fail;
 	}
 
 	xhci_free_command(xhci, command);
 
-	if ((xhci->quirks & XHCI_EP_LIMIT_QUIRK)) {
-		spin_lock_irqsave(&xhci->lock, flags);
-		ret = xhci_reserve_host_control_ep_resources(xhci);
-		if (ret) {
-			spin_unlock_irqrestore(&xhci->lock, flags);
-			xhci_warn(xhci, "Not enough host resources, "
-					"active endpoint contexts = %u\n",
-					xhci->num_active_eps);
-			goto disable_slot;
-		}
-		spin_unlock_irqrestore(&xhci->lock, flags);
-	}
 	/* Use GFP_NOIO, since this function can be called from
 	 * xhci_discover_or_reset_device(), which may be called as part of
 	 * mass storage driver error handling.
@@ -4307,7 +4300,12 @@ int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev)
 
 disable_slot:
 	xhci_disable_slot(xhci, slot_id);
-
+fail:
+	if (xhci->quirks & XHCI_EP_LIMIT_QUIRK) {
+		spin_lock_irqsave(&xhci->lock, flags);
+		xhci->num_active_eps -= 1;
+		spin_unlock_irqrestore(&xhci->lock, flags);
+	}
 	return 0;
 }
 
