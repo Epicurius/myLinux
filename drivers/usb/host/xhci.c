@@ -4218,6 +4218,42 @@ static int xhci_reserve_host_control_ep_resources(struct xhci_hcd *xhci)
 	return 0;
 }
 
+static int xhci_enable_slot(struct xhci_hcd *xhci, int *slot_id)
+{
+	struct xhci_command *command;
+	unsigned long flags;
+	int ret;
+
+	command = xhci_alloc_command(xhci, true, GFP_KERNEL);
+	if (!command)
+		return -ENOMEM;
+
+	spin_lock_irqsave(&xhci->lock, flags);
+
+	ret = xhci_queue_slot_control(xhci, command, TRB_ENABLE_SLOT, 0);
+	if (!ret)
+		xhci_ring_cmd_db(xhci);
+
+	spin_unlock_irqrestore(&xhci->lock, flags);
+
+	if (!ret) {
+		wait_for_completion(command->completion);
+
+		if (!command->slot_id || command->status != COMP_SUCCESS) {
+			xhci_err(xhci, "Error while assigning device slot ID: %s\n",
+				 xhci_trb_comp_code_string(command->status));
+			xhci_err(xhci, "Max number of devices this xHCI host supports is %u.\n",
+				 xhci->max_slots);
+			ret = -EIO;
+		} else {
+			*slot_id = command->slot_id;
+		}
+	}
+
+	xhci_free_command(xhci, command);
+	return 0;
+}
+
 /*
  * Returns 0 if the xHC ran out of device slots, the Enable Slot command
  * timed out, or allocating memory failed.  Returns 1 on success.
@@ -4229,7 +4265,6 @@ int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev)
 	struct xhci_slot_ctx *slot_ctx;
 	unsigned long flags;
 	int ret, slot_id;
-	struct xhci_command *command;
 
 	if (xhci->quirks & XHCI_EP_LIMIT_QUIRK) {
 		ret = xhci_reserve_host_control_ep_resources(xhci);
@@ -4237,36 +4272,12 @@ int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev)
 			return 0;
 	}
 
-	command = xhci_alloc_command(xhci, true, GFP_KERNEL);
-	if (!command)
+	ret = xhci_enable_slot(xhci, &slot_id);
+	if (ret)
 		goto fail;
 
-	spin_lock_irqsave(&xhci->lock, flags);
-	ret = xhci_queue_slot_control(xhci, command, TRB_ENABLE_SLOT, 0);
-	if (ret) {
-		spin_unlock_irqrestore(&xhci->lock, flags);
-		xhci_dbg(xhci, "FIXME: allocate a command ring segment\n");
-		xhci_free_command(xhci, command);
-		goto fail;
-	}
-	xhci_ring_cmd_db(xhci);
-	spin_unlock_irqrestore(&xhci->lock, flags);
-
-	wait_for_completion(command->completion);
-	slot_id = command->slot_id;
-
-	if (!slot_id || command->status != COMP_SUCCESS) {
-		xhci_err(xhci, "Error while assigning device slot ID: %s\n",
-			 xhci_trb_comp_code_string(command->status));
-		xhci_err(xhci, "Max number of devices this xHCI host supports is %u.\n",
-			 xhci->max_slots);
-		xhci_free_command(xhci, command);
-		goto fail;
-	}
-
-	xhci_free_command(xhci, command);
-
-	/* Use GFP_NOIO, since this function can be called from
+	/*
+	 * Use GFP_NOIO, since this function can be called from
 	 * xhci_discover_or_reset_device(), which may be called as part of
 	 * mass storage driver error handling.
 	 */
@@ -4279,12 +4290,13 @@ int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev)
 		}
 		goto disable_slot;
 	}
+
 	vdev = xhci->devs[slot_id];
+
 	slot_ctx = xhci_get_slot_ctx(xhci, vdev->out_ctx);
 	trace_xhci_alloc_dev(slot_ctx);
 
 	udev->slot_id = slot_id;
-
 	xhci_debugfs_create_slot(xhci, slot_id);
 
 	/*
