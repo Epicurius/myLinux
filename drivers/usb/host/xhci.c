@@ -4263,7 +4263,6 @@ int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	struct xhci_virt_device *vdev;
-	struct xhci_slot_ctx *slot_ctx;
 	unsigned long flags;
 	int ret, slot_id;
 
@@ -4275,14 +4274,15 @@ int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev)
 
 	ret = xhci_enable_slot(xhci, &slot_id);
 	if (ret)
-		goto fail;
+		goto remove_active_ep;
 
 	/*
 	 * Use GFP_NOIO, since this function can be called from
 	 * xhci_discover_or_reset_device(), which may be called as part of
 	 * mass storage driver error handling.
 	 */
-	if (!xhci_alloc_virt_device(xhci, slot_id, udev, GFP_NOIO)) {
+	vdev = xhci_alloc_virt_device(xhci, GFP_NOIO);
+	if (!vdev) {
 		xhci_warn(xhci, "Could not allocate xHCI USB device data structures\n");
 		if (xhci->quirks & XHCI_EP_LIMIT_QUIRK) {
 			spin_lock_irqsave(&xhci->lock, flags);
@@ -4292,12 +4292,32 @@ int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev)
 		goto disable_slot;
 	}
 
-	vdev = xhci->devs[slot_id];
+	xhci->devs[slot_id] = vdev;
+	vdev->slot_id = slot_id;
 
-	slot_ctx = xhci_get_slot_ctx(xhci, vdev->out_ctx);
-	trace_xhci_alloc_dev(slot_ctx);
+	xhci_ring_init(xhci, vdev->eps[0].ring);
 
+	/* Initialize the cancellation and bandwidth list for each ep */
+	for (int i = 0; i < 31; i++) {
+		vdev->eps[i].ep_index = i;
+		vdev->eps[i].vdev = vdev;
+		INIT_LIST_HEAD(&vdev->eps[i].cancelled_td_list);
+		INIT_LIST_HEAD(&vdev->eps[i].bw_endpoint_list);
+	}
+
+	/* Point to output device context in dcbaa. */
+	xhci->dcbaa.ctx_array[slot_id] = cpu_to_le64(vdev->out_ctx->dma);
+	xhci_dbg(xhci, "Set slot id %d dcbaa entry %p to 0x%llx\n",
+		 slot_id,
+		 &xhci->dcbaa.ctx_array[slot_id],
+		 le64_to_cpu(xhci->dcbaa.ctx_array[slot_id]));
+
+	trace_xhci_init_virt_device(vdev);
+
+	vdev->udev = udev;
 	udev->slot_id = slot_id;
+
+	trace_xhci_alloc_dev(xhci_get_slot_ctx(xhci, vdev->out_ctx));
 	xhci_debugfs_create_slot(xhci, slot_id);
 
 	/*
@@ -4313,7 +4333,7 @@ int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev)
 
 disable_slot:
 	xhci_disable_slot(xhci, slot_id);
-fail:
+remove_active_ep:
 	if (xhci->quirks & XHCI_EP_LIMIT_QUIRK) {
 		spin_lock_irqsave(&xhci->lock, flags);
 		xhci->num_active_eps -= 1;

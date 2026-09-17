@@ -220,7 +220,7 @@ DECLARE_EVENT_CLASS(xhci_log_virt_dev,
 	)
 );
 
-DEFINE_EVENT(xhci_log_virt_dev, xhci_alloc_virt_device,
+DEFINE_EVENT(xhci_log_virt_dev, xhci_init_virt_device,
 	TP_PROTO(struct xhci_virt_device *vdev),
 	TP_ARGS(vdev)
 );

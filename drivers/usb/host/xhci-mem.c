@@ -960,76 +960,39 @@ out:
 	xhci_free_virt_device(xhci, xhci->devs[slot_id], slot_id);
 }
 
-int xhci_alloc_virt_device(struct xhci_hcd *xhci, int slot_id,
-		struct usb_device *udev, gfp_t flags)
+struct xhci_virt_device *xhci_alloc_virt_device(struct xhci_hcd *xhci, gfp_t flags)
 {
 	struct xhci_virt_device *dev;
-	int i;
-
-	/* Slot ID 0 is reserved */
-	if (slot_id == 0 || xhci->devs[slot_id]) {
-		xhci_warn(xhci, "Bad Slot ID %d\n", slot_id);
-		return 0;
-	}
 
 	dev = kzalloc_obj(*dev, flags);
 	if (!dev)
-		return 0;
-
-	dev->slot_id = slot_id;
+		return NULL;
 
 	/* Allocate the (output) device context that will be used in the HC. */
 	dev->out_ctx = xhci_alloc_container_ctx(xhci, XHCI_CTX_TYPE_DEVICE, flags);
 	if (!dev->out_ctx)
 		goto fail;
 
-	xhci_dbg(xhci, "Slot %d output ctx = %pad (dma)\n", slot_id, &dev->out_ctx->dma);
-
 	/* Allocate the (input) device context for address device command */
 	dev->in_ctx = xhci_alloc_container_ctx(xhci, XHCI_CTX_TYPE_INPUT, flags);
 	if (!dev->in_ctx)
 		goto fail;
-
-	xhci_dbg(xhci, "Slot %d input ctx = %pad (dma)\n", slot_id, &dev->in_ctx->dma);
-
-	/* Initialize the cancellation and bandwidth list for each ep */
-	for (i = 0; i < 31; i++) {
-		dev->eps[i].ep_index = i;
-		dev->eps[i].vdev = dev;
-		INIT_LIST_HEAD(&dev->eps[i].cancelled_td_list);
-		INIT_LIST_HEAD(&dev->eps[i].bw_endpoint_list);
-	}
 
 	/* Allocate endpoint 0 ring */
 	dev->eps[0].ring = xhci_ring_alloc(xhci, 2, TYPE_CTRL, 0, flags);
 	if (!dev->eps[0].ring)
 		goto fail;
 
-	xhci_ring_init(xhci, dev->eps[0].ring);
+	return dev;
 
-	dev->udev = udev;
-
-	/* Point to output device context in dcbaa. */
-	xhci->dcbaa.ctx_array[slot_id] = cpu_to_le64(dev->out_ctx->dma);
-	xhci_dbg(xhci, "Set slot id %d dcbaa entry %p to 0x%llx\n",
-		 slot_id,
-		 &xhci->dcbaa.ctx_array[slot_id],
-		 le64_to_cpu(xhci->dcbaa.ctx_array[slot_id]));
-
-	trace_xhci_alloc_virt_device(dev);
-
-	xhci->devs[slot_id] = dev;
-
-	return 1;
 fail:
-
 	if (dev->in_ctx)
 		xhci_free_container_ctx(xhci, dev->in_ctx);
 	if (dev->out_ctx)
 		xhci_free_container_ctx(xhci, dev->out_ctx);
 	kfree(dev);
 
-	return 0;
+	return NULL;
 }
 
 void xhci_copy_ep0_dequeue_into_input_ctx(struct xhci_hcd *xhci,
