@@ -4144,11 +4144,10 @@ static void xhci_remove_dev(struct usb_hcd *hcd, struct usb_device *udev)
 
 }
 
-int xhci_disable_slot(struct xhci_hcd *xhci, u32 slot_id)
+int xhci_disable_slot(struct xhci_hcd *xhci, struct xhci_virt_device *vdev)
 {
 	struct xhci_command *command;
 	unsigned long flags;
-	u32 state;
 	int ret;
 
 	command = xhci_alloc_command(xhci, true, GFP_KERNEL);
@@ -4156,34 +4155,47 @@ int xhci_disable_slot(struct xhci_hcd *xhci, u32 slot_id)
 		return -ENOMEM;
 
 	spin_lock_irqsave(&xhci->lock, flags);
+
 	/* Don't disable the slot if the host controller is dead. */
-	state = readl(&xhci->op_regs->status);
-	if (state == 0xffffffff || (xhci->xhc_state & XHCI_STATE_DYING) ||
-			(xhci->xhc_state & XHCI_STATE_HALTED)) {
+	if ((xhci->xhc_state & XHCI_STATE_DYING) || (xhci->xhc_state & XHCI_STATE_HALTED) ||
+	    (0xffffffff == readl(&xhci->op_regs->status))) {
 		spin_unlock_irqrestore(&xhci->lock, flags);
 		xhci_free_command(xhci, command);
 		return -ENODEV;
 	}
 
-	ret = xhci_queue_slot_control(xhci, command, TRB_DISABLE_SLOT,
-				slot_id);
+	ret = xhci_queue_slot_control(xhci, command, TRB_DISABLE_SLOT, vdev->slot_id);
 	if (ret) {
 		spin_unlock_irqrestore(&xhci->lock, flags);
 		xhci_free_command(xhci, command);
 		return ret;
 	}
+
 	xhci_ring_cmd_db(xhci);
+
 	spin_unlock_irqrestore(&xhci->lock, flags);
 
 	wait_for_completion(command->completion);
 
-	if (command->status != COMP_SUCCESS)
-		xhci_warn(xhci, "Unsuccessful disable slot %u command, status %d\n",
-			  slot_id, command->status);
+	trace_xhci_handle_cmd_disable_slot(xhci_get_slot_ctx(xhci, vdev->out_ctx));
+
+	switch (command->status) {
+	case COMP_SUCCESS:
+		xhci_dbg(xhci, "Slot %u disabled\n", vdev->slot_id);
+		if (xhci->quirks & XHCI_EP_LIMIT_QUIRK)
+			xhci_free_device_endpoint_resources(xhci, vdev, true);
+		break;
+	case COMP_SLOT_NOT_ENABLED_ERROR:
+		xhci_warn(xhci, "Could not disable slot %u, not enabled\n", vdev->slot_id);
+		break;
+	default:
+		xhci_err(xhci, "Unsuccessful disable slot %u command, status %s\n",
+			 slot_id, xhci_trb_comp_code_string(command->status));
+		ret = -EIO;
+	}
 
 	xhci_free_command(xhci, command);
-
-	return 0;
+	return ret;
 }
 
 int xhci_disable_and_free_slot(struct xhci_hcd *xhci, u32 slot_id)
@@ -4219,7 +4231,7 @@ static int xhci_reserve_host_control_ep_resources(struct xhci_hcd *xhci)
 	return 0;
 }
 
-static int xhci_enable_slot(struct xhci_hcd *xhci, int *slot_id)
+static int xhci_enable_slot(struct xhci_hcd *xhci, struct xhci_virt_device *vdev)
 {
 	struct xhci_command *command;
 	unsigned long flags;
@@ -4229,30 +4241,45 @@ static int xhci_enable_slot(struct xhci_hcd *xhci, int *slot_id)
 	if (!command)
 		return -ENOMEM;
 
+	command->vdev = vdev;
+
 	spin_lock_irqsave(&xhci->lock, flags);
 
 	ret = xhci_queue_slot_control(xhci, command, TRB_ENABLE_SLOT, 0);
-	if (!ret)
-		xhci_ring_cmd_db(xhci);
+	if (ret) {
+		spin_unlock_irqrestore(&xhci->lock, flags);
+		xhci_free_command(xhci, command);
+		return ret;
+	}
+
+	xhci_ring_cmd_db(xhci);
 
 	spin_unlock_irqrestore(&xhci->lock, flags);
 
-	if (!ret) {
-		wait_for_completion(command->completion);
+	wait_for_completion(command->completion);
 
-		if (!command->slot_id || command->status != COMP_SUCCESS) {
-			xhci_err(xhci, "Error while assigning device slot ID: %s\n",
-				 xhci_trb_comp_code_string(command->status));
-			xhci_err(xhci, "Max number of devices this xHCI host supports is %u.\n",
-				 xhci->max_slots);
-			ret = -EIO;
-		} else {
-			*slot_id = command->slot_id;
-		}
+	trace_xhci_handle_cmd_enable_slot(xhci_get_slot_ctx(xhci, vdev->out_ctx));
+
+	switch (command->status) {
+	case COMP_SUCCESS:
+		xhci_dbg(xhci, "Slot %u enabled, DCBAA %p to 0x%llx\n",
+			 vdev->slot_id, &xhci->dcbaa.ctx_array[vdev->slot_id],
+			 le64_to_cpu(xhci->dcbaa.ctx_array[vdev->slot_id]));
+
+		trace_xhci_init_virt_device(vdev);
+		break;
+	case COMP_NO_SLOTS_AVAILABLE_ERROR:
+		xhci_err(xhci, "Error no slots available, max slots %u\n", xhci->max_slots);
+		ret = -EIO;
+		break;
+	default:
+		xhci_err(xhci, "Error while assigning device slot ID: %s\n",
+			 xhci_trb_comp_code_string(command->status));
+		ret = -EIO;
 	}
 
 	xhci_free_command(xhci, command);
-	return 0;
+	return ret;
 }
 
 /*
@@ -4266,6 +4293,12 @@ int xhci_create_dev(struct usb_hcd *hcd, struct usb_device *udev)
 	unsigned long flags;
 	int ret, slot_id;
 
+	if (xhci->quirks & XHCI_EP_LIMIT_QUIRK) {
+		ret = xhci_reserve_host_control_ep_resources(xhci);
+		if (ret)
+			return -ENOSPC;
+	}
+
 	/*
 	 * Use GFP_NOIO, since this function can be called from
 	 * xhci_discover_or_reset_device(), which may be called as part of
@@ -4274,28 +4307,8 @@ int xhci_create_dev(struct usb_hcd *hcd, struct usb_device *udev)
 	vdev = xhci_alloc_virt_device(xhci, GFP_NOIO);
 	if (!vdev) {
 		xhci_warn(xhci, "Could not allocate xHCI USB device data structures\n");
-		return -ENOMEM;
-	}
-
-	if (xhci->quirks & XHCI_EP_LIMIT_QUIRK) {
-		ret = xhci_reserve_host_control_ep_resources(xhci);
-		if (ret)
-			goto free_vdev;
-	}
-
-	ret = xhci_enable_slot(xhci, &slot_id);
-	if (ret)
 		goto remove_active_ep;
-
-	/*
-	 * If resetting upon resume, we can't put the controller into runtime
-	 * suspend if there is a device attached.
-	 */
-	if (xhci->quirks & XHCI_RESET_ON_RESUME)
-		pm_runtime_get_noresume(hcd->self.controller);
-
-	xhci->devs[slot_id] = vdev;
-	vdev->slot_id = slot_id;
+	}
 
 	xhci_ring_init(xhci, vdev->eps[0].ring);
 
@@ -4307,31 +4320,30 @@ int xhci_create_dev(struct usb_hcd *hcd, struct usb_device *udev)
 		INIT_LIST_HEAD(&vdev->eps[i].bw_endpoint_list);
 	}
 
-	/* Point to output device context in dcbaa. */
-	xhci->dcbaa.ctx_array[slot_id] = cpu_to_le64(vdev->out_ctx->dma);
-	xhci_dbg(xhci, "Set slot id %d dcbaa entry %p to 0x%llx\n",
-		 slot_id,
-		 &xhci->dcbaa.ctx_array[slot_id],
-		 le64_to_cpu(xhci->dcbaa.ctx_array[slot_id]));
-
-	trace_xhci_init_virt_device(vdev);
+	ret = xhci_enable_slot(xhci, vdev);
+	if (ret)
+		goto free_vdev;
 
 	vdev->udev = udev;
 	udev->slot_id = slot_id;
 
-	trace_xhci_create_dev(xhci_get_slot_ctx(xhci, vdev->out_ctx));
-	xhci_debugfs_create_slot(xhci, slot_id);
+	/*
+	 * If resetting upon resume, we can't put the controller into runtime
+	 * suspend if there is a device attached.
+	 */
+	if (xhci->quirks & XHCI_RESET_ON_RESUME)
+		pm_runtime_get_noresume(hcd->self.controller);
 
 	return 0;
 
+free_vdev:
+	xhci_free_virt_device(xhci, vdev);
 remove_active_ep:
 	if (xhci->quirks & XHCI_EP_LIMIT_QUIRK) {
 		spin_lock_irqsave(&xhci->lock, flags);
 		xhci->num_active_eps -= 1;
 		spin_unlock_irqrestore(&xhci->lock, flags);
 	}
-free_vdev:
-	xhci_free_virt_device(xhci, vdev);
 	return -ENOSPC;
 }
 

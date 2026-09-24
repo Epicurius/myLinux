@@ -539,7 +539,7 @@ struct xhci_command {
 	struct xhci_container_ctx	*in_ctx;
 	u32				status;
 	u32				comp_param;
-	int				slot_id;
+	struct xhci_virt_device		*vdev;
 	/* If completion is null, no one is waiting on this command
 	 * and the structure can be freed after the command completes.
 	 */
@@ -1785,7 +1785,7 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags);
 void xhci_free_virt_device(struct xhci_hcd *xhci, struct xhci_virt_device *vdev);
 void xhci_free_virt_devices_depth_first(struct xhci_hcd *xhci, int slot_id);
 struct xhci_virt_device *xhci_alloc_virt_device(struct xhci_hcd *xhci, gfp_t flags);
-int xhci_init_virt_device(struct xhci_hcd *xhci, struct xhci_virt_device *vdev, int slot_id);
+int xhci_init_virt_device(struct xhci_hcd *xhci, struct xhci_virt_device *vdev);
 int xhci_setup_addressable_virt_dev(struct xhci_hcd *xhci, struct usb_device *udev);
 void xhci_copy_ep0_dequeue_into_input_ctx(struct xhci_hcd *xhci,
 		struct usb_device *udev);

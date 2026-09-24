@@ -1595,35 +1595,29 @@ static void xhci_handle_cmd_reset_ep(struct xhci_hcd *xhci, int slot_id,
 		xhci_ring_doorbell_for_active_rings(xhci, slot_id, ep_index);
 }
 
-static void xhci_handle_cmd_enable_slot(int slot_id, struct xhci_command *command,
-					u32 cmd_comp_code)
+static void xhci_handle_cmd_enable_slot(struct xhci_hcd *xhci, int slot_id,
+					struct xhci_command *command, u32 cmd_comp_code)
 {
-	if (cmd_comp_code == COMP_SUCCESS)
-		command->slot_id = slot_id;
-	else
-		command->slot_id = 0;
+	struct xhci_virt_device *vdev;
+
+	if (cmd_comp_code != COMP_SUCCESS)
+		return;
+
+	vdev = command->vdev;
+	vdev->slot_id = slot_id;
+
+	xhci->devs[slot_id] = vdev;
+	xhci->dcbaa.ctx_array[slot_id] = cpu_to_le64(vdev->out_ctx->dma);
 }
 
 static void xhci_handle_cmd_disable_slot(struct xhci_hcd *xhci, int slot_id,
 					u32 cmd_comp_code)
 {
-	struct xhci_virt_device *virt_dev;
-	struct xhci_slot_ctx *slot_ctx;
-
-	virt_dev = xhci->devs[slot_id];
-	if (!virt_dev)
+	if (cmd_comp_code != COMP_SUCCESS)
 		return;
 
-	slot_ctx = xhci_get_slot_ctx(xhci, virt_dev->out_ctx);
-	trace_xhci_handle_cmd_disable_slot(slot_ctx);
-
-	if (xhci->quirks & XHCI_EP_LIMIT_QUIRK)
-		/* Delete default control endpoint resources */
-		xhci_free_device_endpoint_resources(xhci, virt_dev, true);
-	if (cmd_comp_code == COMP_SUCCESS) {
-		xhci->dcbaa.ctx_array[slot_id] = 0;
-		xhci->devs[slot_id] = NULL;
-	}
+	xhci->devs[slot_id] = NULL;
+	xhci->dcbaa.ctx_array[slot_id] = 0;
 }
 
 static void xhci_handle_cmd_config_ep(struct xhci_hcd *xhci, int slot_id)
@@ -1870,7 +1864,7 @@ static void handle_cmd_completion(struct xhci_hcd *xhci,
 	cmd_type = TRB_FIELD_TO_TYPE(le32_to_cpu(cmd_trb->generic.field[3]));
 	switch (cmd_type) {
 	case TRB_ENABLE_SLOT:
-		xhci_handle_cmd_enable_slot(slot_id, cmd, cmd_comp_code);
+		xhci_handle_cmd_enable_slot(xhci, slot_id, cmd, cmd_comp_code);
 		break;
 	case TRB_DISABLE_SLOT:
 		xhci_handle_cmd_disable_slot(xhci, slot_id, cmd_comp_code);
