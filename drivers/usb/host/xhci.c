@@ -3901,7 +3901,7 @@ void xhci_free_device_endpoint_resources(struct xhci_hcd *xhci,
 				xhci->num_active_eps);
 }
 
-static void xhci_free_dev(struct usb_hcd *hcd, struct usb_device *udev);
+static void xhci_remove_dev(struct usb_hcd *hcd, struct usb_device *udev);
 
 /*
  * This submits a Reset Device Command, which will set the device state to 0,
@@ -3918,7 +3918,7 @@ static void xhci_free_dev(struct usb_hcd *hcd, struct usb_device *udev);
  *
  * If the virt_dev to be reset does not exist or does not match the udev,
  * it means the device is lost, possibly due to the xHC restore error and
- * re-initialization during S3/S4. In this case, call xhci_alloc_dev() to
+ * re-initialization during S3/S4. In this case, call xhci_create_dev() to
  * re-allocate the device.
  */
 static int xhci_discover_or_reset_device(struct usb_hcd *hcd,
@@ -3942,7 +3942,7 @@ static int xhci_discover_or_reset_device(struct usb_hcd *hcd,
 	if (!virt_dev) {
 		xhci_dbg(xhci, "The device to be reset with slot ID %u does "
 				"not exist. Re-allocate the device\n", slot_id);
-		ret = xhci_alloc_dev(hcd, udev);
+		ret = xhci_create_dev(hcd, udev);
 		if (ret == 1)
 			return 0;
 		else
@@ -3960,7 +3960,7 @@ static int xhci_discover_or_reset_device(struct usb_hcd *hcd,
 		xhci_dbg(xhci, "The device to be reset with slot ID %u does "
 				"not match the udev. Re-allocate the device\n",
 				slot_id);
-		ret = xhci_alloc_dev(hcd, udev);
+		ret = xhci_create_dev(hcd, udev);
 		if (ret == 1)
 			return 0;
 		else
@@ -3980,7 +3980,7 @@ static int xhci_discover_or_reset_device(struct usb_hcd *hcd,
 		 */
 		ret = xhci_disable_and_free_slot(xhci, udev->slot_id);
 		if (!ret) {
-			ret = xhci_alloc_dev(hcd, udev);
+			ret = xhci_create_dev(hcd, udev);
 			if (ret == 1)
 				ret = 0;
 			else
@@ -4103,7 +4103,7 @@ command_cleanup:
  * disconnected, and all traffic has been stopped and the endpoints have been
  * disabled.  Free any HC data structures associated with that device.
  */
-static void xhci_free_dev(struct usb_hcd *hcd, struct usb_device *udev)
+static void xhci_remove_dev(struct usb_hcd *hcd, struct usb_device *udev)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	struct xhci_virt_device *virt_dev;
@@ -4128,7 +4128,7 @@ static void xhci_free_dev(struct usb_hcd *hcd, struct usb_device *udev)
 
 	virt_dev = xhci->devs[udev->slot_id];
 	slot_ctx = xhci_get_slot_ctx(xhci, virt_dev->out_ctx);
-	trace_xhci_free_dev(slot_ctx);
+	trace_xhci_remove_dev(slot_ctx);
 
 	/* Stop any wayward timer functions (which may grab the lock) */
 	for (i = 0; i < 31; i++)
@@ -4259,7 +4259,7 @@ static int xhci_enable_slot(struct xhci_hcd *xhci, int *slot_id)
  * Returns 0 if the xHC ran out of device slots, the Enable Slot command
  * timed out, or allocating memory failed.  Returns 1 on success.
  */
-int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev)
+int xhci_create_dev(struct usb_hcd *hcd, struct usb_device *udev)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	struct xhci_virt_device *vdev;
@@ -4317,7 +4317,7 @@ int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev)
 	vdev->udev = udev;
 	udev->slot_id = slot_id;
 
-	trace_xhci_alloc_dev(xhci_get_slot_ctx(xhci, vdev->out_ctx));
+	trace_xhci_create_dev(xhci_get_slot_ctx(xhci, vdev->out_ctx));
 	xhci_debugfs_create_slot(xhci, slot_id);
 
 	/*
@@ -4474,7 +4474,7 @@ static int xhci_setup_device(struct usb_hcd *hcd, struct usb_device *udev,
 		mutex_unlock(&xhci->mutex);
 		ret = xhci_disable_and_free_slot(xhci, udev->slot_id);
 		if (!ret) {
-			if (xhci_alloc_dev(hcd, udev) == 1)
+			if (xhci_create_dev(hcd, udev) == 1)
 				xhci_setup_addressable_virt_dev(xhci, udev);
 		}
 		kfree(command->completion);
@@ -5658,8 +5658,8 @@ static const struct hc_driver xhci_hc_driver = {
 	.unmap_urb_for_dma =    xhci_unmap_urb_for_dma,
 	.urb_enqueue =		xhci_urb_enqueue,
 	.urb_dequeue =		xhci_urb_dequeue,
-	.alloc_dev =		xhci_alloc_dev,
-	.free_dev =		xhci_free_dev,
+	.alloc_dev =		xhci_create_dev,
+	.free_dev =		xhci_remove_dev,
 	.alloc_streams =	xhci_alloc_streams,
 	.free_streams =		xhci_free_streams,
 	.add_endpoint =		xhci_add_endpoint,

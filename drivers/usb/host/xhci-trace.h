@@ -401,12 +401,12 @@ DECLARE_EVENT_CLASS(xhci_log_slot_ctx,
 	)
 );
 
-DEFINE_EVENT(xhci_log_slot_ctx, xhci_alloc_dev,
+DEFINE_EVENT(xhci_log_slot_ctx, xhci_create_dev,
 	TP_PROTO(struct xhci_slot_ctx *ctx),
 	TP_ARGS(ctx)
 );
 
-DEFINE_EVENT(xhci_log_slot_ctx, xhci_free_dev,
+DEFINE_EVENT(xhci_log_slot_ctx, xhci_remove_dev,
 	TP_PROTO(struct xhci_slot_ctx *ctx),
 	TP_ARGS(ctx)
 );
