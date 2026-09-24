@@ -4139,7 +4139,7 @@ static void xhci_remove_dev(struct usb_hcd *hcd, struct usb_device *udev)
 	xhci_debugfs_remove_slot(xhci, udev->slot_id);
 
 	spin_lock_irqsave(&xhci->lock, flags);
-	xhci_free_virt_device(xhci, virt_dev, udev->slot_id);
+	xhci_free_virt_device(xhci, virt_dev);
 	spin_unlock_irqrestore(&xhci->lock, flags);
 
 }
@@ -4193,7 +4193,7 @@ int xhci_disable_and_free_slot(struct xhci_hcd *xhci, u32 slot_id)
 
 	ret = xhci_disable_slot(xhci, slot_id);
 	xhci_debugfs_remove_slot(xhci, slot_id);
-	xhci_free_virt_device(xhci, vdev, slot_id);
+	xhci_free_virt_device(xhci, vdev);
 	return ret;
 }
 
@@ -4266,16 +4266,6 @@ int xhci_create_dev(struct usb_hcd *hcd, struct usb_device *udev)
 	unsigned long flags;
 	int ret, slot_id;
 
-	if (xhci->quirks & XHCI_EP_LIMIT_QUIRK) {
-		ret = xhci_reserve_host_control_ep_resources(xhci);
-		if (ret)
-			return 0;
-	}
-
-	ret = xhci_enable_slot(xhci, &slot_id);
-	if (ret)
-		goto remove_active_ep;
-
 	/*
 	 * Use GFP_NOIO, since this function can be called from
 	 * xhci_discover_or_reset_device(), which may be called as part of
@@ -4284,13 +4274,25 @@ int xhci_create_dev(struct usb_hcd *hcd, struct usb_device *udev)
 	vdev = xhci_alloc_virt_device(xhci, GFP_NOIO);
 	if (!vdev) {
 		xhci_warn(xhci, "Could not allocate xHCI USB device data structures\n");
-		if (xhci->quirks & XHCI_EP_LIMIT_QUIRK) {
-			spin_lock_irqsave(&xhci->lock, flags);
-			xhci->num_active_eps -= 1;
-			spin_unlock_irqrestore(&xhci->lock, flags);
-		}
-		goto disable_slot;
+		return -ENOMEM;
 	}
+
+	if (xhci->quirks & XHCI_EP_LIMIT_QUIRK) {
+		ret = xhci_reserve_host_control_ep_resources(xhci);
+		if (ret)
+			goto free_vdev;
+	}
+
+	ret = xhci_enable_slot(xhci, &slot_id);
+	if (ret)
+		goto remove_active_ep;
+
+	/*
+	 * If resetting upon resume, we can't put the controller into runtime
+	 * suspend if there is a device attached.
+	 */
+	if (xhci->quirks & XHCI_RESET_ON_RESUME)
+		pm_runtime_get_noresume(hcd->self.controller);
 
 	xhci->devs[slot_id] = vdev;
 	vdev->slot_id = slot_id;
@@ -4320,26 +4322,17 @@ int xhci_create_dev(struct usb_hcd *hcd, struct usb_device *udev)
 	trace_xhci_create_dev(xhci_get_slot_ctx(xhci, vdev->out_ctx));
 	xhci_debugfs_create_slot(xhci, slot_id);
 
-	/*
-	 * If resetting upon resume, we can't put the controller into runtime
-	 * suspend if there is a device attached.
-	 */
-	if (xhci->quirks & XHCI_RESET_ON_RESUME)
-		pm_runtime_get_noresume(hcd->self.controller);
+	return 0;
 
-	/* Is this a LS or FS device under a HS hub? */
-	/* Hub or peripherial? */
-	return 1;
-
-disable_slot:
-	xhci_disable_slot(xhci, slot_id);
 remove_active_ep:
 	if (xhci->quirks & XHCI_EP_LIMIT_QUIRK) {
 		spin_lock_irqsave(&xhci->lock, flags);
 		xhci->num_active_eps -= 1;
 		spin_unlock_irqrestore(&xhci->lock, flags);
 	}
-	return 0;
+free_vdev:
+	xhci_free_virt_device(xhci, vdev);
+	return -ENOSPC;
 }
 
 /**

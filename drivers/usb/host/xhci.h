@@ -1782,7 +1782,7 @@ void xhci_dbg_trace(struct xhci_hcd *xhci, void (*trace)(struct va_format *),
 /* xHCI memory management */
 void xhci_mem_cleanup(struct xhci_hcd *xhci);
 int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags);
-void xhci_free_virt_device(struct xhci_hcd *xhci, struct xhci_virt_device *dev, int slot_id);
+void xhci_free_virt_device(struct xhci_hcd *xhci, struct xhci_virt_device *vdev);
 void xhci_free_virt_devices_depth_first(struct xhci_hcd *xhci, int slot_id);
 struct xhci_virt_device *xhci_alloc_virt_device(struct xhci_hcd *xhci, gfp_t flags);
 int xhci_init_virt_device(struct xhci_hcd *xhci, struct xhci_virt_device *vdev, int slot_id);

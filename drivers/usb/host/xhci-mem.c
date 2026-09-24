@@ -866,14 +866,16 @@ free_tts:
  * will be manipulated by the configure endpoint, allocate device, or update
  * hub functions while this function is removing the TT entries from the list.
  */
-void xhci_free_virt_device(struct xhci_hcd *xhci, struct xhci_virt_device *dev,
-		int slot_id)
+void xhci_free_virt_device(struct xhci_hcd *xhci, struct xhci_virt_device *dev)
 {
 	int i;
+	unsigned int slot_id;
 
 	/* Slot ID 0 is reserved */
-	if (slot_id == 0 || !dev)
+	if (!dev || !dev->slot_id)
 		return;
+
+	slot_id = dev->slot_id;
 
 	/* If device ctx array still points to _this_ device, clear it */
 	if (dev->out_ctx &&
@@ -957,7 +959,7 @@ void xhci_free_virt_devices_depth_first(struct xhci_hcd *xhci, int slot_id)
 out:
 	/* we are now at a leaf device */
 	xhci_debugfs_remove_slot(xhci, slot_id);
-	xhci_free_virt_device(xhci, xhci->devs[slot_id], slot_id);
+	xhci_free_virt_device(xhci, xhci->devs[slot_id]);
 }
 
 struct xhci_virt_device *xhci_alloc_virt_device(struct xhci_hcd *xhci, gfp_t flags)
