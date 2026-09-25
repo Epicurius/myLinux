@@ -3978,15 +3978,15 @@ static int xhci_discover_or_reset_device(struct usb_hcd *hcd,
 		 * Obtaining a new device slot to inform the xHCI host that
 		 * the USB device has been reset.
 		 */
-		ret = xhci_disable_and_free_slot(xhci, udev->slot_id);
-		if (!ret) {
-			ret = xhci_create_dev(hcd, udev);
-			if (ret == 1)
-				ret = 0;
-			else
-				ret = -EINVAL;
-		}
-		return ret;
+		ret = xhci_disable_slot(xhci, virt_dev);
+		if (ret)
+			return ret;
+
+		ret = xhci_enable_slot(xhci, virt_dev);
+		if (ret)
+			return ret;
+
+		return 0;
 	}
 
 	trace_xhci_discover_or_reset_device(slot_ctx);
@@ -4195,17 +4195,6 @@ int xhci_disable_slot(struct xhci_hcd *xhci, struct xhci_virt_device *vdev)
 	}
 
 	xhci_free_command(xhci, command);
-	return ret;
-}
-
-int xhci_disable_and_free_slot(struct xhci_hcd *xhci, u32 slot_id)
-{
-	struct xhci_virt_device *vdev = xhci->devs[slot_id];
-	int ret;
-
-	ret = xhci_disable_slot(xhci, slot_id);
-	xhci_debugfs_remove_slot(xhci, slot_id);
-	xhci_free_virt_device(xhci, vdev);
 	return ret;
 }
 
@@ -4477,13 +4466,14 @@ static int xhci_setup_device(struct usb_hcd *hcd, struct usb_device *udev,
 		dev_warn(&udev->dev, "Device not responding to setup %s.\n", act);
 
 		mutex_unlock(&xhci->mutex);
-		ret = xhci_disable_and_free_slot(xhci, udev->slot_id);
-		if (!ret) {
-			if (xhci_create_dev(hcd, udev) == 1)
-				xhci_setup_addressable_virt_dev(xhci, udev);
-		}
+
 		kfree(command->completion);
 		kfree(command);
+
+		if (xhci_disable_slot(xhci, virt_dev) || xhci_enable_slot(xhci, virt_dev))
+			return -EPROTO;
+
+		xhci_setup_addressable_virt_dev(xhci, udev);
 		return -EPROTO;
 	case COMP_INCOMPATIBLE_DEVICE_ERROR:
 		dev_warn(&udev->dev,
