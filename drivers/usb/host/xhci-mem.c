@@ -958,8 +958,8 @@ void xhci_free_virt_devices_depth_first(struct xhci_hcd *xhci, int slot_id)
 	}
 out:
 	/* we are now at a leaf device */
-	xhci_debugfs_remove_slot(xhci, slot_id);
-	xhci_free_virt_device(xhci, xhci->devs[slot_id]);
+	xhci_debugfs_remove_slot(xhci, vdev);
+	xhci_free_virt_device(xhci, vdev);
 }
 
 struct xhci_virt_device *xhci_alloc_virt_device(struct xhci_hcd *xhci, gfp_t flags)

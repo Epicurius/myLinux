@@ -416,6 +416,11 @@ DEFINE_EVENT(xhci_log_slot_ctx, xhci_handle_cmd_disable_slot,
 	TP_ARGS(ctx)
 );
 
+DEFINE_EVENT(xhci_log_slot_ctx, xhci_handle_cmd_enable_slot,
+	TP_PROTO(struct xhci_slot_ctx *ctx),
+	TP_ARGS(ctx)
+);
+
 DEFINE_EVENT(xhci_log_slot_ctx, xhci_discover_or_reset_device,
 	TP_PROTO(struct xhci_slot_ctx *ctx),
 	TP_ARGS(ctx)

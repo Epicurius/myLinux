@@ -4134,9 +4134,9 @@ static void xhci_remove_dev(struct usb_hcd *hcd, struct usb_device *udev)
 	for (i = 0; i < 31; i++)
 		virt_dev->eps[i].ep_state &= ~EP_STOP_CMD_PENDING;
 	virt_dev->udev = NULL;
-	xhci_disable_slot(xhci, udev->slot_id);
+	xhci_disable_slot(xhci, virt_dev);
 
-	xhci_debugfs_remove_slot(xhci, udev->slot_id);
+	xhci_debugfs_remove_slot(xhci, virt_dev);
 
 	spin_lock_irqsave(&xhci->lock, flags);
 	xhci_free_virt_device(xhci, virt_dev);
@@ -4190,7 +4190,7 @@ int xhci_disable_slot(struct xhci_hcd *xhci, struct xhci_virt_device *vdev)
 		break;
 	default:
 		xhci_err(xhci, "Unsuccessful disable slot %u command, status %s\n",
-			 slot_id, xhci_trb_comp_code_string(command->status));
+			 vdev->slot_id, xhci_trb_comp_code_string(command->status));
 		ret = -EIO;
 	}
 
@@ -4220,7 +4220,7 @@ static int xhci_reserve_host_control_ep_resources(struct xhci_hcd *xhci)
 	return 0;
 }
 
-static int xhci_enable_slot(struct xhci_hcd *xhci, struct xhci_virt_device *vdev)
+int xhci_enable_slot(struct xhci_hcd *xhci, struct xhci_virt_device *vdev)
 {
 	struct xhci_command *command;
 	unsigned long flags;
@@ -4296,7 +4296,6 @@ int xhci_create_dev(struct usb_hcd *hcd, struct usb_device *udev)
 {
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	struct xhci_virt_device *vdev;
-	unsigned long flags;
 	int ret, slot_id;
 
 	/*
@@ -4307,7 +4306,7 @@ int xhci_create_dev(struct usb_hcd *hcd, struct usb_device *udev)
 	vdev = xhci_alloc_virt_device(xhci, GFP_NOIO);
 	if (!vdev) {
 		xhci_warn(xhci, "Could not allocate xHCI USB device data structures\n");
-		goto remove_active_ep;
+		return -ENOMEM;
 	}
 
 	xhci_ring_init(xhci, vdev->eps[0].ring);
@@ -4335,6 +4334,8 @@ int xhci_create_dev(struct usb_hcd *hcd, struct usb_device *udev)
 	 */
 	if (xhci->quirks & XHCI_RESET_ON_RESUME)
 		pm_runtime_get_noresume(hcd->self.controller);
+
+	xhci_debugfs_create_slot(xhci, vdev);
 
 	return 0;
 }

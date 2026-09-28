@@ -612,24 +612,22 @@ void xhci_debugfs_create_stream_files(struct xhci_hcd *xhci,
 			    &xhci_stream_context_array_fops);
 }
 
-void xhci_debugfs_create_slot(struct xhci_hcd *xhci, int slot_id)
+void xhci_debugfs_create_slot(struct xhci_hcd *xhci, struct xhci_virt_device *vdev)
 {
 	struct xhci_slot_priv	*priv;
-	struct xhci_virt_device	*dev = xhci->devs[slot_id];
 
 	priv = kzalloc_obj(*priv);
 	if (!priv)
 		return;
 
-	snprintf(priv->name, sizeof(priv->name), "%02d", slot_id);
+	snprintf(priv->name, sizeof(priv->name), "%02d", vdev->slot_id);
 	priv->root = debugfs_create_dir(priv->name, xhci->debugfs_slots);
-	priv->dev = dev;
-	dev->debugfs_private = priv;
+	priv->dev = vdev;
+	vdev->debugfs_private = priv;
 
-	xhci_debugfs_create_ring_dir(xhci, &dev->eps[0].ring,
-				     "ep00", priv->root);
+	xhci_debugfs_create_ring_dir(xhci, &vdev->eps[0].ring, "ep00", priv->root);
 
-	xhci_debugfs_create_context_files(xhci, priv->root, slot_id);
+	xhci_debugfs_create_context_files(xhci, priv->root, vdev->slot_id);
 }
 
 void xhci_debugfs_remove_slot(struct xhci_hcd *xhci, struct xhci_virt_device *vdev)

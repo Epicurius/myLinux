@@ -108,8 +108,8 @@ void xhci_debugfs_init(struct xhci_hcd *xhci);
 void xhci_debugfs_exit(struct xhci_hcd *xhci);
 void __init xhci_debugfs_create_root(void);
 void __exit xhci_debugfs_remove_root(void);
-void xhci_debugfs_create_slot(struct xhci_hcd *xhci, int slot_id);
-void xhci_debugfs_remove_slot(struct xhci_hcd *xhci, int slot_id);
+void xhci_debugfs_create_slot(struct xhci_hcd *xhci, struct xhci_virt_device *vdev);
+void xhci_debugfs_remove_slot(struct xhci_hcd *xhci,struct xhci_virt_device *vdev);
 void xhci_debugfs_create_endpoint(struct xhci_hcd *xhci,
 				  struct xhci_virt_device *virt_dev,
 				  int ep_index);
@@ -124,8 +124,8 @@ static inline void xhci_debugfs_init(struct xhci_hcd *xhci) { }
 static inline void xhci_debugfs_exit(struct xhci_hcd *xhci) { }
 static inline void __init xhci_debugfs_create_root(void) { }
 static inline void __exit xhci_debugfs_remove_root(void) { }
-static inline void xhci_debugfs_create_slot(struct xhci_hcd *x, int s) { }
-static inline void xhci_debugfs_remove_slot(struct xhci_hcd *x, int s) { }
+static inline void xhci_debugfs_create_slot(struct xhci_hcd *x, struct xhci_virt_device *v) { }
+static inline void xhci_debugfs_remove_slot(struct xhci_hcd *x, struct xhci_virt_device *v) { }
 static inline void
 xhci_debugfs_create_endpoint(struct xhci_hcd *xhci,
 			     struct xhci_virt_device *virt_dev,

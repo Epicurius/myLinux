@@ -16,6 +16,7 @@
 
 #include "xhci.h"
 #include "xhci-trace.h"
+#include "xhci-debugfs.h"
 
 #define	PORT_WAKE_BITS	(PORT_WKOC_E | PORT_WKDISC_E | PORT_WKCONN_E)
 #define	PORT_RWC_BITS	(PORT_CSC | PORT_PEC | PORT_WRC | PORT_OCC | \
@@ -705,7 +706,7 @@ static int xhci_enter_test_mode(struct xhci_hcd *xhci, u16 test_mode, int portnu
 
 		vdev = xhci->devs[i];
 
-		retval = xhci_disable_slot(xhci, i);
+		retval = xhci_disable_slot(xhci, vdev);
 		if (retval)
 			xhci_err(xhci, "Failed to disable slot %d, %d. Enter test mode anyway\n",
 				 i, retval);
