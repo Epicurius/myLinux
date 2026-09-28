@@ -4226,9 +4226,17 @@ static int xhci_enable_slot(struct xhci_hcd *xhci, struct xhci_virt_device *vdev
 	unsigned long flags;
 	int ret;
 
+	if (xhci->quirks & XHCI_EP_LIMIT_QUIRK) {
+		ret = xhci_reserve_host_control_ep_resources(xhci);
+		if (ret)
+			return -ENOSPC;
+	}
+
 	command = xhci_alloc_command(xhci, true, GFP_KERNEL);
-	if (!command)
-		return -ENOMEM;
+	if (!command) {
+		ret = -ENOMEM;
+		goto release_ep_resource;
+	}
 
 	command->vdev = vdev;
 
@@ -4238,7 +4246,7 @@ static int xhci_enable_slot(struct xhci_hcd *xhci, struct xhci_virt_device *vdev
 	if (ret) {
 		spin_unlock_irqrestore(&xhci->lock, flags);
 		xhci_free_command(xhci, command);
-		return ret;
+		goto release_ep_resource;
 	}
 
 	xhci_ring_cmd_db(xhci);
@@ -4260,14 +4268,23 @@ static int xhci_enable_slot(struct xhci_hcd *xhci, struct xhci_virt_device *vdev
 	case COMP_NO_SLOTS_AVAILABLE_ERROR:
 		xhci_err(xhci, "Error no slots available, max slots %u\n", xhci->max_slots);
 		ret = -EIO;
-		break;
+		goto release_ep_resource;
 	default:
 		xhci_err(xhci, "Error while assigning device slot ID: %s\n",
 			 xhci_trb_comp_code_string(command->status));
 		ret = -EIO;
+		goto release_ep_resource;
 	}
 
 	xhci_free_command(xhci, command);
+	return ret;
+
+release_ep_resource:
+	if (xhci->quirks & XHCI_EP_LIMIT_QUIRK) {
+		spin_lock_irqsave(&xhci->lock, flags);
+		xhci->num_active_eps -= 1;
+		spin_unlock_irqrestore(&xhci->lock, flags);
+	}
 	return ret;
 }
 
@@ -4281,12 +4298,6 @@ int xhci_create_dev(struct usb_hcd *hcd, struct usb_device *udev)
 	struct xhci_virt_device *vdev;
 	unsigned long flags;
 	int ret, slot_id;
-
-	if (xhci->quirks & XHCI_EP_LIMIT_QUIRK) {
-		ret = xhci_reserve_host_control_ep_resources(xhci);
-		if (ret)
-			return -ENOSPC;
-	}
 
 	/*
 	 * Use GFP_NOIO, since this function can be called from
@@ -4310,8 +4321,10 @@ int xhci_create_dev(struct usb_hcd *hcd, struct usb_device *udev)
 	}
 
 	ret = xhci_enable_slot(xhci, vdev);
-	if (ret)
-		goto free_vdev;
+	if (ret) {
+		xhci_free_virt_device(xhci, vdev);
+		return -ENOSPC;
+	}
 
 	vdev->udev = udev;
 	udev->slot_id = slot_id;
@@ -4324,16 +4337,6 @@ int xhci_create_dev(struct usb_hcd *hcd, struct usb_device *udev)
 		pm_runtime_get_noresume(hcd->self.controller);
 
 	return 0;
-
-free_vdev:
-	xhci_free_virt_device(xhci, vdev);
-remove_active_ep:
-	if (xhci->quirks & XHCI_EP_LIMIT_QUIRK) {
-		spin_lock_irqsave(&xhci->lock, flags);
-		xhci->num_active_eps -= 1;
-		spin_unlock_irqrestore(&xhci->lock, flags);
-	}
-	return -ENOSPC;
 }
 
 /**
