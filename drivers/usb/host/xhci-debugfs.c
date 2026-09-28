@@ -632,16 +632,15 @@ void xhci_debugfs_create_slot(struct xhci_hcd *xhci, int slot_id)
 	xhci_debugfs_create_context_files(xhci, priv->root, slot_id);
 }
 
-void xhci_debugfs_remove_slot(struct xhci_hcd *xhci, int slot_id)
+void xhci_debugfs_remove_slot(struct xhci_hcd *xhci, struct xhci_virt_device *vdev)
 {
 	int			i;
 	struct xhci_slot_priv	*priv;
-	struct xhci_virt_device	*dev = xhci->devs[slot_id];
 
-	if (!dev || !dev->debugfs_private)
+	if (!vdev || !vdev->debugfs_private)
 		return;
 
-	priv = dev->debugfs_private;
+	priv = vdev->debugfs_private;
 
 	debugfs_remove_recursive(priv->root);
 
@@ -649,7 +648,7 @@ void xhci_debugfs_remove_slot(struct xhci_hcd *xhci, int slot_id)
 		kfree(priv->eps[i]);
 
 	kfree(priv);
-	dev->debugfs_private = NULL;
+	vdev->debugfs_private = NULL;
 }
 
 static void xhci_debugfs_create_ports(struct xhci_hcd *xhci,

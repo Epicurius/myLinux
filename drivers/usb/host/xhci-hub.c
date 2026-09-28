@@ -693,6 +693,7 @@ static int xhci_enter_test_mode(struct xhci_hcd *xhci, u16 test_mode, int portnu
 				unsigned long *flags)
 	__must_hold(&xhci->lock)
 {
+	struct xhci_virt_device *vdev;
 	int i, retval;
 
 	/* Disable all Device Slots */
@@ -702,10 +703,15 @@ static int xhci_enter_test_mode(struct xhci_hcd *xhci, u16 test_mode, int portnu
 		if (!xhci->devs[i])
 			continue;
 
-		retval = xhci_disable_and_free_slot(xhci, i);
+		vdev = xhci->devs[i];
+
+		retval = xhci_disable_slot(xhci, i);
 		if (retval)
 			xhci_err(xhci, "Failed to disable slot %d, %d. Enter test mode anyway\n",
 				 i, retval);
+
+		xhci_debugfs_remove_slot(xhci, vdev);
+		xhci_free_virt_device(xhci, vdev);
 	}
 	spin_lock_irqsave(&xhci->lock, *flags);
 	/* Put all ports to the Disable state by clear PP */
