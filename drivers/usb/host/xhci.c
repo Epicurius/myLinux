@@ -1182,6 +1182,8 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 		xhci_for_each_ring_seg(xhci->interrupters[0]->event_ring->first_seg, seg)
 			memset(seg->trbs, 0, sizeof(union xhci_trb) * TRBS_PER_SEGMENT);
 
+		xhci->num_active_eps = 0;
+
 		for (int i = xhci->max_slots; i > 0; i--)
 			xhci_free_virt_devices_depth_first(xhci, i);
 
