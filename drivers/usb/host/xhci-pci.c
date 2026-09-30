@@ -348,6 +348,12 @@ static void xhci_pci_quirks(struct device *dev, struct xhci_hcd *xhci)
 		xhci->quirks |= XHCI_INTEL_HOST;
 		xhci->quirks |= XHCI_AVOID_BEI;
 	}
+
+	xhci->quirks |= XHCI_SW_BW_CHECKING;
+	xhci->quirks |= XHCI_RESET_ON_RESUME;
+	xhci->quirks |= XHCI_EP_LIMIT_QUIRK;
+	xhci->limit_active_eps = 64;
+
 	if (pdev->vendor == PCI_VENDOR_ID_INTEL &&
 			pdev->device == PCI_DEVICE_ID_INTEL_PANTHERPOINT_XHCI) {
 		xhci->quirks |= XHCI_EP_LIMIT_QUIRK;

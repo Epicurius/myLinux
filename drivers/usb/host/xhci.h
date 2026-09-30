@@ -1972,6 +1972,13 @@ enum usb_link_tunnel_mode xhci_port_is_tunneled(struct xhci_hcd *xhci,
 						struct xhci_port *port);
 void xhci_hc_died(struct xhci_hcd *xhci);
 
+void xhci_drop_ep_from_interval_table(struct xhci_hcd *xhci,
+		struct xhci_bw_info *ep_bw,
+		struct xhci_interval_bw_table *bw_table,
+		struct usb_device *udev,
+		struct xhci_virt_ep *virt_ep,
+		struct xhci_tt_bw_info *tt_info);
+
 #ifdef CONFIG_PM
 int xhci_bus_suspend(struct usb_hcd *hcd);
 int xhci_bus_resume(struct usb_hcd *hcd);

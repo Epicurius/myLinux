@@ -1150,6 +1150,7 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 	}
 
 	if (reset_registers) {
+		printk("NIK: %s reset_registers(START) %d\n", __func__, xhci->num_active_eps);
 		if ((xhci->quirks & XHCI_COMP_MODE_QUIRK) &&
 				!(xhci_all_ports_seen_u0(xhci))) {
 			timer_delete_sync(&xhci->comp_mode_recovery_timer);
@@ -1195,6 +1196,7 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 
 		xhci_debugfs_exit(xhci);
 
+		printk("NIK: %s reset_registers() %d\n", __func__, xhci->num_active_eps);
 		xhci_init(hcd);
 
 		/*
@@ -1221,7 +1223,7 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 			usb_hcd_resume_root_hub(xhci->shared_hcd);
 		}
 		usb_hcd_resume_root_hub(hcd);
-
+		printk("NIK: %s reset_registers(END) %d\n", __func__, xhci->num_active_eps);
 		goto done;
 	}
 
@@ -2644,7 +2646,7 @@ static unsigned int xhci_get_ss_bw_consumed(struct xhci_bw_info *ep_bw)
 
 }
 
-static void xhci_drop_ep_from_interval_table(struct xhci_hcd *xhci,
+void xhci_drop_ep_from_interval_table(struct xhci_hcd *xhci,
 		struct xhci_bw_info *ep_bw,
 		struct xhci_interval_bw_table *bw_table,
 		struct usb_device *udev,
@@ -2794,6 +2796,7 @@ void xhci_update_tt_active_eps(struct xhci_hcd *xhci,
 		rh_bw_info->num_active_tts -= 1;
 		rh_bw_info->bw_table.bw_used -= TT_HS_OVERHEAD;
 	}
+	printk("NIK: %s old_active_eps %d active_eps %d\n", __func__, old_active_eps, virt_dev->tt_info->active_eps);
 }
 
 static int xhci_reserve_bandwidth(struct xhci_hcd *xhci,
