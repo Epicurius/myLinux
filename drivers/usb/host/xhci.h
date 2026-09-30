@@ -757,6 +757,7 @@ struct xhci_virt_device {
 	struct xhci_virt_ep		eps[EP_CTX_PER_DEV];
 	struct xhci_port		*rhub_port;
 	struct xhci_interval_bw_table	*bw_table;
+	/* tt_info not owned by struct xhci_virt_device */
 	struct xhci_tt_bw_info		*tt_info;
 
 	/* The current max exit latency for the enabled USB3 link states. */

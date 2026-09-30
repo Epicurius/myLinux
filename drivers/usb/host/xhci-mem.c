@@ -896,13 +896,15 @@ void xhci_free_virt_device(struct xhci_hcd *xhci, struct xhci_virt_device *dev,
 		 * Only applicable for hosts with software bandwidth checking.
 		 */
 
+		/* Remove this EP from struct xhci_interval_bw_table->xhci_interval_bw[]->endpoints list */
 		if (!list_empty(&dev->eps[i].bw_endpoint_list)) {
 			list_del_init(&dev->eps[i].bw_endpoint_list);
-			xhci_dbg(xhci, "Slot %u endpoint %u not removed from BW list!\n",
+			xhci_dbg(xhci, "NIK: Slot %u endpoint %u not removed from BW list!\n",
 				 slot_id, i);
 		}
 	}
 	/* If this is a hub, free the TT(s) from the TT list */
+	//active_eps
 	xhci_free_tt_info(xhci, dev, slot_id);
 
 	if (dev->in_ctx)
@@ -1906,7 +1908,12 @@ void xhci_rh_bw_cleanup(struct xhci_hcd *xhci)
 	for (int i = 0; i < xhci->max_ports; i++) {
 		rh_bw = &xhci->rh_bw[i];
 
+		if (rh_bw->num_active_tts)
+			xhci_warn(xhci, "NIK: num_active_tts %d\n", rh_bw->num_active_tts);
+		if (!list_empty(&rh_bw->tts))
+			printk("NIK: tts list not empty\n");
 		rh_bw->num_active_tts = 0;
+		/* Should not be needed as they are cleared in xhci_free_virt_device->xhci_free_tt_info() */
 		/* Clear and free all TT bandwidth entries */
 		list_for_each_entry_safe(tt_info, tt_next, &rh_bw->tts, tt_list) {
 			list_del(&tt_info->tt_list);
@@ -1914,6 +1921,14 @@ void xhci_rh_bw_cleanup(struct xhci_hcd *xhci)
 		}
 
 		bw_table = &rh_bw->bw_table;
+		if (bw_table->interval0_esit_payload)
+			printk(" NIK: interval0_esit_payload %d\n", bw_table->interval0_esit_payload); // Add/drop EP
+		if (bw_table->bw_used)
+			printk(" NIK: bw_used %d\n", bw_table->bw_used);
+		if (bw_table->ss_bw_in)
+			printk(" NIK: ss_bw_in %d\n", bw_table->ss_bw_in); // Add/drop EP
+		if (bw_table->ss_bw_out)
+			printk(" NIK: ss_bw_out %d\n", bw_table->ss_bw_out); // Add/drop EP
 		bw_table->interval0_esit_payload = 0;
 		bw_table->bw_used = 0;
 		bw_table->ss_bw_in = 0;
@@ -1924,6 +1939,14 @@ void xhci_rh_bw_cleanup(struct xhci_hcd *xhci)
 			interval_bw = &bw_table->interval_bw[j];
 			eps = &interval_bw->endpoints;
 
+			if (interval_bw->num_packets)
+				printk("  NIK: num_packets %d\n", interval_bw->num_packets); // Add/drop EP
+			if (interval_bw->overhead[0] || interval_bw->overhead[1] || interval_bw->overhead[2])
+				printk("  NIK: overhead %d %d %d\n", interval_bw->overhead[0],
+							   interval_bw->overhead[1],
+							   interval_bw->overhead[2]);
+			if (!list_empty(eps))
+				printk("  NIK: endpoints list not empty\n");
 			interval_bw->num_packets = 0;
 			list_for_each_safe(ep, ep_next, eps)
 				list_del_init(ep);
@@ -1931,6 +1954,7 @@ void xhci_rh_bw_cleanup(struct xhci_hcd *xhci)
 			interval_bw->overhead[FS_OVERHEAD_TYPE] = 0;
 			interval_bw->overhead[HS_OVERHEAD_TYPE] = 0;
 		}
+
 	}
 }
 

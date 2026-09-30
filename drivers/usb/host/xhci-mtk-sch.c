@@ -986,7 +986,7 @@ int xhci_mtk_check_bandwidth(struct usb_hcd *hcd, struct usb_device *udev)
 
 		ret = check_sch_bw(sch_ep);
 		if (ret) {
-			xhci_err(xhci, "Not enough bandwidth! (%s)\n",
+			xhci_err(xhci, "NIK: Not enough bandwidth! (%s)\n",
 				 sch_error_string(-ret));
 			return -ENOSPC;
 		}
