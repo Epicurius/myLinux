@@ -870,7 +870,6 @@ void xhci_free_virt_device(struct xhci_hcd *xhci, struct xhci_virt_device *dev,
 		int slot_id)
 {
 	int i;
-	int old_active_eps = 0;
 
 	/* Slot ID 0 is reserved */
 	if (slot_id == 0 || !dev)
@@ -882,9 +881,6 @@ void xhci_free_virt_device(struct xhci_hcd *xhci, struct xhci_virt_device *dev,
 		xhci->dcbaa.ctx_array[slot_id] = 0;
 
 	trace_xhci_free_virt_device(dev);
-
-	if (dev->tt_info)
-		old_active_eps = dev->tt_info->active_eps;
 
 	for (i = 0; i < 31; i++) {
 		if (dev->eps[i].ring)
@@ -908,8 +904,6 @@ void xhci_free_virt_device(struct xhci_hcd *xhci, struct xhci_virt_device *dev,
 	}
 	/* If this is a hub, free the TT(s) from the TT list */
 	xhci_free_tt_info(xhci, dev, slot_id);
-	/* If necessary, update the number of active TTs on this root port */
-	xhci_update_tt_active_eps(xhci, dev, old_active_eps);
 
 	if (dev->in_ctx)
 		xhci_free_container_ctx(xhci, dev->in_ctx);
@@ -1903,24 +1897,39 @@ EXPORT_SYMBOL_GPL(xhci_remove_secondary_interrupter);
 void xhci_rh_bw_cleanup(struct xhci_hcd *xhci)
 {
 	struct xhci_root_port_bw_info *rh_bw;
+	struct xhci_interval_bw_table *bw_table;
+	struct xhci_interval_bw *interval_bw;
 	struct xhci_tt_bw_info *tt_info, *tt_next;
 	struct list_head *eps, *ep, *ep_next;
 
+	/* Could be replaced with a memeset(), as both lists are cleared in xhci_free_virt_device() */
 	for (int i = 0; i < xhci->max_ports; i++) {
 		rh_bw = &xhci->rh_bw[i];
 
+		rh_bw->num_active_tts = 0;
 		/* Clear and free all TT bandwidth entries */
 		list_for_each_entry_safe(tt_info, tt_next, &rh_bw->tts, tt_list) {
 			list_del(&tt_info->tt_list);
 			kfree(tt_info);
 		}
 
+		bw_table = &rh_bw->bw_table;
+		bw_table->interval0_esit_payload = 0;
+		bw_table->bw_used = 0;
+		bw_table->ss_bw_in = 0;
+		bw_table->ss_bw_out = 0;
+
 		/* Clear per-interval endpoint lists */
 		for (int j = 0; j < XHCI_MAX_INTERVAL; j++) {
-			eps = &rh_bw->bw_table.interval_bw[j].endpoints;
+			interval_bw = &bw_table->interval_bw[j];
+			eps = &interval_bw->endpoints;
 
+			interval_bw->num_packets = 0;
 			list_for_each_safe(ep, ep_next, eps)
 				list_del_init(ep);
+			interval_bw->overhead[LS_OVERHEAD_TYPE] = 0;
+			interval_bw->overhead[FS_OVERHEAD_TYPE] = 0;
+			interval_bw->overhead[HS_OVERHEAD_TYPE] = 0;
 		}
 	}
 }
@@ -1987,7 +1996,7 @@ void xhci_mem_cleanup(struct xhci_hcd *xhci)
 	scratchpad_free(xhci);
 
 	if (xhci->rh_bw)
-		xhci_rh_bw_cleanup(xhci);
+		xhci_rh_bw_cleanup(xhci); // Useless and can be removed.
 
 	xhci->cmd_ring_reserved_trbs = 0;
 	xhci->usb2_rhub.num_ports = 0;
