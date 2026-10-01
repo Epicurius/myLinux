@@ -908,7 +908,7 @@ void xhci_free_virt_device(struct xhci_hcd *xhci, struct xhci_virt_device *dev,
 							 &dev->eps[i],
 							 dev->tt_info);
 			xhci_clear_endpoint_bw_info(&dev->eps[i].bw_info);
-			xhci_dbg(xhci, "Slot %u endpoint %u removed from BW list\n", slot_id, i);
+			xhci_dbg(xhci, "NIK: Slot %u endpoint %u removed from BW list\n", slot_id, i);
 		}
 	}
 	/* If this is a hub, free the TT(s) from the TT list */
