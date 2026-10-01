@@ -1186,6 +1186,7 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 		for (int i = xhci->max_slots; i > 0; i--)
 			xhci_free_virt_devices_depth_first(xhci, i);
 
+		xhci_warn(xhci, "NIK: num_active_eps %d\n", xhci->num_active_eps);
 		xhci->num_active_eps = 0;
 		xhci_rh_bw_cleanup(xhci);
 
@@ -2131,14 +2132,14 @@ static int xhci_configure_endpoint_result(struct xhci_hcd *xhci,
 		break;
 	case COMP_RESOURCE_ERROR:
 		dev_warn(&udev->dev,
-			 "Not enough host controller resources for new device state.\n");
+			 "NIK: Not enough host controller resources for new device state.\n");
 		ret = -ENOMEM;
 		/* FIXME: can we allocate more resources for the HC? */
 		break;
 	case COMP_BANDWIDTH_ERROR:
 	case COMP_SECONDARY_BANDWIDTH_ERROR:
 		dev_warn(&udev->dev,
-			 "Not enough bandwidth for new device state.\n");
+			 "NIK: Not enough bandwidth for new device state.\n");
 		ret = -ENOSPC;
 		/* FIXME: can we go back to the old state? */
 		break;
@@ -2273,7 +2274,7 @@ static int xhci_reserve_host_resources(struct xhci_hcd *xhci,
 	added_eps = xhci_count_num_new_endpoints(xhci, ctrl_ctx);
 	if (xhci->num_active_eps + added_eps > xhci->limit_active_eps) {
 		xhci_dbg_trace(xhci, trace_xhci_dbg_quirks,
-				"Not enough ep ctxs: "
+				"NIK: Not enough ep ctxs: "
 				"%u active, need to add %u, limit is %u.",
 				xhci->num_active_eps, added_eps,
 				xhci->limit_active_eps);
@@ -2367,6 +2368,7 @@ static int xhci_check_tt_bw_table(struct xhci_hcd *xhci,
 	/* Find the bandwidth table for the root port this TT is attached to. */
 	bw_table = &xhci->rh_bw[virt_dev->rhub_port->hw_portnum].bw_table;
 	tt_info = virt_dev->tt_info;
+	xhci_warn(xhci, "NIK: bw_used %d\n", bw_table->bw_used);
 	/* If this TT already had active endpoints, the bandwidth for this TT
 	 * has already been added.  Removing all periodic endpoints (and thus
 	 * making the TT enactive) will only decrease the bandwidth used.
@@ -2485,7 +2487,7 @@ static int xhci_check_bw_table(struct xhci_hcd *xhci,
 				"Recalculating BW for rootport %u",
 				virt_dev->rhub_port->hw_portnum + 1);
 		if (xhci_check_tt_bw_table(xhci, virt_dev, old_active_eps)) {
-			xhci_warn(xhci, "Not enough bandwidth on HS bus for "
+			xhci_warn(xhci, "NIK: Not enough bandwidth on HS bus for "
 					"newly activated TT.\n");
 			return -ENOMEM;
 		}
@@ -2577,7 +2579,7 @@ static int xhci_check_bw_table(struct xhci_hcd *xhci,
 		 */
 		bw_used += bw_added;
 		if (bw_used > max_bandwidth) {
-			xhci_warn(xhci, "Not enough bandwidth. "
+			xhci_warn(xhci, "NIK: Not enough bandwidth. "
 					"Proposed: %u, Max: %u\n",
 				bw_used, max_bandwidth);
 			return -ENOMEM;
@@ -2610,7 +2612,7 @@ static int xhci_check_bw_table(struct xhci_hcd *xhci,
 
 	bw_used += bw_reserved;
 	if (bw_used > max_bandwidth) {
-		xhci_warn(xhci, "Not enough bandwidth. Proposed: %u, Max: %u\n",
+		xhci_warn(xhci, "NIK: Not enough bandwidth. Proposed: %u, Max: %u\n",
 				bw_used, max_bandwidth);
 		return -ENOMEM;
 	}
@@ -2993,7 +2995,7 @@ static int xhci_configure_endpoint(struct xhci_hcd *xhci,
 	if ((xhci->quirks & XHCI_EP_LIMIT_QUIRK) &&
 			xhci_reserve_host_resources(xhci, ctrl_ctx)) {
 		spin_unlock_irqrestore(&xhci->lock, flags);
-		xhci_warn(xhci, "Not enough host resources, "
+		xhci_warn(xhci, "NIK: Not enough host resources, "
 				"active endpoint contexts = %u\n",
 				xhci->num_active_eps);
 		return -ENOMEM;
@@ -3003,7 +3005,7 @@ static int xhci_configure_endpoint(struct xhci_hcd *xhci,
 		if ((xhci->quirks & XHCI_EP_LIMIT_QUIRK))
 			xhci_free_host_resources(xhci, ctrl_ctx);
 		spin_unlock_irqrestore(&xhci->lock, flags);
-		xhci_warn(xhci, "Not enough bandwidth\n");
+		xhci_warn(xhci, "NIK: Not enough bandwidth\n");
 		return -ENOMEM;
 	}
 
@@ -4209,7 +4211,7 @@ static int xhci_reserve_host_control_ep_resources(struct xhci_hcd *xhci)
 {
 	if (xhci->num_active_eps + 1 > xhci->limit_active_eps) {
 		xhci_dbg_trace(xhci, trace_xhci_dbg_quirks,
-				"Not enough ep ctxs: "
+				"NIK: Not enough ep ctxs: "
 				"%u active, need to add 1, limit is %u.",
 				xhci->num_active_eps, xhci->limit_active_eps);
 		return -ENOMEM;
@@ -4269,7 +4271,7 @@ int xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev)
 		ret = xhci_reserve_host_control_ep_resources(xhci);
 		if (ret) {
 			spin_unlock_irqrestore(&xhci->lock, flags);
-			xhci_warn(xhci, "Not enough host resources, "
+			xhci_warn(xhci, "NIK: Not enough host resources, "
 					"active endpoint contexts = %u\n",
 					xhci->num_active_eps);
 			goto disable_slot;
