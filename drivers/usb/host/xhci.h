@@ -1911,6 +1911,10 @@ int xhci_set_interrupter_moderation(struct xhci_interrupter *ir,
 				    u32 imod_interval);
 int xhci_enable_interrupter(struct xhci_interrupter *ir);
 int xhci_disable_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir);
+void xhci_drop_ep_from_interval_table(struct xhci_hcd *xhci, struct xhci_bw_info *ep_bw,
+				      struct xhci_interval_bw_table *bw_table,
+				      struct usb_device *udev, struct xhci_virt_ep *virt_ep,
+				      struct xhci_tt_bw_info *tt_info);
 
 /* xHCI ring, segment, TRB, and TD functions */
 dma_addr_t xhci_trb_virt_to_dma(struct xhci_segment *seg, union xhci_trb *trb);

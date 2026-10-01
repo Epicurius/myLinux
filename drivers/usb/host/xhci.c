@@ -1185,6 +1185,7 @@ int xhci_resume(struct xhci_hcd *xhci, bool power_lost, bool is_auto_resume)
 		for (int i = xhci->max_slots; i > 0; i--)
 			xhci_free_virt_devices_depth_first(xhci, i);
 
+		xhci->num_active_eps = 0;
 		xhci_rh_bw_cleanup(xhci);
 
 		xhci->cmd_ring_reserved_trbs = 0;
@@ -2642,7 +2643,7 @@ static unsigned int xhci_get_ss_bw_consumed(struct xhci_bw_info *ep_bw)
 
 }
 
-static void xhci_drop_ep_from_interval_table(struct xhci_hcd *xhci,
+void xhci_drop_ep_from_interval_table(struct xhci_hcd *xhci,
 		struct xhci_bw_info *ep_bw,
 		struct xhci_interval_bw_table *bw_table,
 		struct usb_device *udev,

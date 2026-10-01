@@ -901,9 +901,13 @@ void xhci_free_virt_device(struct xhci_hcd *xhci, struct xhci_virt_device *dev,
 		 */
 
 		if (!list_empty(&dev->eps[i].bw_endpoint_list)) {
-			list_del_init(&dev->eps[i].bw_endpoint_list);
-			xhci_dbg(xhci, "Slot %u endpoint %u not removed from BW list!\n",
-				 slot_id, i);
+			xhci_drop_ep_from_interval_table(xhci,
+							 &dev->eps[i].bw_info,
+							 dev->bw_table,
+							 dev->udev,
+							 &dev->eps[i],
+							 dev->tt_info);
+			// Does not clear all. e.g. ss_bw_in.
 		}
 	}
 	/* If this is a hub, free the TT(s) from the TT list */
